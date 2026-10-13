@@ -116,11 +116,21 @@ function statements(source) {
 }
 
 /**
+ * A CDS data definition (DDL source): its sources, joins, associations,
+ * parameters and the fields each element is made of.
+ * @param {string} source DDL source
+ * @returns {import("./types").CdsDefinition}
+ */
+function cds(source) {
+  return JSON.parse(native.cdsJson(source));
+}
+
+/**
  * Compact text of one ABAP source file, e.g. for a language model:
  * "symbols" (definitions written like ABAP), "calls" and "db" (one line each),
- * "logic" (per procedure its effects with the statements and conditions).
- * Rows tell where to find things.
- * @param {"symbols" | "calls" | "db" | "logic"} analysis
+ * "logic" (per procedure its effects with the statements and conditions);
+ * "cds" for a CDS data definition. Rows tell where to find things.
+ * @param {"symbols" | "calls" | "db" | "logic" | "cds"} analysis
  * @param {string} source ABAP source code
  * @returns {string}
  */
@@ -155,6 +165,8 @@ const dbAccessAsync = (source) => parsed(native.dbAccessJsonAsync(source));
 const callsAsync = (source) => parsed(native.callsJsonAsync(source));
 /** @param {string} source @returns {Promise<import("./types").FileLogic>} */
 const logicAsync = (source) => parsed(native.logicJsonAsync(source));
+/** @param {string} source @returns {Promise<import("./types").CdsDefinition>} */
+const cdsAsync = (source) => parsed(native.cdsJsonAsync(source));
 /** @param {string} source @returns {Promise<import("./types").StatementInfo[]>} */
 const statementsAsync = (source) => parsed(native.statementsJsonAsync(source));
 
@@ -192,8 +204,8 @@ const objectTextAsync = (analysis, objects, options, depth = 1) =>
 
 module.exports = {
   symbols, dbAccess, calls, callGraph, fetchSource, logic, logicObject, statements,
-  text, objectText,
+  cds, text, objectText,
   symbolsAsync, dbAccessAsync, callsAsync, callGraphAsync, fetchSourceAsync, logicAsync,
-  logicObjectAsync, statementsAsync, textAsync, objectTextAsync,
+  logicObjectAsync, statementsAsync, cdsAsync, textAsync, objectTextAsync,
   version: native.version,
 };

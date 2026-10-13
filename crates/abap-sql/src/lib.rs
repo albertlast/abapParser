@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use abap_model as m;
 use abap_syntax::{File, Statement, StatementKind as K, Token, TokenKind};
 
+pub mod cds;
 pub mod hana;
 
 /// Statement kinds that access the database.

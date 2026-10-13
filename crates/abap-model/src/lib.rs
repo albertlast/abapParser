@@ -784,8 +784,28 @@ pub enum DataScope {
     Global,
     /// a database table, view or CDS entity; names are upper case
     Database,
+    /// data kept outside the program: ABAP memory, SAP memory, files,
+    /// shared buffers; named with the kind, e.g. `memory:ZORDERS`
+    External,
     /// constants of other classes, system fields, or not known
     Other,
+}
+
+/// Where data outside of the program and the database is kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Store {
+    /// ABAP memory, `EXPORT ... TO MEMORY ID`: shared by the programs of a
+    /// call sequence, e.g. through SUBMIT ... AND RETURN
+    Memory,
+    /// SAP memory, `SET/GET PARAMETER ID`: shared by the sessions of a user
+    Parameter,
+    /// a file on the application server, `OPEN/READ/TRANSFER DATASET`
+    File,
+    /// `EXPORT ... TO SHARED BUFFER`
+    SharedBuffer,
+    /// `EXPORT ... TO SHARED MEMORY`
+    SharedMemory,
 }
 
 /// A data object read or written by a statement.
@@ -839,16 +859,24 @@ pub struct Dependency {
     pub tables: Vec<String>,
 }
 
-/// A database table read or written by a statement.
+/// A database table, or data kept outside the program (`store`), read or
+/// written by a statement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TableAccess {
     /// table, view or CDS entity, upper case; a dynamic name resolved from
-    /// a constant, or the operand as written in parentheses
+    /// a constant, or the operand as written in parentheses. For a store
+    /// its kind and key: `memory:ZORDERS`, `parameter:VKO`,
+    /// `file:/tmp/out.csv`, `file:(lv_file)`
     pub name: String,
     /// `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY,
-    /// DELETE and MERGE
+    /// DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER,
+    /// TRANSFER and their deletes
     pub access: AccessKind,
+    /// for stores: `select` when read, `modify` when written, `delete`
     pub operation: DbOperation,
+    /// data kept outside the program and the database
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store: Option<Store>,
     /// accessed by the called procedure, not by the statement itself
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<BlockRef>,
@@ -926,7 +954,8 @@ pub struct Effect {
     /// data read from before the procedure that the values depend on,
     /// through assignments and through the conditions deciding them
     pub inputs: Vec<String>,
-    /// database tables read that the values depend on, upper case
+    /// database tables and stores read that the values depend on, upper
+    /// case, stores named like `memory:ZORDERS`
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub tables: Vec<String>,
     /// the called procedures that write it, when not written directly
@@ -974,6 +1003,101 @@ pub struct FileLogic {
     /// provider errors, e.g. authorization failures
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<String>,
+}
+
+/// A CDS definition, from its DDL source: what it reads and what its
+/// elements are made of.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsDefinition {
+    pub schema_version: u32,
+    /// as written after DEFINE or EXTEND, lower case: `view entity`, `root
+    /// view entity`, `view`, `table function`, `abstract entity`, `custom
+    /// entity`, `hierarchy`, `extend view entity` ...
+    pub kind: String,
+    /// the entity as written
+    pub name: String,
+    /// `@AbapCatalog.sqlViewName` of a classic view, upper case
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sql_view: Option<String>,
+    /// `@EndUserText.label`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// `WITH PARAMETERS`
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub parameters: Vec<CdsParameter>,
+    /// data sources: SELECT FROM, joins, PROJECTION ON, and the selects
+    /// joined by UNION; upper case
+    pub sources: Vec<CdsSource>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub associations: Vec<CdsAssociation>,
+    pub elements: Vec<CdsElement>,
+    /// WHERE as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub where_text: Option<String>,
+    /// a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implemented_by: Option<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsParameter {
+    pub name: String,
+    /// as written
+    pub typing: String,
+}
+
+/// A data source of a CDS view.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsSource {
+    /// table, view or entity, upper case
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    /// `from`, `inner join`, `left outer join`, `right outer join`, `cross
+    /// join`, `projection`, or `union` for the FROM of a following select
+    pub role: String,
+    /// ON of a join as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsAssociation {
+    /// the name it is used with, e.g. `_Text`
+    pub name: String,
+    /// the entity it leads to, upper case
+    pub target: String,
+    /// e.g. `[0..*]`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cardinality: Option<String>,
+    /// COMPOSITION OF instead of ASSOCIATION TO; TO PARENT for the other way
+    pub kind: String,
+    /// ON as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on: Option<String>,
+}
+
+/// An element of the select list, or a field of an entity without select.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsElement {
+    /// the name it has in the entity: the alias, else the last part
+    pub name: String,
+    pub key: bool,
+    /// the expression as written, or the type of a field
+    pub text: String,
+    /// the fields it is made of, as `SOURCE.FIELD` upper case with the
+    /// alias resolved; through an association `_ASSOC.FIELD`; parameters
+    /// as `$PARAMETERS.P`
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub fields: Vec<String>,
+    /// an association exposed in the element list
+    pub association: bool,
+}
+
+/// JSON Schema of [`CdsDefinition`].
+pub fn cds_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(CdsDefinition)).expect("schema serializes")
 }
 
 /// JSON Schema of [`FileSymbols`].

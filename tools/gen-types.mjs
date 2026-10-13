@@ -19,7 +19,9 @@ const schema = JSON.parse(execFileSync("cargo", ["run", "-q", "-p", "abap-cli", 
 
 // all named definitions, the two roots included
 const defs = {...schema.symbols.$defs, ...schema.statements.$defs, ...schema.db_access.$defs,
-  ...schema.calls.$defs, ...schema.call_graph.$defs, ...schema.logic.$defs};
+  ...schema.calls.$defs, ...schema.call_graph.$defs, ...schema.logic.$defs, ...schema.cds.$defs};
+const {$defs: _g, $schema: _h, ...cds} = schema.cds;
+defs.CdsDefinition = cds;
 const {$defs: _e, $schema: _f, ...fileLogic} = schema.logic;
 defs.FileLogic = fileLogic;
 const {$defs: _c, $schema: _d, ...callGraph} = schema.call_graph;
@@ -169,7 +171,9 @@ function generatePy() {
 
 const outputs = [[tsFile, generateTs()], [pyFile, generatePy()]];
 if (process.argv.includes("--check")) {
-  const stale = outputs.filter(([f, text]) => !fs.existsSync(f) || fs.readFileSync(f, "utf8") !== text);
+  // a checkout on Windows may have CRLF line ends
+  const read = (f) => fs.readFileSync(f, "utf8").replace(/\r\n/g, "\n");
+  const stale = outputs.filter(([f, text]) => !fs.existsSync(f) || read(f) !== text);
   if (stale.length > 0) {
     console.error("out of date, run node tools/gen-types.mjs: " + stale.map(([f]) => path.relative(root, f)).join(", "));
     process.exit(1);

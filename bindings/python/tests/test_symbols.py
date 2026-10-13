@@ -102,6 +102,12 @@ class SymbolsTest(unittest.TestCase):
         db = [e for e in fm["effects"] if e["scope"] == "database"]
         self.assertTrue(db and all(e["via"] for e in db))
 
+    def test_cds(self):
+        d = abap_parser.cds("define view entity zi_c as select from t005 { key land1 as Country }")
+        self.assertEqual(d["kind"], "view entity")
+        self.assertEqual(d["elements"][0]["fields"], ["T005.LAND1"])
+        self.assertIn("key Country = T005.LAND1", abap_parser.text("cds", "define view entity zi_c as select from t005 { key land1 as Country }"))
+
     def test_text(self):
         t = abap_parser.text("symbols", SOURCE)
         self.assertTrue(t.startswith('CLASS zcl_demo DEFINITION PUBLIC FINAL.  " 2-7\n'), t)

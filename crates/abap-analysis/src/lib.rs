@@ -6,6 +6,7 @@ mod context;
 mod db;
 mod ddic;
 mod logic;
+mod stores;
 mod symbols;
 mod workspace;
 
@@ -15,6 +16,12 @@ pub use context::statement_blocks;
 pub use db::{db_access, db_access_of};
 pub use logic::{logic, logic_of};
 pub use symbols::{symbols, symbols_of};
+
+/// A CDS data definition: its sources, joins, associations, parameters and
+/// the fields each element is made of.
+pub fn cds(source: &str) -> m::CdsDefinition {
+    abap_sql::cds::parse(source)
+}
 pub mod text;
 pub use workspace::{merge_symbols, Object, Unit, Workspace};
 
@@ -110,6 +117,10 @@ pub mod json {
         serde_json::to_string(&super::statements(source)).expect("statements serialize")
     }
 
+    pub fn cds(source: &str) -> String {
+        serde_json::to_string(&super::cds(source)).expect("cds serializes")
+    }
+
     /// Compact text of one source, see [`crate::text`]: `symbols`, `calls`,
     /// `db` or `logic`.
     pub fn text(analysis: &str, source: &str) -> Result<String, String> {
@@ -119,9 +130,10 @@ pub mod json {
             "calls" => text::calls(&super::calls(source)),
             "db" => text::db_access(&super::db_access(source)),
             "logic" => text::logic(&super::logic(source)),
+            "cds" => text::cds(&super::cds(source)),
             other => {
                 return Err(format!(
-                    "unknown analysis {other:?}, expected symbols, calls, db or logic"
+                    "unknown analysis {other:?}, expected symbols, calls, db, logic or cds"
                 ))
             }
         })
@@ -145,6 +157,10 @@ pub mod json {
         let first = objects.first().ok_or("no object given")?;
         let workspace = workspace(options)?;
         match analysis {
+            "symbols" if first.kind == abap_source::ObjectKind::Ddls => workspace
+                .unit(first)
+                .map(|u| text::cds(&super::cds(u.file.source())))
+                .ok_or_else(|| format!("{first} not found")),
             "symbols" => workspace
                 .object(first)
                 .map(|o| text::symbols(&o.symbols))
