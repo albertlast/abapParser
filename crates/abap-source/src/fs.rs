@@ -1,6 +1,7 @@
 //! Source files on disk: abapGit layout (`zcl_x.clas.abap`,
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
-//! namespaces), or plain `name.abap` files taken as programs.
+//! namespaces), or plain `name.abap` files taken as programs; dictionary
+//! types from `name.tabl.xml` and `name.dtel.xml`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ pub struct FsProvider {
 }
 
 impl FsProvider {
-    /// Indexes all `.abap` files below the given folders.
+    /// Indexes all `.abap` files and dictionary types below the given folders.
     pub fn new(roots: Vec<PathBuf>) -> Result<Self> {
         let mut p = FsProvider {
             roots: roots.clone(),
@@ -61,7 +62,7 @@ impl FsProvider {
                 self.scan(&path)?;
             } else if path
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("abap"))
+                .is_some_and(|e| e.eq_ignore_ascii_case("abap") || e.eq_ignore_ascii_case("xml"))
             {
                 self.add_file(&path);
             }
@@ -139,6 +140,13 @@ fn local_name(name: &str) -> &str {
 /// The object of a file name, and for function modules their group.
 fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
     let lower = file.to_ascii_lowercase();
+    if let Some(stem) = lower.strip_suffix(".xml") {
+        return match stem.split('.').collect::<Vec<_>>().as_slice() {
+            [name, "tabl"] => Some((SourceRef::table(&decode(name)), None)),
+            [name, "dtel"] => Some((SourceRef::data_element(&decode(name)), None)),
+            _ => None,
+        };
+    }
     let stem = lower.strip_suffix(".abap")?;
     let parts: Vec<&str> = stem.split('.').collect();
     let r = match parts.as_slice() {
@@ -278,6 +286,9 @@ mod tests {
             Some(("PROG:/ABC/LGRPTOP".into(), None))
         );
         assert_eq!(p("ZPLAIN.abap"), Some(("PROG:ZPLAIN".into(), None)));
+        assert_eq!(p("zs_x.tabl.xml"), Some(("TABL:ZS_X".into(), None)));
+        assert_eq!(p("#abc#d.dtel.xml"), Some(("DTEL:/ABC/D".into(), None)));
+        assert_eq!(p("zcl_a.clas.xml"), None);
         assert_eq!(p("zcl_a.clas.xml"), None);
     }
 

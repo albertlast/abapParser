@@ -283,7 +283,22 @@ impl AdtProvider {
             encode(&key).to_ascii_uppercase().replace("%2F", "%2f")
         );
         let xml = self.get(&path, "application/xml")?.unwrap_or_default();
-        let group = group_from_search(&xml, &key);
+        let mut group = group_from_search(&xml, &key);
+        // lock modules are generated and not in the search; their lock
+        // object names them with their group
+        if let (None, Some(lock_object)) = (
+            &group,
+            key.strip_prefix("ENQUEUE_")
+                .or_else(|| key.strip_prefix("DEQUEUE_")),
+        ) {
+            let path = format!(
+                "/sap/bc/adt/ddic/lockobjects/sources/{}",
+                encode(lock_object)
+            );
+            if let Some(xml) = self.get(&path, "application/vnd.sap.adt.lockobjects.v1+xml")? {
+                group = group_from_search(&xml, &key);
+            }
+        }
         self.groups.lock().unwrap().insert(key, group.clone());
         Ok(group)
     }
@@ -388,6 +403,25 @@ impl SourceProvider for AdtProvider {
                     &format!("/sap/bc/adt/functions/groups/{group}/fmodules/{name}/source/main"),
                 )
             }
+            (ObjectKind::Tabl, _) => {
+                if let Some(s) = self.source(
+                    r,
+                    &format!("/sap/bc/adt/ddic/structures/{name}/source/main"),
+                )? {
+                    return Ok(Some(s));
+                }
+                self.source(r, &format!("/sap/bc/adt/ddic/tables/{name}/source/main"))
+            }
+            (ObjectKind::Dtel, _) => {
+                let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
+                Ok(self
+                    .get(&path, "application/vnd.sap.adt.dataelements.v2+xml")?
+                    .map(|text| Source {
+                        reference: r.clone(),
+                        text,
+                        origin: format!("{}{}", self.config.url, path),
+                    }))
+            }
         }
     }
 
@@ -488,6 +522,16 @@ mod tests {
                 200,
                 "FUNCTION z_fm.",
             ),
+            (
+                "/sap/bc/adt/ddic/lockobjects/sources/ez_order",
+                200,
+                r#"<enqu:lockModules><enqu:lockModule adtcore:uri="/sap/bc/adt/functions/groups/%2f1bcdwben%2fsen0001/fmodules/enqueue_ez_order" adtcore:name="ENQUEUE_EZ_ORDER"/></enqu:lockModules>"#,
+            ),
+            (
+                "/sap/bc/adt/functions/groups/%2f1bcdwben%2fsen0001/fmodules/enqueue_ez_order/source/main",
+                200,
+                "FUNCTION enqueue_ez_order.",
+            ),
         ]);
         let mut config = AdtConfig::new(&url, "user", "secret");
         config.client = Some("100".to_string());
@@ -515,6 +559,13 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(fm.text, "FUNCTION z_fm.");
+
+        // generated lock module, not in the search: group from its lock object
+        let lock = adt
+            .fetch(&SourceRef::function_module("ENQUEUE_EZ_ORDER"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(lock.text, "FUNCTION enqueue_ez_order.");
 
         assert!(adt
             .fetch(&SourceRef::class("ZCL_MISSING"))

@@ -4,6 +4,7 @@ mod args;
 mod calls;
 mod context;
 mod db;
+mod ddic;
 mod logic;
 mod symbols;
 mod workspace;

@@ -3,7 +3,8 @@
 //!
 //! Objects are addressed with [`SourceRef`], written like `PROG:ZREPORT`,
 //! `CLAS:ZCL_ORDERS`, `CLAS:ZCL_ORDERS/implementations`, `INTF:ZIF_X`,
-//! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`.
+//! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`; dictionary types as
+//! `TABL:BAPIRET2` (structures and tables) and `DTEL:XUBNAME`.
 
 #[cfg(feature = "adt")]
 mod adt;
@@ -34,6 +35,11 @@ pub enum ObjectKind {
     Fugr,
     /// function module
     Func,
+    /// dictionary structure or table: ADT gives its DDL source, abapGit
+    /// its `.tabl.xml`
+    Tabl,
+    /// dictionary data element: ADT and abapGit give XML
+    Dtel,
 }
 
 impl ObjectKind {
@@ -44,6 +50,8 @@ impl ObjectKind {
             ObjectKind::Intf => "INTF",
             ObjectKind::Fugr => "FUGR",
             ObjectKind::Func => "FUNC",
+            ObjectKind::Tabl => "TABL",
+            ObjectKind::Dtel => "DTEL",
         }
     }
 }
@@ -115,6 +123,14 @@ impl SourceRef {
         Self::new(ObjectKind::Func, name)
     }
 
+    pub fn table(name: &str) -> Self {
+        Self::new(ObjectKind::Tabl, name)
+    }
+
+    pub fn data_element(name: &str) -> Self {
+        Self::new(ObjectKind::Dtel, name)
+    }
+
     pub fn with_part(mut self, part: ClassPart) -> Self {
         self.part = Some(part);
         self
@@ -142,7 +158,7 @@ impl fmt::Display for SourceRef {
 impl FromStr for SourceRef {
     type Err = String;
 
-    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC
+    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -153,6 +169,8 @@ impl FromStr for SourceRef {
             "INTF" => ObjectKind::Intf,
             "FUGR" => ObjectKind::Fugr,
             "FUNC" => ObjectKind::Func,
+            "TABL" => ObjectKind::Tabl,
+            "DTEL" => ObjectKind::Dtel,
             other => return Err(format!("unknown object kind {other:?}")),
         };
         // names may contain namespaces like /ABC/ZCL_X; a part follows the

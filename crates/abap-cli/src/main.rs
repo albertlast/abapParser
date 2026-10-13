@@ -20,7 +20,8 @@ across objects, sources from folders and/or an SAP system:
                                   other objects followed N hops (default 1)
   fetch <object>                  print the source of an object
   objects are written KIND:NAME, e.g. CLAS:ZCL_ORDERS, PROG:ZREPORT, FUNC:Z_FM,
-  INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations
+  INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations; dictionary types
+  TABL:BAPIRET2 (structures, tables) and DTEL:XUBNAME can be fetched
 
 source options:
   --src <dir>          folder with abapGit or .abap files, repeatable

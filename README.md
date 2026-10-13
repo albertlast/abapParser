@@ -136,14 +136,14 @@ Not covered: the data flow inside SQLScript in the logic API; dynamic SQL (`EXEC
 - constructors, from `NEW` and `CREATE OBJECT`
 - `CALL FUNCTION`, `PERFORM`, `SUBMIT`, transactions, `CALL TRANSFORMATION` and `INCLUDE`
 
-Each call has its processing block, receiver, target class, options like `DESTINATION` or `IN UPDATE TASK`, and a `dynamic` flag. Receiver types come from declarations, parameters, attributes and inline `DATA(x) = NEW ...`. Chains like `zcl_factory=>get( )->run( )` are typed through returning parameters. Dynamic names written as literals, `('CL_X')=>('METH')`, count as static.
+Each call has its processing block, receiver, target class, options like `DESTINATION` or `IN UPDATE TASK`, and a `dynamic` flag. Receiver types come from declarations, parameters, attributes and inline `DATA(x) = NEW ...` or `x = NEW #( )`. References inside structures are followed, `ls_node-idref->get( )` or `lr_node->idref->get( )`, with local types and dictionary structures. Data elements typed as a reference, `io_id TYPE zid_ref`, lead to their class or interface. Chains like `zcl_factory=>get( )->run( )` are typed through returning parameters. Dynamic names written as literals, `('CL_X')=>('METH')`, count as static.
 
 `call_graph` follows calls across objects. It loads them from source providers:
 
 | Provider | Reads |
 |---|---|
-| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files |
-| SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules. A function module's group is found through the repository search. Uses the operating system's certificate store, so corporate CAs work |
+| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml` |
+| SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
 | cache | sources fetched from the SAP system, one folder per system and client |
 
 Folders are asked first, then the SAP system. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
@@ -162,7 +162,7 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 }, 2);
 ```
 
-The ADT provider only reads. It is tested against the mock server below, not yet against a live system.
+The ADT provider only reads. It is tested against the mock server below and by hand against the SAP ABAP Cloud Developer Trial.
 
 ### Testing without an SAP system
 
