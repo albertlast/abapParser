@@ -331,7 +331,7 @@ class Declaration(_DeclarationRequired, total=False):
 class Dependency(TypedDict):
     """What a value written by a called procedure depends on there, in names of the caller."""
     arguments: bool
-    """the value depends on parameters, so on the arguments of the call"""
+    """the value depends on arguments that could not be matched to the parameters, e.g. of a dynamic call; matched arguments are in `reads`"""
     reads: List[str]
     """data read through the call: attributes, global data"""
     tables: List[str]

@@ -163,6 +163,7 @@ The ADT provider only reads. It is tested against the mock server below, not yet
 - programs and includes
 - classes with their includes, interfaces, function groups and modules
 - the repository search that finds a function module's group
+- the where-used list of an interface, a POST that needs the CSRF token and the session cookie handed out with it
 
 Requests need basic authentication, and with `--client` only that client is accepted. The logon comes from `ABAP_ADT_USER` and `ABAP_ADT_PASSWORD`, or is `DEVELOPER`/`mock`, so a client started with the same environment logs on. Your own projects can use it to test code that loads ABAP from a system: keep part of the code locally and let the rest come over ADT.
 
@@ -181,10 +182,10 @@ In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `
 - **Conditions:** parsed into a tree of AND, OR, NOT, comparisons, `IS INITIAL`/`BOUND`/`ASSIGNED`/`INSTANCE OF`, `IN` and `BETWEEN`. Operands are classified as literal (with its value), data, call, constructor or arithmetic. A WHEN becomes `operand = value OR ...`.
 - **Guards:** every condition that holds when a step runs, outermost first. ELSE and ELSEIF get the earlier conditions negated. Statements after `CHECK c` are guarded by `c`. Statements after `IF c. RETURN. ENDIF.` are guarded by `NOT c`.
 - **Reads and writes:** each data object a statement reads, writes or changes in place (`APPEND ... TO itab`), with its position and scope: local, parameter, attribute, global (declared at program level, also in event blocks) or other.
-- **Field symbols and references:** a write through `<fs>` or `lr->` is a write of the data they point to, as bound anywhere in the procedure by `ASSIGN`, `LOOP AT ... ASSIGNING`, `READ TABLE ... REFERENCE INTO`, `GET REFERENCE OF` or `REF #( )`. Such accesses name the field symbol or reference in `through`. Binding a field symbol to a table does not change the table.
+- **Field symbols and references:** a write through `<fs>` or `lr->` is a write of the data they point to. That is the data bound to them on the way to the statement, by `ASSIGN`, `LOOP AT ... ASSIGNING`, `READ TABLE ... REFERENCE INTO`, `GET REFERENCE OF`, `REF #( )`, or a call returning a reference. Such accesses name the field symbol or reference in `through`. Binding a field symbol to a table does not change the table. A write through a reference parameter is a write of what the caller passed: `set( lr )` changes what `lr` points to, `touch( lo )` changes `lo->mv_x` when `touch` writes `io->mv_x`.
 - **Database tables:** each step lists the tables it reads, and the table that INSERT, UPDATE, MODIFY, DELETE or MERGE writes. Open SQL and native SQL are both covered.
 - **Data flow:** each read lists the steps whose writes may provide its value, and whether the value may come from before the procedure. Computed by reaching definitions over the control flow graph, which is also part of the output.
-- **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. Each value written through a call carries in `depends` what it depends on in the called procedure: data read there, tables read there, and whether it depends on the arguments of the call. A call through an interface is followed into each implementation in the sources, if there are no more than 10. Calls through aliases resolve to the interface method.
+- **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. Arguments are matched to parameters by name, by position for PERFORM, and the single unnamed argument to the first importing parameter. Each value a call writes, into an argument, the receiving variable or through the called procedure, carries in `depends` what it depends on there: the caller's data passed to the parameters it uses, data read there, tables read there. A call through an interface is followed into each implementation, if there are no more than 10. Calls through aliases resolve to the interface method. A dynamic call like `CALL METHOD (lv_name)` or `CALL FUNCTION lv_fm` is followed into the names its operand can have on the way to the call, from literals assigned to it and from constants; the operand then counts as an input of what the call writes.
 - **Effects:** every parameter, attribute, global or database table the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
 
 ```abap
@@ -220,10 +221,10 @@ abap logic FUGR:ZORDERS --src ./src --depth 2
 ```
 
 Not covered yet:
-- Dynamic calls are not followed. A method redefined in a subclass is followed into the class the call names.
-- Implementations of global interfaces are found in source folders; an SAP system is not asked for them yet.
-- What a field symbol or reference points to is collected per procedure, not along the control flow, and not across calls.
-- Exporting and changing arguments of a call depend on all arguments, since parameters are not matched to arguments yet.
+- A method redefined in a subclass is followed into the class the call names, not into the redefinitions.
+- Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
+- Implementations of global interfaces come from the source folders, or from the where-used list of an SAP system through ADT. The ADT request follows the API the ABAP Development Tools use, and is tested against the mock server only, not yet against a live system.
+- A field symbol or reference stored in a structure, table or attribute is not followed.
 
 ## Layout
 

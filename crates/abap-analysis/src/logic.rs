@@ -18,9 +18,10 @@ use abap_syntax::operands::operands;
 use abap_syntax::structure;
 use abap_syntax::{decl, join_tokens, File, Statement, StatementKind as K, Token};
 
+use crate::args::{call_args, Actual, At, CallArgs};
 use crate::calls::{span_of, type_info, CallExtractor, SymbolsResolver};
 use crate::context::statement_blocks;
-use crate::db::db_access_with;
+use crate::db::{db_access_with, literal_constants};
 use crate::workspace::{Object, Workspace};
 
 /// The logic of the procedures of an ABAP source.
@@ -99,24 +100,53 @@ struct Deps {
     /// data outside of the procedure
     reads: Vec<(String, m::DataScope)>,
     /// parameters, so the arguments of a call
-    arguments: bool,
+    formals: Vec<String>,
     tables: Vec<String>,
+}
+
+/// A parameter a procedure writes.
+#[derive(Clone)]
+struct ParamWrite {
+    formal: String,
+    deps: Deps,
+    /// written through the reference it holds: the paths behind it, like
+    /// `->*` or `->mv_x`
+    through: Vec<String>,
+    /// data outside of the procedure a reference parameter is bound to
+    refs: Vec<(String, m::DataScope)>,
 }
 
 /// What a procedure reads and writes outside of itself, as its callers see it.
 #[derive(Clone, Default)]
 struct Summary {
+    parameters: Vec<m::ProcedureParameter>,
     reads: Vec<(String, m::DataScope)>,
     writes: Vec<(String, m::DataScope, Deps)>,
+    params: Vec<ParamWrite>,
     /// tables read, and tables written with what the rows depend on
     tables: Vec<(m::TableAccess, Option<Deps>)>,
+}
+
+/// A field symbol or reference bound by a step to data: (step, alias,
+/// target, scope of the target).
+type Binding = (u32, String, String, m::DataScope);
+
+/// A call to follow.
+struct PendingCall {
+    step: u32,
+    call: m::Call,
+    args: Option<CallArgs>,
+    /// data deciding which procedure runs: the operand of a dynamic call
+    deciding: Vec<String>,
 }
 
 /// A procedure with the calls of its steps, before and after the data flow.
 struct Proc {
     procedure: m::Procedure,
-    /// calls with the step they are in, until they are followed
-    calls: Vec<(u32, m::Call)>,
+    /// calls with the step they are in and their arguments, until followed
+    calls: Vec<PendingCall>,
+    /// references bound through calls, e.g. `lr = get_ref( )`
+    bindings: Vec<Binding>,
     summary: Option<Summary>,
     /// being analyzed: a call back to it is recursion
     running: bool,
@@ -363,32 +393,50 @@ impl<'w> Engine<'w> {
         }
         p.running = true;
         let calls = std::mem::take(&mut p.calls);
-        for (step, call) in &calls {
-            for (o2, k2) in self.callees(o, call) {
+        for c in &calls {
+            for (o2, k2) in self.callees(o, &c.call) {
                 if (o2, k2) != (o, k) {
-                    self.apply(o, k, *step, call, o2, k2);
+                    self.apply(o, k, c, o2, k2);
                 }
             }
         }
         let p = &mut self.objects[o].procs[k];
+        let parameters: HashSet<String> = p
+            .procedure
+            .parameters
+            .iter()
+            .map(|x| x.name.clone())
+            .collect();
+        let bound = aliases(
+            &mut p.procedure.body,
+            &p.procedure.flow,
+            &p.bindings,
+            &parameters,
+        );
         data_flow(&mut p.procedure.body, &p.procedure.flow);
         p.procedure.effects = effects(&p.procedure.body);
-        let s = summarize(&p.procedure);
+        let s = summarize(&p.procedure, &bound);
         p.summary = Some(s.clone());
         p.running = false;
         s
     }
 
     /// Adds what the procedure `k2` of object `o2` reads and writes to the
-    /// step of a call to it.
-    fn apply(&mut self, o: usize, k: usize, step: u32, call: &m::Call, o2: usize, k2: usize) {
+    /// step of a call to it, and what the data passed to its parameters
+    /// gets.
+    fn apply(&mut self, o: usize, k: usize, pending: &PendingCall, o2: usize, k2: usize) {
+        let (step, call, args) = (pending.step, &pending.call, pending.args.as_ref());
         let s = self.summary(o2, k2);
         let via = self.objects[o2].procs[k2].procedure.block.clone();
         let other = (o2 != o)
             .then(|| self.objects[o2].reference.as_ref())
             .flatten()
             .map(|r| r.name.to_ascii_lowercase());
-        let caller = &mut self.objects[o].procs[k].procedure;
+        let Proc {
+            procedure: caller,
+            bindings,
+            ..
+        } = &mut self.objects[o].procs[k];
         let receiver = receiver(call, caller.block.class.as_deref(), o2 != o);
         let Some(st) = find_step_mut(&mut caller.body, step) else {
             return;
@@ -399,10 +447,40 @@ impl<'w> Engine<'w> {
         };
         let map =
             |name: &str, scope: m::DataScope| map_name(name, scope, &receiver, other.as_deref());
-        let dependency = |d: &Deps| m::Dependency {
-            reads: d.reads.iter().filter_map(|(n, sc)| map(n, *sc)).collect(),
-            arguments: d.arguments,
-            tables: d.tables.clone(),
+        let bound: Vec<(String, &Actual)> = args.map(|a| a.bind(&s.parameters)).unwrap_or_default();
+        // the caller's own reads: arguments and receiver
+        let own_reads: Vec<(String, At)> = st
+            .reads
+            .iter()
+            .filter(|r| r.via.is_none())
+            .map(|r| (r.name.clone(), position_of(r)))
+            .collect();
+        let reads_for = |formals: &[String]| -> Vec<String> {
+            let mut out: Vec<String> = Vec::new();
+            for (name, p) in &own_reads {
+                let passed = bound
+                    .iter()
+                    .any(|(f, a)| formals.contains(f) && a.contains(*p));
+                let receiving = args.is_some_and(|a| a.in_receiver(*p));
+                let deciding = pending.deciding.contains(name);
+                if (passed || receiving || deciding) && !out.contains(name) {
+                    out.push(name.clone());
+                }
+            }
+            out
+        };
+        let dependency = |d: &Deps| {
+            let mut reads: Vec<String> = d.reads.iter().filter_map(|(n, sc)| map(n, *sc)).collect();
+            for n in reads_for(&d.formals) {
+                if !reads.contains(&n) {
+                    reads.push(n);
+                }
+            }
+            m::Dependency {
+                reads,
+                arguments: args.is_none() && !d.formals.is_empty(),
+                tables: d.tables.clone(),
+            }
         };
         let access = |name: String, scope, access, depends| m::DataAccess {
             path: name.clone(),
@@ -453,7 +531,134 @@ impl<'w> Engine<'w> {
                 st.tables.push(t);
             }
         }
+
+        // the data passed to the parameters it writes
+        let Some(args) = args else { return };
+        let returning = s
+            .parameters
+            .iter()
+            .find(|p| p.direction == m::Direction::Returning)
+            .map(|p| p.name.as_str());
+        let mut added = Vec::new();
+        for pw in &s.params {
+            let mut dep = dependency(&pw.deps);
+            let actuals: Vec<&Actual> = bound
+                .iter()
+                .filter(|(f, _)| *f == pw.formal)
+                .map(|(_, a)| *a)
+                .collect();
+            // `x = m( )`: the result goes to what the statement writes
+            // outside of the call, and the other operands count too
+            let receiving = returning == Some(pw.formal.as_str()) && actuals.is_empty();
+            if receiving {
+                for (name, p) in &own_reads {
+                    if !args.in_range(*p) && !dep.reads.contains(name) {
+                        dep.reads.push(name.clone());
+                    }
+                }
+            }
+            let mut written = false;
+            for w in st.writes.iter_mut().filter(|w| w.via.is_none()) {
+                let p = position_of(w);
+                let target =
+                    actuals.iter().any(|a| a.contains(p)) || (receiving && !args.in_range(p));
+                if !target {
+                    continue;
+                }
+                written = true;
+                w.depends = Some(match w.depends.take() {
+                    Some(old) => merge(old, &dep),
+                    None => dep.clone(),
+                });
+                for (t, sc) in &pw.refs {
+                    if let Some(t) = map(t, *sc) {
+                        bindings.push((step, w.name.clone(), t, *sc));
+                    }
+                }
+            }
+            if written {
+                continue;
+            }
+            // passed by reference without being written by the statement:
+            // a reference written through, a FORM parameter
+            let direction = s
+                .parameters
+                .iter()
+                .find(|p| p.name == pw.formal)
+                .map(|p| p.direction);
+            let by_reference = matches!(
+                direction,
+                Some(m::Direction::Using | m::Direction::Changing | m::Direction::Tables)
+            );
+            if pw.through.is_empty() && !by_reference {
+                continue;
+            }
+            for a in &actuals {
+                let first = st
+                    .reads
+                    .iter()
+                    .filter(|r| r.via.is_none() && a.contains(position_of(r)))
+                    .min_by(by_position);
+                let Some(r) = first else { continue };
+                // what is written: the data passed, or behind the reference
+                let mut targets: Vec<(String, String, m::DataScope)> = Vec::new();
+                if pw.through.is_empty() {
+                    targets.push((r.name.clone(), r.path.clone(), r.scope));
+                }
+                for suffix in &pw.through {
+                    let path = format!("{}{suffix}", r.name);
+                    match suffix.strip_prefix("->").filter(|x| !x.starts_with('*')) {
+                        // an attribute of the object passed
+                        Some(attr) => {
+                            let attr = attr.split('-').next().unwrap_or(attr);
+                            targets.push((
+                                format!("{}->{attr}", r.name),
+                                path,
+                                m::DataScope::Attribute,
+                            ));
+                        }
+                        None => targets.push((r.name.clone(), path, r.scope)),
+                    }
+                }
+                for (name, path, scope) in targets {
+                    added.push(m::DataAccess {
+                        name,
+                        path,
+                        access: m::AccessKind::Change,
+                        scope,
+                        whole: false,
+                        declared: false,
+                        sources: Vec::new(),
+                        from_entry: false,
+                        via: Some(via.clone()),
+                        through: None,
+                        depends: Some(dep.clone()),
+                        position: r.position,
+                    });
+                }
+            }
+        }
+        st.writes.extend(added);
     }
+}
+
+fn position_of(a: &m::DataAccess) -> At {
+    (a.position.row, a.position.col)
+}
+
+fn merge(mut a: m::Dependency, b: &m::Dependency) -> m::Dependency {
+    for r in &b.reads {
+        if !a.reads.contains(r) {
+            a.reads.push(r.clone());
+        }
+    }
+    for t in &b.tables {
+        if !a.tables.contains(t) {
+            a.tables.push(t.clone());
+        }
+    }
+    a.arguments |= b.arguments;
+    a
 }
 
 fn receiver(c: &m::Call, caller_class: Option<&str>, other_object: bool) -> Receiver {
@@ -516,9 +721,9 @@ fn map_name(
 }
 
 /// What callers see of a procedure: data outside of it that it reads from
-/// before the call or writes, with what the written values depend on, and
-/// the database tables it accesses.
-fn summarize(p: &m::Procedure) -> Summary {
+/// before the call or writes, with what the written values depend on, the
+/// parameters it writes, and the database tables it accesses.
+fn summarize(p: &m::Procedure, bound: &Aliases) -> Summary {
     let own: HashSet<&str> = p
         .locals
         .iter()
@@ -536,8 +741,14 @@ fn summarize(p: &m::Procedure) -> Summary {
         }
         _ => false,
     };
-    let mut s = Summary::default();
+    let own_parameters: HashSet<&str> = p.parameters.iter().map(|x| x.name.as_str()).collect();
+    let mut s = Summary {
+        parameters: p.parameters.clone(),
+        ..Summary::default()
+    };
     let mut scopes: HashMap<&str, m::DataScope> = HashMap::new();
+    // paths written behind reference parameters: `->*`, `->mv_x`
+    let mut through: HashMap<String, Vec<String>> = HashMap::new();
     walk(&p.body, &mut |st| {
         for r in &st.reads {
             scopes.entry(r.name.as_str()).or_insert(r.scope);
@@ -546,6 +757,24 @@ fn summarize(p: &m::Procedure) -> Summary {
                 && !s.reads.iter().any(|(n, _)| *n == r.name)
             {
                 s.reads.push((r.name.clone(), r.scope));
+            }
+        }
+        for w in &st.writes {
+            let Some(root) = w.through.as_deref().filter(|r| own_parameters.contains(r)) else {
+                continue;
+            };
+            let suffix = if w.name == root {
+                let path = w.path.to_ascii_lowercase();
+                path.strip_prefix(root).unwrap_or("->*").to_string()
+            } else {
+                match w.name.strip_prefix(root) {
+                    Some(rest) => rest.to_string(),
+                    None => continue,
+                }
+            };
+            let paths = through.entry(root.to_string()).or_default();
+            if !paths.contains(&suffix) {
+                paths.push(suffix);
             }
         }
         for t in &st.tables {
@@ -569,38 +798,102 @@ fn summarize(p: &m::Procedure) -> Summary {
         };
         for i in &e.inputs {
             match scopes.get(i.as_str()).copied() {
-                Some(m::DataScope::Parameter) => deps.arguments = true,
+                Some(m::DataScope::Parameter) => deps.formals.push(i.clone()),
                 Some(scope) if visible(i, scope) => deps.reads.push((i.clone(), scope)),
                 _ => {}
             }
         }
-        if e.scope == m::DataScope::Database {
-            let mut operations: Vec<m::DbOperation> = Vec::new();
-            walk(&p.body, &mut |st| {
-                for t in &st.tables {
-                    if t.name == e.name
-                        && t.access == m::AccessKind::Write
-                        && !operations.contains(&t.operation)
-                    {
-                        operations.push(t.operation);
+        match e.scope {
+            m::DataScope::Database => {
+                let mut operations: Vec<m::DbOperation> = Vec::new();
+                walk(&p.body, &mut |st| {
+                    for t in &st.tables {
+                        if t.name == e.name
+                            && t.access == m::AccessKind::Write
+                            && !operations.contains(&t.operation)
+                        {
+                            operations.push(t.operation);
+                        }
                     }
+                });
+                for operation in operations {
+                    let t = m::TableAccess {
+                        name: e.name.clone(),
+                        access: m::AccessKind::Write,
+                        operation,
+                        via: None,
+                        depends: None,
+                    };
+                    s.tables.push((t, Some(deps.clone())));
                 }
-            });
-            for operation in operations {
-                let t = m::TableAccess {
-                    name: e.name.clone(),
-                    access: m::AccessKind::Write,
-                    operation,
-                    via: None,
-                    depends: None,
-                };
-                s.tables.push((t, Some(deps.clone())));
             }
-        } else if visible(&e.name, e.scope) {
-            s.writes.push((e.name.clone(), e.scope, deps));
+            _ if e
+                .name
+                .split_once("->")
+                .is_some_and(|(r, _)| own_parameters.contains(r)) =>
+            {
+                let formal = e.name.split("->").next().unwrap_or_default();
+                add_param(&mut s.params, formal, deps, &through, Vec::new());
+            }
+            m::DataScope::Parameter => {
+                let refs = bound
+                    .get(&e.name)
+                    .map(|(_, targets)| {
+                        targets
+                            .iter()
+                            .filter(|(t, sc)| visible(t, *sc))
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                add_param(&mut s.params, &e.name, deps, &through, refs);
+            }
+            scope if visible(&e.name, scope) => s.writes.push((e.name.clone(), scope, deps)),
+            _ => {}
         }
     }
     s
+}
+
+/// Adds a written parameter, merged with what is known of it already.
+fn add_param(
+    params: &mut Vec<ParamWrite>,
+    formal: &str,
+    deps: Deps,
+    through: &HashMap<String, Vec<String>>,
+    refs: Vec<(String, m::DataScope)>,
+) {
+    let paths = through.get(formal).cloned().unwrap_or_default();
+    match params.iter_mut().find(|p| p.formal == formal) {
+        Some(p) => {
+            for r in deps.reads {
+                if !p.deps.reads.contains(&r) {
+                    p.deps.reads.push(r);
+                }
+            }
+            for f in deps.formals {
+                if !p.deps.formals.contains(&f) {
+                    p.deps.formals.push(f);
+                }
+            }
+            for t in deps.tables {
+                if !p.deps.tables.contains(&t) {
+                    p.deps.tables.push(t);
+                }
+            }
+            for r in refs {
+                if !p.refs.contains(&r) {
+                    p.refs.push(r);
+                }
+            }
+        }
+        None => params.push(ParamWrite {
+            formal: formal.to_string(),
+            deps,
+            through: paths,
+            refs,
+        }),
+    }
 }
 
 fn find_step_mut(steps: &mut [m::Step], id: u32) -> Option<&mut m::Step> {
@@ -716,6 +1009,7 @@ fn build_unit(
             Proc {
                 procedure,
                 calls: Vec::new(),
+                bindings: Vec::new(),
                 summary: None,
                 running: false,
             }
@@ -733,9 +1027,33 @@ fn build_unit(
             }
         }
     }
+    // calls with their arguments; dynamic ones with the names they can have
+    let constants = literal_constants(symbols);
+    let mut seen: HashMap<(u32, String), usize> = HashMap::new();
     for c in calls {
-        if let Some((k, id)) = locate(&procs, &c.span.start) {
-            procs[k].calls.push((id, c));
+        let Some((k, id)) = locate(&procs, &c.span.start) else {
+            continue;
+        };
+        let (resolved, deciding) = if c.dynamic {
+            resolve_dynamic(&procs[k].procedure, id, &c, &constants)
+        } else {
+            (vec![c], Vec::new())
+        };
+        for c in resolved {
+            let n = seen
+                .entry((id, format!("{:?} {}", c.kind, c.name.to_ascii_lowercase())))
+                .or_insert(0);
+            let args = file
+                .statements
+                .get(id as usize)
+                .and_then(|s| call_args(file, s, &c, *n));
+            *n += 1;
+            procs[k].calls.push(PendingCall {
+                step: id,
+                call: c,
+                args,
+                deciding: deciding.clone(),
+            });
         }
     }
     procs
@@ -793,6 +1111,135 @@ fn table_accesses(a: &m::DbAccess) -> Vec<m::TableAccess> {
         }
     }
     out
+}
+
+/// A dynamic call is followed into at most this many names.
+const MAX_DYNAMIC: usize = 10;
+
+/// The calls a dynamic call can be: the names its operand has on the way to
+/// the call, from literals assigned to it and from constants; with the
+/// variables deciding which one runs.
+fn resolve_dynamic(
+    p: &m::Procedure,
+    step: u32,
+    c: &m::Call,
+    constants: &HashMap<String, String>,
+) -> (Vec<m::Call>, Vec<String>) {
+    let deciding = std::cell::RefCell::new(Vec::<String>::new());
+    // `x` of `(x)` at the end of a name, or the name itself
+    let inner = |text: &str| -> String {
+        let t = text.trim();
+        match (t.rfind('('), t.ends_with(')')) {
+            (Some(open), true) => t[open + 1..t.len() - 1].trim().to_string(),
+            _ => t.to_string(),
+        }
+    };
+    let values = |operand: &str| -> Vec<String> {
+        if let Some(v) = literal_value(operand) {
+            return vec![v];
+        }
+        let var = operand.to_ascii_lowercase();
+        if !constants.contains_key(&var) {
+            deciding.borrow_mut().push(var.clone());
+        }
+        let mut defs: HashMap<u32, Vec<String>> = HashMap::new();
+        let mut steps: HashMap<u32, &m::Step> = HashMap::new();
+        walk(&p.body, &mut |s| {
+            steps.insert(s.id, s);
+            if s.writes.iter().any(|w| w.name == var) {
+                defs.insert(s.id, vec![var.clone()]);
+            }
+        });
+        let uses = HashMap::from([(step, vec![var.clone()])]);
+        let reach = reaching(&p.body, &p.flow, &defs, &uses);
+        let mut out: Vec<String> = Vec::new();
+        let Some((sources, entry)) = reach.get(&(step, var.clone())) else {
+            return out;
+        };
+        let assigned = sources.iter().filter_map(|s| {
+            steps
+                .get(s)
+                .and_then(|s| assigned_value(s, &var, constants))
+        });
+        let constant = entry.then(|| constants.get(&var).cloned()).flatten();
+        for v in assigned.chain(constant) {
+            if !out.contains(&v) {
+                out.push(v);
+            }
+        }
+        out
+    };
+    let mut out: Vec<m::Call> = Vec::new();
+    let mut add = |name: String, class: Option<String>| {
+        if out.len() < MAX_DYNAMIC {
+            let mut x = c.clone();
+            x.dynamic = false;
+            x.name = name;
+            x.class = class;
+            out.push(x);
+        }
+    };
+    match c.kind {
+        m::CallKind::Function => {
+            for v in values(&c.name) {
+                add(v.to_ascii_uppercase(), None);
+            }
+        }
+        m::CallKind::Form if c.program.as_deref().is_none_or(|p| !p.starts_with('(')) => {
+            for v in values(&inner(&c.name)) {
+                add(v.to_ascii_lowercase(), None);
+            }
+        }
+        m::CallKind::Constructor => {
+            if let Some(class) = c.class.as_deref().filter(|k| k.starts_with('(')) {
+                for v in values(&inner(class)) {
+                    add("constructor".to_string(), Some(v.to_ascii_lowercase()));
+                }
+            }
+        }
+        m::CallKind::Method => {
+            let classes = match c.class.as_deref() {
+                Some(k) if k.starts_with('(') => values(&inner(k)),
+                Some(k) => vec![k.to_string()],
+                None if c.receiver.is_none() => p.block.class.clone().into_iter().collect(),
+                None => Vec::new(),
+            };
+            let method = c.name.rsplit('>').next().unwrap_or(&c.name);
+            let methods = if method.trim().starts_with('(') {
+                values(&inner(method))
+            } else {
+                vec![method.to_string()]
+            };
+            for k in &classes {
+                for name in &methods {
+                    add(name.to_ascii_lowercase(), Some(k.to_ascii_lowercase()));
+                }
+            }
+        }
+        _ => {}
+    }
+    (out, deciding.into_inner())
+}
+
+/// The literal or constant a step assigns to `var`: `var = 'X'`,
+/// `DATA var TYPE t VALUE 'X'`.
+fn assigned_value(s: &m::Step, var: &str, constants: &HashMap<String, String>) -> Option<String> {
+    let text = s.text.trim().trim_end_matches(['.', ',']).trim();
+    let upper = text.to_ascii_uppercase();
+    let rhs = match kind_of(s) {
+        K::Move => {
+            let (lhs, rhs) = text.split_once(" = ")?;
+            let lhs = lhs.trim().to_ascii_lowercase();
+            if lhs != var && !lhs.ends_with(&format!("({var})")) {
+                return None;
+            }
+            rhs
+        }
+        K::Data | K::Static | K::Constant => &text[upper.find(" VALUE ")? + 7..],
+        _ => return None,
+    };
+    let rhs = rhs.trim();
+    literal_value(rhs).or_else(|| constants.get(&rhs.to_ascii_lowercase()).cloned())
 }
 
 // ----- statement kinds -------------------------------------------------------
@@ -1034,7 +1481,6 @@ fn procedure(
             a.scope = ctx.scope(&a.name, a.scope);
         }
     });
-    aliases(&mut body);
     case_conditions(&mut body);
     guards(&mut body, &[]);
     let flow = flow(&body);
@@ -1604,44 +2050,144 @@ fn binding(s: &m::Step) -> Option<(&m::DataAccess, &m::DataAccess)> {
     }
 }
 
-/// A field symbol or reference with its scope and the data it may point to.
+/// Field symbols and references with their scope.
+type AliasScopes = HashMap<String, m::DataScope>;
+
+/// Field symbols and references with what they may point to anywhere in a
+/// procedure, for its callers.
 type Aliases = HashMap<String, (m::DataScope, Vec<(String, m::DataScope)>)>;
+
+/// Writes and reads of a name: where definitions of it reach.
+type Reach = HashMap<(u32, String), (Vec<u32>, bool)>;
 
 /// The field symbol or reference an access goes through, and whether it
 /// dereferences a reference (`lr->x`, `lr->*`).
-fn alias_of(a: &m::DataAccess, aliases: &Aliases) -> Option<(String, bool)> {
+fn alias_of(a: &m::DataAccess, aliases: &AliasScopes) -> Option<(String, bool)> {
     if a.name.starts_with('<') && aliases.contains_key(&a.name) {
         return Some((a.name.clone(), false));
     }
-    if let Some((root, _)) = a.name.split_once("->") {
-        return aliases.contains_key(root).then(|| (root.to_string(), true));
-    }
-    let deref = a
-        .path
-        .to_ascii_lowercase()
-        .strip_prefix(a.name.as_str())
-        .is_some_and(|rest| rest.starts_with("->"));
-    (deref && aliases.contains_key(&a.name)).then(|| (a.name.clone(), true))
+    deref_root(a)
+        .filter(|root| aliases.contains_key(root))
+        .map(|root| (root, true))
 }
 
-/// The data an alias may point to, through other aliases.
-fn resolve(aliases: &Aliases, name: &str, depth: u32) -> Vec<(String, m::DataScope)> {
-    let Some((_, targets)) = aliases.get(name) else {
+/// `lr` of `lr->x` or `lr->*`.
+fn deref_root(a: &m::DataAccess) -> Option<String> {
+    if let Some((root, _)) = a.name.split_once("->") {
+        return Some(root.to_string());
+    }
+    a.path
+        .to_ascii_lowercase()
+        .strip_prefix(a.name.as_str())
+        .is_some_and(|rest| rest.starts_with("->"))
+        .then(|| a.name.clone())
+}
+
+/// Reaching definitions of some names only: `defs` are the steps
+/// defining a name, `uses` the steps asking where it comes from.
+fn reaching(
+    body: &[m::Step],
+    flow: &[m::FlowEdge],
+    defs: &HashMap<u32, Vec<String>>,
+    uses: &HashMap<u32, Vec<String>>,
+) -> Reach {
+    let plain = |name: &String, access: m::AccessKind| m::DataAccess {
+        name: name.clone(),
+        path: name.clone(),
+        access,
+        scope: m::DataScope::Local,
+        whole: access == m::AccessKind::Write,
+        declared: false,
+        sources: Vec::new(),
+        from_entry: false,
+        via: None,
+        through: None,
+        depends: None,
+        position: m::Position { row: 0, col: 0 },
+    };
+    fn skeleton(
+        steps: &[m::Step],
+        f: &dyn Fn(u32) -> (Vec<m::DataAccess>, Vec<m::DataAccess>),
+    ) -> Vec<m::Step> {
+        steps
+            .iter()
+            .map(|s| {
+                let (reads, writes) = f(s.id);
+                m::Step {
+                    id: s.id,
+                    kind: s.kind.clone(),
+                    text: String::new(),
+                    span: s.span,
+                    condition: None,
+                    guards: Vec::new(),
+                    reads,
+                    writes,
+                    tables: Vec::new(),
+                    children: skeleton(&s.children, f),
+                }
+            })
+            .collect()
+    }
+    let accesses = |id: u32| {
+        let reads = uses
+            .get(&id)
+            .into_iter()
+            .flatten()
+            .map(|n| plain(n, m::AccessKind::Read))
+            .collect();
+        let writes = defs
+            .get(&id)
+            .into_iter()
+            .flatten()
+            .map(|n| plain(n, m::AccessKind::Write))
+            .collect();
+        (reads, writes)
+    };
+    let mut sk = skeleton(body, &accesses);
+    data_flow(&mut sk, flow);
+    let mut out = Reach::new();
+    walk(&sk, &mut |s| {
+        for r in &s.reads {
+            out.insert((s.id, r.name.clone()), (r.sources.clone(), r.from_entry));
+        }
+    });
+    out
+}
+
+/// Bindings of the steps: (alias, target, scope of the target).
+type Bindings = HashMap<u32, Vec<(String, String, m::DataScope)>>;
+
+/// What an alias points to at a step: the targets of the bindings reaching it.
+fn resolve_at(
+    alias: &str,
+    step: u32,
+    reach: &Reach,
+    bindings: &Bindings,
+    scopes: &AliasScopes,
+    depth: u32,
+) -> Vec<(String, m::DataScope)> {
+    let Some((sources, _)) = reach.get(&(step, alias.to_string())) else {
         return Vec::new();
     };
     let mut out = Vec::new();
-    for (t, scope) in targets {
-        let more = if depth < 5 && t != name {
-            resolve(aliases, t, depth + 1)
-        } else {
-            Vec::new()
-        };
-        if more.is_empty() && !aliases.contains_key(t) {
-            out.push((t.clone(), *scope));
-        }
-        for x in more {
-            if !out.contains(&x) {
-                out.push(x);
+    for b in sources {
+        for (a, t, ts) in bindings.get(b).into_iter().flatten() {
+            if a != alias {
+                continue;
+            }
+            let more = if scopes.contains_key(t) {
+                if depth < 5 {
+                    resolve_at(t, *b, reach, bindings, scopes, depth + 1)
+                } else {
+                    Vec::new()
+                }
+            } else {
+                vec![(t.clone(), *ts)]
+            };
+            for x in more {
+                if !out.contains(&x) {
+                    out.push(x);
+                }
             }
         }
     }
@@ -1649,26 +2195,89 @@ fn resolve(aliases: &Aliases, name: &str, depth: u32) -> Vec<(String, m::DataSco
 }
 
 /// Writes and reads through field symbols and data references become
-/// accesses of the data they may point to, as bound anywhere in the
-/// procedure. Binding a table to a field symbol does not change it.
-fn aliases(body: &mut [m::Step]) {
-    let mut aliases: Aliases = HashMap::new();
-    let mut bindings: HashMap<u32, (String, String)> = HashMap::new();
+/// accesses of the data they point to, as bound on the way to the step.
+/// Binding a table to a field symbol does not change it. A write through a
+/// reference parameter is a write of the parameter. Returns what each alias
+/// may point to, for the callers.
+fn aliases(
+    body: &mut [m::Step],
+    flow: &[m::FlowEdge],
+    extra: &[Binding],
+    parameters: &HashSet<String>,
+) -> Aliases {
+    let mut bindings: Bindings = HashMap::new();
+    let mut scopes: AliasScopes = HashMap::new();
     walk(body, &mut |s| {
         if let Some((alias, target)) = binding(s) {
-            let e = aliases
-                .entry(alias.name.clone())
-                .or_insert_with(|| (alias.scope, Vec::new()));
-            let t = (target.name.clone(), target.scope);
-            if !e.1.contains(&t) {
-                e.1.push(t);
-            }
-            bindings.insert(s.id, (alias.name.clone(), target.name.clone()));
+            bindings.entry(s.id).or_default().push((
+                alias.name.clone(),
+                target.name.clone(),
+                target.scope,
+            ));
+            scopes.entry(alias.name.clone()).or_insert(alias.scope);
+        }
+        for (step, alias, target, scope) in extra.iter().filter(|b| b.0 == s.id) {
+            let own = s.writes.iter().find(|w| w.name == *alias).map(|w| w.scope);
+            scopes
+                .entry(alias.clone())
+                .or_insert(own.unwrap_or(m::DataScope::Local));
+            bindings
+                .entry(*step)
+                .or_default()
+                .push((alias.clone(), target.clone(), *scope));
         }
     });
+
+    let reach = if scopes.is_empty() {
+        Reach::new()
+    } else {
+        let defs: HashMap<u32, Vec<String>> = bindings
+            .iter()
+            .map(|(s, b)| (*s, b.iter().map(|x| x.0.clone()).collect()))
+            .collect();
+        let mut uses: HashMap<u32, Vec<String>> = HashMap::new();
+        walk(body, &mut |s| {
+            let u = uses.entry(s.id).or_default();
+            for a in s.reads.iter().chain(&s.writes) {
+                if let Some((alias, _)) = alias_of(a, &scopes) {
+                    if !u.contains(&alias) {
+                        u.push(alias);
+                    }
+                }
+            }
+            for (_, t, _) in bindings.get(&s.id).into_iter().flatten() {
+                if scopes.contains_key(t) && !u.contains(t) {
+                    u.push(t.clone());
+                }
+            }
+        });
+        reaching(body, flow, &defs, &uses)
+    };
+
+    let mut union: Aliases = HashMap::new();
     walk_mut(body, &mut |s| {
-        let bound = bindings.get(&s.id);
-        if let Some((_, table)) = bound {
+        let bound: Vec<(String, String, m::DataScope)> =
+            bindings.get(&s.id).cloned().unwrap_or_default();
+        for (a, t, ts) in &bound {
+            // for the callers: what it points to after this step
+            let targets = if scopes.contains_key(t) {
+                resolve_at(t, s.id, &reach, &bindings, &scopes, 1)
+            } else {
+                vec![(t.clone(), *ts)]
+            };
+            let e = union.entry(a.clone()).or_insert_with(|| {
+                (
+                    scopes.get(a).copied().unwrap_or(m::DataScope::Local),
+                    Vec::new(),
+                )
+            });
+            for x in targets {
+                if !e.1.contains(&x) {
+                    e.1.push(x);
+                }
+            }
+        }
+        if let Some((_, table, _)) = bound.first() {
             if matches!(kind_of(s), K::Loop | K::ReadTable) {
                 s.writes
                     .retain(|w| w.name != *table || w.access != m::AccessKind::Change);
@@ -1677,6 +2286,7 @@ fn aliases(body: &mut [m::Step]) {
                 }
             }
         }
+        let id = s.id;
         let through =
             |a: &m::DataAccess, alias: &str, (name, scope): (String, m::DataScope)| m::DataAccess {
                 name,
@@ -1687,14 +2297,14 @@ fn aliases(body: &mut [m::Step]) {
                 declared: false,
                 sources: Vec::new(),
                 from_entry: false,
-                via: None,
+                via: a.via.clone(),
                 through: Some(alias.to_string()),
-                depends: None,
+                depends: a.depends.clone(),
                 position: a.position,
             };
         let root = |a: &m::DataAccess, alias: &str| m::DataAccess {
             name: alias.to_string(),
-            scope: aliases.get(alias).map_or(m::DataScope::Local, |x| x.0),
+            scope: scopes.get(alias).copied().unwrap_or(m::DataScope::Local),
             path: alias.to_string(),
             access: m::AccessKind::Read,
             whole: false,
@@ -1706,24 +2316,43 @@ fn aliases(body: &mut [m::Step]) {
             depends: None,
             position: a.position,
         };
+        let targets = |alias: &str| resolve_at(alias, id, &reach, &bindings, &scopes, 0);
+        // through a reference parameter: `ir->*` is the parameter, `io->x`
+        // the attribute of the object passed
+        let parameter = |a: &m::DataAccess| {
+            deref_root(a)
+                .filter(|r| parameters.contains(r))
+                .map(|r| m::DataAccess {
+                    scope: if a.name == r {
+                        m::DataScope::Parameter
+                    } else {
+                        a.scope
+                    },
+                    whole: false,
+                    through: Some(r),
+                    ..a.clone()
+                })
+        };
         let mut writes = Vec::new();
         let mut reads = Vec::new();
         for w in std::mem::take(&mut s.writes) {
-            let Some((alias, deref)) = alias_of(&w, &aliases) else {
-                // `lr->* = x` with an unknown target does not replace `lr`
-                if w.path.contains("->") && !w.name.contains("->") {
+            let Some((alias, deref)) = alias_of(&w, &scopes) else {
+                if let Some(p) = parameter(&w) {
+                    writes.push(p);
+                } else if w.path.contains("->") && !w.name.contains("->") {
+                    // `lr->* = x` with an unknown target does not replace `lr`
                     writes.push(m::DataAccess { whole: false, ..w });
                 } else {
                     writes.push(w);
                 }
                 continue;
             };
-            if !deref && bound.is_some_and(|(a, _)| *a == alias) {
+            if !deref && bound.iter().any(|(a, _, _)| *a == alias) {
                 // the binding itself
                 writes.push(w);
                 continue;
             }
-            for t in resolve(&aliases, &alias, 0) {
+            for t in targets(&alias) {
                 writes.push(through(&w, &alias, t));
             }
             if deref {
@@ -1733,11 +2362,11 @@ fn aliases(body: &mut [m::Step]) {
             }
         }
         for r in std::mem::take(&mut s.reads) {
-            let Some((alias, deref)) = alias_of(&r, &aliases) else {
-                reads.push(r);
+            let Some((alias, deref)) = alias_of(&r, &scopes) else {
+                reads.push(parameter(&r).unwrap_or(r));
                 continue;
             };
-            for t in resolve(&aliases, &alias, 0) {
+            for t in targets(&alias) {
                 reads.push(through(&r, &alias, t));
             }
             reads.push(if deref { root(&r, &alias) } else { r });
@@ -1747,6 +2376,7 @@ fn aliases(body: &mut [m::Step]) {
         s.writes = writes;
         s.reads = reads;
     });
+    union
 }
 
 fn dedup_accesses(list: &mut Vec<m::DataAccess>) {
@@ -2696,8 +3326,198 @@ ENDCLASS.",
             .iter()
             .find(|w| w.name == "mv_net")
             .unwrap();
+        // the argument is a literal: nothing of the caller
         let d = w.depends.as_ref().unwrap();
-        assert!(d.arguments);
+        assert!(!d.arguments && d.reads.is_empty());
         assert_eq!(d.tables, ["VBAP"]);
+    }
+
+    fn inputs<'a>(p: &'a m::Procedure, name: &str) -> Vec<&'a str> {
+        effect(p, name).inputs.iter().map(String::as_str).collect()
+    }
+
+    #[test]
+    fn parameters_are_matched_to_arguments() {
+        let l = logic(
+            "CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    METHODS calc IMPORTING ia TYPE i ib TYPE i EXPORTING ea TYPE i RETURNING VALUE(rb) TYPE i.
+    METHODS run IMPORTING iv_x TYPE i iv_y TYPE i iv_z TYPE i.
+  PRIVATE SECTION.
+    DATA mv_a TYPE i.
+    DATA mv_b TYPE i.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD calc.
+    ea = ia * 2.
+    rb = ib.
+  ENDMETHOD.
+  METHOD run.
+    calc( EXPORTING ia = iv_x ib = iv_y IMPORTING ea = mv_a ).
+    mv_b = calc( ia = iv_z ib = iv_y ) + 1.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let run = procedure(&l, "run");
+        assert_eq!(inputs(run, "mv_a"), ["iv_x"]);
+        assert_eq!(inputs(run, "mv_b"), ["iv_y"]);
+
+        let l = logic(
+            "REPORT z.
+DATA: gv_a TYPE i, gv_b TYPE i, gv_out TYPE i.
+START-OF-SELECTION.
+  PERFORM f USING gv_a gv_b CHANGING gv_out.
+FORM f USING p1 TYPE i p2 TYPE i CHANGING c TYPE i.
+  c = p2.
+ENDFORM.",
+        );
+        let start = procedure(&l, "START-OF-SELECTION");
+        assert_eq!(inputs(start, "gv_out"), ["gv_b"]);
+    }
+
+    #[test]
+    fn field_symbols_follow_the_control_flow() {
+        let l = logic(
+            "FORM f.
+  ASSIGN gv_a TO FIELD-SYMBOL(<x>).
+  <x> = 1.
+  ASSIGN gv_b TO <x>.
+  <x> = 2.
+ENDFORM.",
+        );
+        let f = procedure(&l, "f");
+        let written = |text: &str| -> Vec<String> {
+            find(&f.body, text)
+                .writes
+                .iter()
+                .filter(|w| w.through.is_some())
+                .map(|w| w.name.clone())
+                .collect()
+        };
+        assert_eq!(written("<x> = 1"), ["gv_a"]);
+        assert_eq!(written("<x> = 2"), ["gv_b"]);
+    }
+
+    #[test]
+    fn references_across_calls() {
+        let l = logic(
+            "CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    METHODS get_ref RETURNING VALUE(rr) TYPE REF TO i.
+    METHODS set_via IMPORTING ir TYPE REF TO i.
+    METHODS touch IMPORTING io TYPE REF TO lcl.
+    METHODS run.
+    DATA mv_a TYPE i.
+    DATA mv_c TYPE i.
+    DATA mo_other TYPE REF TO lcl.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD get_ref.
+    rr = REF #( mv_a ).
+  ENDMETHOD.
+  METHOD set_via.
+    ir->* = 5.
+  ENDMETHOD.
+  METHOD touch.
+    io->mv_a = 1.
+  ENDMETHOD.
+  METHOD run.
+    DATA(lr) = get_ref( ).
+    lr->* = 3.
+    GET REFERENCE OF mv_c INTO DATA(lr_c).
+    set_via( lr_c ).
+    touch( mo_other ).
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let run = procedure(&l, "run");
+        // the reference returned points to mv_a
+        let w = find(&run.body, "lr->* = 3");
+        assert!(w
+            .writes
+            .iter()
+            .any(|x| x.name == "mv_a" && x.through.as_deref() == Some("lr")));
+        // written through the reference passed
+        let set = find(&run.body, "set_via( lr_c )");
+        assert!(
+            set.writes.iter().any(|x| x.name == "mv_c"),
+            "{:?}",
+            set.writes
+        );
+        // an attribute of the object passed
+        let names: Vec<&str> = run.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["mo_other->mv_a", "mv_a", "mv_c"]);
+        // in the called method, the parameter is what is written
+        let set_via = procedure(&l, "set_via");
+        assert_eq!(set_via.effects[0].name, "ir");
+        assert_eq!(set_via.effects[0].scope, m::DataScope::Parameter);
+    }
+
+    #[test]
+    fn dynamic_calls_with_known_names() {
+        let l = logic(
+            "CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    METHODS run IMPORTING iv_mode TYPE c.
+    METHODS set_a.
+    METHODS set_b.
+    METHODS set_c.
+    CONSTANTS c_meth TYPE string VALUE 'SET_C'.
+  PRIVATE SECTION.
+    DATA: mv_a TYPE i, mv_b TYPE i, mv_c TYPE i.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD run.
+    DATA lv_meth TYPE string.
+    IF iv_mode = 'X'.
+      lv_meth = 'SET_A'.
+    ELSE.
+      lv_meth = 'SET_B'.
+    ENDIF.
+    CALL METHOD me->(lv_meth).
+    CALL METHOD (c_meth).
+  ENDMETHOD.
+  METHOD set_a.
+    mv_a = 1.
+  ENDMETHOD.
+  METHOD set_b.
+    mv_b = 1.
+  ENDMETHOD.
+  METHOD set_c.
+    mv_c = 1.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let run = procedure(&l, "run");
+        let names: Vec<&str> = run.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["mv_a", "mv_b", "mv_c"]);
+        // which method runs depends on the mode
+        assert_eq!(inputs(run, "mv_a"), ["iv_mode"]);
+
+        let l = logic(
+            "FUNCTION z_main.
+  DATA lv_fm TYPE string VALUE 'Z_ONE'.
+  CALL FUNCTION lv_fm.
+  lv_fm = 'Z_TWO'.
+  CALL FUNCTION lv_fm.
+ENDFUNCTION.
+FUNCTION z_one.
+  DELETE FROM zone WHERE id = 1.
+ENDFUNCTION.
+FUNCTION z_two.
+  DELETE FROM ztwo WHERE id = 1.
+ENDFUNCTION.",
+        );
+        let main = procedure(&l, "z_main");
+        let tables = |id: usize| -> Vec<String> {
+            let calls: Vec<&m::Step> = main
+                .body
+                .iter()
+                .filter(|s| s.kind == "CallFunction")
+                .collect();
+            calls[id].tables.iter().map(|t| t.name.clone()).collect()
+        };
+        assert_eq!(tables(0), ["ZONE"]);
+        assert_eq!(tables(1), ["ZTWO"]);
     }
 }

@@ -123,3 +123,74 @@ fn sources_missing_locally_are_loaded_over_adt() {
     drop(server);
     let _ = std::fs::remove_dir_all(work);
 }
+
+/// A call through an interface whose implementation is only in the system:
+/// the where-used list of the interface names it, and the logic follows it.
+#[test]
+fn interface_implementations_from_the_system() {
+    let work = temp_dir("adt-impl");
+    let system = work.join("system");
+    let local = work.join("local");
+    std::fs::create_dir_all(&system).unwrap();
+    std::fs::create_dir_all(&local).unwrap();
+    let files = [
+        (
+            &system,
+            "zif_store.intf.abap",
+            "INTERFACE zif_store PUBLIC.\n  METHODS save.\nENDINTERFACE.",
+        ),
+        (
+            &system,
+            "zcl_db_store.clas.abap",
+            "CLASS zcl_db_store DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    INTERFACES zif_store.\nENDCLASS.\nCLASS zcl_db_store IMPLEMENTATION.\n  METHOD zif_store~save.\n    DELETE FROM zlog WHERE id = 1.\n  ENDMETHOD.\nENDCLASS.",
+        ),
+        (
+            &system,
+            "zcl_user.clas.abap",
+            "CLASS zcl_user DEFINITION PUBLIC.\n  PRIVATE SECTION.\n    DATA mo TYPE REF TO zif_store.\nENDCLASS.\nCLASS zcl_user IMPLEMENTATION.\nENDCLASS.",
+        ),
+        (
+            &local,
+            "zcl_app.clas.abap",
+            "CLASS zcl_app DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\n  PRIVATE SECTION.\n    DATA mo_store TYPE REF TO zif_store.\nENDCLASS.\nCLASS zcl_app IMPLEMENTATION.\n  METHOD run.\n    mo_store->save( ).\n  ENDMETHOD.\nENDCLASS.",
+        ),
+    ];
+    for (dir, name, text) in files {
+        std::fs::write(dir.join(name), text).unwrap();
+    }
+    let server = MockAdtServer::start(
+        FsProvider::new(vec![system.clone()]).unwrap(),
+        "127.0.0.1:0",
+        MockAdtConfig::default(),
+    )
+    .unwrap();
+    let options = ProviderOptions {
+        src: vec![local.display().to_string()],
+        cache: None,
+        adt: Some(AdtOptions {
+            url: server.url().to_string(),
+            user: "DEVELOPER".into(),
+            password: "mock".into(),
+            client: None,
+            language: None,
+            insecure: false,
+        }),
+    };
+    let ws = Workspace::new(options.build().unwrap());
+    assert_eq!(ws.implementations("ZIF_STORE"), ["ZCL_DB_STORE"]);
+    let logic = ws.logic(&SourceRef::class("ZCL_APP"), 1);
+    assert!(logic.errors.is_empty(), "{:?}", logic.errors);
+    let run = logic
+        .procedures
+        .iter()
+        .find(|p| p.block.name == "run")
+        .unwrap();
+    let e = run.effects.iter().find(|e| e.name == "ZLOG").unwrap();
+    assert_eq!(e.via[0].class.as_deref(), Some("zcl_db_store"));
+    assert!(server
+        .requests()
+        .iter()
+        .any(|r| r.contains("usageReferences")));
+    drop(server);
+    let _ = std::fs::remove_dir_all(work);
+}

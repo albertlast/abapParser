@@ -44,6 +44,10 @@ pub struct AdtProvider {
     authorization: String,
     /// function module -> function group, from repository searches
     groups: Mutex<HashMap<String, Option<String>>>,
+    /// CSRF token with the session cookies it belongs to, for POST requests
+    session: Mutex<Option<(String, String)>>,
+    /// interface -> classes using it, from where-used lists
+    usages: Mutex<HashMap<String, Vec<String>>>,
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -103,6 +107,8 @@ impl AdtProvider {
             agent,
             authorization: format!("Basic {credentials}"),
             groups: Mutex::new(HashMap::new()),
+            session: Mutex::new(None),
+            usages: Mutex::new(HashMap::new()),
         }
     }
 
@@ -145,6 +151,119 @@ impl AdtProvider {
         }
     }
 
+    /// A CSRF token and the cookies of its session.
+    fn fetch_session(&self) -> Result<(String, String)> {
+        let url = self.url("/sap/bc/adt/discovery");
+        let response = self
+            .agent
+            .get(&url)
+            .header("Authorization", &self.authorization)
+            .header("X-CSRF-Token", "Fetch")
+            .header("Accept", "application/atomsvc+xml")
+            .call()
+            .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+        let status = response.status().as_u16();
+        match status {
+            200 => {}
+            401 | 403 => return Err(SourceError::Auth { url }),
+            _ => return Err(SourceError::Http { status, url }),
+        }
+        let headers = response.headers();
+        let token = headers
+            .get("x-csrf-token")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        let cookies = headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .filter_map(|c| c.split(';').next())
+            .map(str::trim)
+            .collect::<Vec<_>>()
+            .join("; ");
+        Ok((token, cookies))
+    }
+
+    /// POST with a CSRF token, returning the body; `None` on 404. The token
+    /// is fetched once and again when the system asks for a new one.
+    fn post(
+        &self,
+        path: &str,
+        content_type: &str,
+        accept: &str,
+        body: &str,
+    ) -> Result<Option<String>> {
+        let url = self.url(path);
+        for attempt in 0..2 {
+            let (token, cookies) = {
+                let mut session = self.session.lock().unwrap();
+                if session.is_none() || attempt > 0 {
+                    *session = Some(self.fetch_session()?);
+                }
+                session.clone().unwrap_or_default()
+            };
+            let mut request = self
+                .agent
+                .post(&url)
+                .header("Authorization", &self.authorization)
+                .header("Content-Type", content_type)
+                .header("Accept", accept)
+                .header("X-CSRF-Token", &token);
+            if !cookies.is_empty() {
+                request = request.header("Cookie", &cookies);
+            }
+            let mut response = request
+                .send(body)
+                .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+            let status = response.status().as_u16();
+            let renew = response
+                .headers()
+                .get("x-csrf-token")
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|v| v.eq_ignore_ascii_case("required"));
+            match status {
+                200 => {
+                    return response
+                        .body_mut()
+                        .read_to_string()
+                        .map(Some)
+                        .map_err(|e| SourceError::Other(format!("{url}: {e}")))
+                }
+                404 => return Ok(None),
+                403 if renew && attempt == 0 => continue,
+                401 | 403 => return Err(SourceError::Auth { url }),
+                _ => return Err(SourceError::Http { status, url }),
+            }
+        }
+        Err(SourceError::Auth { url })
+    }
+
+    /// Classes in the where-used list of an interface: those implementing it
+    /// and those only using it.
+    pub fn interface_usages(&self, interface: &str) -> Result<Vec<String>> {
+        let key = interface.to_ascii_uppercase();
+        if let Some(u) = self.usages.lock().unwrap().get(&key) {
+            return Ok(u.clone());
+        }
+        let uri = format!("/sap/bc/adt/oo/interfaces/{}", encode(&key));
+        let path = format!(
+            "/sap/bc/adt/repository/informationsystem/usageReferences?uri={}",
+            query_encode(&uri)
+        );
+        let xml = self
+            .post(
+                &path,
+                "application/vnd.sap.adt.repository.usagereferences.request.v1+xml",
+                "application/vnd.sap.adt.repository.usagereferences.result.v1+xml",
+                USAGE_REQUEST,
+            )?
+            .unwrap_or_default();
+        let classes = classes_in_usages(&xml);
+        self.usages.lock().unwrap().insert(key, classes.clone());
+        Ok(classes)
+    }
+
     fn source(&self, reference: &SourceRef, path: &str) -> Result<Option<Source>> {
         Ok(self.get(path, "text/plain")?.map(|text| Source {
             reference: reference.clone(),
@@ -168,6 +287,43 @@ impl AdtProvider {
         self.groups.lock().unwrap().insert(key, group.clone());
         Ok(group)
     }
+}
+
+const USAGE_REQUEST: &str = r#"<?xml version="1.0" encoding="UTF-8"?><usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences"><usagereferences:affectedObjects/></usagereferences:usageReferenceRequest>"#;
+
+/// Percent encoding of a query parameter value.
+fn query_encode(value: &str) -> String {
+    let mut out = String::new();
+    for b in value.bytes() {
+        if b.is_ascii_alphanumeric() || b"_-.~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// Names of the global classes (`CLAS/OC`) of a where-used result.
+fn classes_in_usages(xml: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for tag in xml.split('<') {
+        if !tag.contains(r#"adtcore:type="CLAS/OC""#) {
+            continue;
+        }
+        let Some(rest) = tag.split(r#"adtcore:name=""#).nth(1) else {
+            continue;
+        };
+        let name = rest
+            .split('"')
+            .next()
+            .unwrap_or_default()
+            .to_ascii_uppercase();
+        if !name.is_empty() && !out.contains(&name) {
+            out.push(name);
+        }
+    }
+    out
 }
 
 /// Finds `.../functions/groups/<group>/fmodules/<fm>` in the search result.
@@ -233,6 +389,12 @@ impl SourceProvider for AdtProvider {
                 )
             }
         }
+    }
+
+    /// The where-used list of the interface: a superset of its
+    /// implementations, which callers check against the class sources.
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        self.interface_usages(interface)
     }
 
     fn describe(&self) -> String {

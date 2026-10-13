@@ -1026,7 +1026,12 @@ pub(crate) fn method_defined(
         .any(|i| method_defined(s, i, meth, false))
 }
 
-fn new_call(kind: m::CallKind, name: String, dynamic: bool, options: Vec<String>) -> m::Call {
+pub(crate) fn new_call(
+    kind: m::CallKind,
+    name: String,
+    dynamic: bool,
+    options: Vec<String>,
+) -> m::Call {
     let zero = m::Position { row: 0, col: 0 };
     m::Call {
         kind,

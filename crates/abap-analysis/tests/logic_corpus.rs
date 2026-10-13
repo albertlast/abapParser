@@ -24,6 +24,7 @@ fn corpus_object_logic() {
     let list = std::fs::read_to_string(root.join("tests/corpus/corpora.txt")).unwrap();
     let (mut procedures, mut effects, mut via, mut database, mut globals, mut tables) =
         (0, 0, 0, 0, 0, 0);
+    let (mut inputs, mut through) = (0, 0);
     let mut slowest = (std::time::Duration::ZERO, String::new());
     let started = std::time::Instant::now();
     for dir in list
@@ -59,6 +60,7 @@ fn corpus_object_logic() {
             procedures += l.procedures.len();
             for p in &l.procedures {
                 effects += p.effects.len();
+                inputs += p.effects.iter().map(|e| e.inputs.len()).sum::<usize>();
                 via += p.effects.iter().filter(|e| !e.via.is_empty()).count();
                 database += p
                     .effects
@@ -73,6 +75,7 @@ fn corpus_object_logic() {
                         .filter(|a| a.scope == m::DataScope::Global)
                         .count();
                     tables += s.tables.len();
+                    through += s.writes.iter().filter(|w| w.through.is_some()).count();
                 });
             }
         }
@@ -80,8 +83,10 @@ fn corpus_object_logic() {
     }
     println!(
         "all: {procedures} procedures, {effects} effects, {via} through calls, \
-         {database} on database tables; {tables} table accesses, {globals} global \
-         data accesses; {:.2?}, slowest {:.2?} {}",
+         {database} on database tables, {:.2} inputs per effect; {tables} table \
+         accesses, {globals} global data accesses, {through} writes through field \
+         symbols and references; {:.2?}, slowest {:.2?} {}",
+        inputs as f64 / effects.max(1) as f64,
         started.elapsed(),
         slowest.0,
         slowest.1

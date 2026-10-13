@@ -832,7 +832,8 @@ pub struct DataAccess {
 pub struct Dependency {
     /// data read through the call: attributes, global data
     pub reads: Vec<String>,
-    /// the value depends on parameters, so on the arguments of the call
+    /// the value depends on arguments that could not be matched to the
+    /// parameters, e.g. of a dynamic call; matched arguments are in `reads`
     pub arguments: bool,
     /// database tables read, upper case
     pub tables: Vec<String>,

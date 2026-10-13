@@ -62,7 +62,7 @@ pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::Db
 }
 
 /// Constants with a text literal value, by lower case name.
-fn literal_constants(symbols: &m::FileSymbols) -> HashMap<String, String> {
+pub(crate) fn literal_constants(symbols: &m::FileSymbols) -> HashMap<String, String> {
     fn collect(out: &mut HashMap<String, String>, decls: &[m::Declaration]) {
         for d in decls {
             if d.kind != m::DeclarationKind::Constant {

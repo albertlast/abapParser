@@ -1,5 +1,6 @@
 //! Analyses on parsed ABAP files.
 
+mod args;
 mod calls;
 mod context;
 mod db;

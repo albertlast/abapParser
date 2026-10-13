@@ -301,7 +301,7 @@ export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "t
 
 /** What a value written by a called procedure depends on there, in names of the caller. */
 export interface Dependency {
-  /** the value depends on parameters, so on the arguments of the call */
+  /** the value depends on arguments that could not be matched to the parameters, e.g. of a dynamic call; matched arguments are in `reads` */
   arguments: boolean;
   /** data read through the call: attributes, global data */
   reads: string[];

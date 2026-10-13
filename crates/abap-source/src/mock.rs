@@ -3,12 +3,14 @@
 //! reads, so loading sources from a system can be tested without one.
 //!
 //! Served: programs and includes, classes with their includes, interfaces,
-//! function groups and modules, and the repository quick search that finds
-//! the group of a function module. Requests need basic authentication; a
-//! CSRF token is handed out on request. Only the standard library is used.
+//! function groups and modules, the repository quick search that finds the
+//! group of a function module, and the where-used list of an interface.
+//! Requests need basic authentication. A CSRF token with a session cookie is
+//! handed out on request; POST requests need both. Only the standard
+//! library is used.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -54,6 +56,7 @@ struct State {
 }
 
 const CSRF_TOKEN: &str = "mock-csrf-token";
+const SESSION_COOKIE: &str = "SAP_SESSIONID_MCK_001=mock-session";
 
 impl MockAdtServer {
     /// Serves the sources of `provider` at `address`, e.g. `127.0.0.1:0`
@@ -146,6 +149,8 @@ struct Response {
     content_type: &'static str,
     body: String,
     csrf: bool,
+    /// the CSRF token of the request was missing or wrong
+    token_required: bool,
 }
 
 impl Response {
@@ -155,6 +160,17 @@ impl Response {
             content_type: "text/plain; charset=utf-8",
             body: String::new(),
             csrf: false,
+            token_required: false,
+        }
+    }
+
+    fn ok(content_type: &'static str, body: String) -> Self {
+        Response {
+            status: 200,
+            content_type,
+            body,
+            csrf: false,
+            token_required: false,
         }
     }
 }
@@ -164,7 +180,9 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
     let mut request = String::new();
     reader.read_line(&mut request)?;
     let mut authorization = String::new();
-    let mut csrf = false;
+    let mut token = String::new();
+    let mut cookie = String::new();
+    let mut length = 0usize;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 || line == "\r\n" || line == "\n" {
@@ -174,11 +192,16 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
             let value = value.trim();
             match name.trim().to_ascii_lowercase().as_str() {
                 "authorization" => authorization = value.to_string(),
-                "x-csrf-token" => csrf = value.eq_ignore_ascii_case("fetch"),
+                "x-csrf-token" => token = value.to_string(),
+                "cookie" => cookie = value.to_string(),
+                "content-length" => length = value.parse().unwrap_or(0),
                 _ => {}
             }
         }
     }
+    let mut body = vec![0u8; length.min(1 << 20)];
+    reader.read_exact(&mut body)?;
+    let csrf = token.eq_ignore_ascii_case("fetch");
     let mut parts = request.split_whitespace();
     let method = parts.next().unwrap_or_default();
     let target = parts.next().unwrap_or_default();
@@ -196,8 +219,18 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
         (Some(c), Some(asked)) => c == asked,
         _ => true,
     };
+    let session = token == CSRF_TOKEN && cookie.split(';').any(|c| c.trim() == SESSION_COOKIE);
     let mut response = if authorization != state.authorization || !client_ok {
         Response::status(401)
+    } else if method == "POST" && path.ends_with("/informationsystem/usageReferences") {
+        if session {
+            usage_references(state, &params)
+        } else {
+            Response {
+                token_required: true,
+                ..Response::status(403)
+            }
+        }
     } else if method != "GET" && method != "HEAD" {
         Response::status(405)
     } else {
@@ -208,6 +241,7 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
     let reason = match response.status {
         200 => "OK",
         401 => "Unauthorized",
+        403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
         _ => "Error",
@@ -224,6 +258,10 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
     }
     if response.csrf {
         head.push_str(&format!("X-CSRF-Token: {CSRF_TOKEN}\r\n"));
+        head.push_str(&format!("Set-Cookie: {SESSION_COOKIE}; path=/\r\n"));
+    }
+    if response.token_required {
+        head.push_str("X-CSRF-Token: Required\r\n");
     }
     head.push_str("\r\n");
     out.write_all(head.as_bytes())?;
@@ -245,6 +283,7 @@ fn route(state: &State, path: &str, params: &HashMap<String, String>) -> Respons
             content_type: "text/plain; charset=utf-8",
             body: s.text,
             csrf: false,
+            token_required: false,
         },
         _ => Response::status(404),
     };
@@ -255,6 +294,7 @@ fn route(state: &State, path: &str, params: &HashMap<String, String>) -> Respons
             content_type: "application/atomsvc+xml",
             body: "<?xml version=\"1.0\" encoding=\"utf-8\"?><app:service xmlns:app=\"http://www.w3.org/2007/app\"/>".to_string(),
             csrf: false,
+            token_required: false,
         },
         // a report is a program, everything else an include
         ["programs", "programs", name, "source", "main"] => {
@@ -334,7 +374,78 @@ fn search(state: &State, params: &HashMap<String, String>) -> Response {
         content_type: "application/xml",
         body,
         csrf: false,
+        token_required: false,
     }
+}
+
+/// The where-used list of an interface, `uri=/sap/bc/adt/oo/interfaces/<name>`:
+/// the classes and programs whose source names it, like a system lists
+/// implementations and users alike.
+fn usage_references(state: &State, params: &HashMap<String, String>) -> Response {
+    let uri = params.get("uri").cloned().unwrap_or_default();
+    let Some(name) = uri.strip_prefix("/sap/bc/adt/oo/interfaces/") else {
+        return Response::status(404);
+    };
+    let name =
+        percent_decode(name.split(['#', '?']).next().unwrap_or_default()).to_ascii_uppercase();
+    let mut found: Vec<(&'static str, String, String)> = Vec::new();
+    let mut refs: Vec<&SourceRef> = state
+        .provider
+        .references()
+        .filter(|r| r.part.is_none() && matches!(r.kind, ObjectKind::Clas | ObjectKind::Prog))
+        .collect();
+    refs.sort();
+    for r in refs {
+        let Ok(Some(source)) = state.provider.fetch(r) else {
+            continue;
+        };
+        if !names(&source.text.to_ascii_uppercase(), &name) {
+            continue;
+        }
+        let lower = percent_encode(&r.name.to_ascii_lowercase());
+        found.push(match r.kind {
+            ObjectKind::Clas => (
+                "CLAS/OC",
+                r.name.clone(),
+                format!("/sap/bc/adt/oo/classes/{lower}"),
+            ),
+            _ => (
+                "PROG/P",
+                r.name.clone(),
+                format!("/sap/bc/adt/programs/programs/{lower}"),
+            ),
+        });
+    }
+    let mut body = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?><usageReferences:usageReferenceResult xmlns:usageReferences="http://www.sap.com/adt/ris/usageReferences" xmlns:adtcore="http://www.sap.com/adt/core" numberOfResults="{}"><usageReferences:referencedObjects>"#,
+        found.len()
+    );
+    // the package the objects are in comes first, as in a system's answer
+    body.push_str(r#"<usageReferences:referencedObject uri="/sap/bc/adt/packages/%24tmp" isResult="false" canHaveChildren="true"><usageReferences:adtObject adtcore:name="$TMP" adtcore:type="DEVC/K"/></usageReferences:referencedObject>"#);
+    for (kind, object, uri) in &found {
+        body.push_str(&format!(
+            r#"<usageReferences:referencedObject uri="{uri}" parentUri="/sap/bc/adt/packages/%24tmp" isResult="true" canHaveChildren="false" usageInformation="gradeDirect,includeProductive"><usageReferences:adtObject adtcore:name="{}" adtcore:type="{kind}" adtcore:responsible="DEVELOPER"><adtcore:packageRef adtcore:name="$TMP"/></usageReferences:adtObject></usageReferences:referencedObject>"#,
+            xml_escape(object)
+        ));
+    }
+    body.push_str("</usageReferences:referencedObjects></usageReferences:usageReferenceResult>");
+    Response::ok(
+        "application/vnd.sap.adt.repository.usagereferences.result.v1+xml",
+        body,
+    )
+}
+
+/// Whether `text` names `name` as a whole word.
+fn names(text: &str, name: &str) -> bool {
+    let word = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '/';
+    text.match_indices(name).any(|(i, _)| {
+        let before = text[..i].chars().next_back().is_none_or(|c| !word(c));
+        let after = text[i + name.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !word(c));
+        before && after
+    })
 }
 
 /// Whether the source is a report: its first statement is REPORT or PROGRAM.
@@ -469,6 +580,15 @@ mod tests {
                 "CLASS /abc/cl_ns DEFINITION PUBLIC.\nENDCLASS.",
             ),
             ("zif_a.intf.abap", "INTERFACE zif_a PUBLIC.\nENDINTERFACE."),
+            (
+                "zcl_impl.clas.abap",
+                "CLASS zcl_impl DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    INTERFACES zif_a.\nENDCLASS.\nCLASS zcl_impl IMPLEMENTATION.\nENDCLASS.",
+            ),
+            (
+                "zcl_user.clas.abap",
+                "CLASS zcl_user DEFINITION PUBLIC.\n  PRIVATE SECTION.\n    DATA mo TYPE REF TO zif_a.\nENDCLASS.\nCLASS zcl_user IMPLEMENTATION.\nENDCLASS.",
+            ),
+            ("zuse.prog.abap", "REPORT zuse.\nDATA go TYPE REF TO zif_a."),
             ("zgrp.fugr.saplzgrp.abap", "FUNCTION-POOL zgrp."),
             ("zgrp.fugr.z_fm.abap", "FUNCTION z_fm.\nENDFUNCTION."),
         ];
@@ -521,6 +641,55 @@ mod tests {
         assert!(requests
             .iter()
             .any(|r| r.contains("/programs/programs/zreport_top/")));
+        drop(server);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn where_used_list_of_an_interface() {
+        let dir = folder();
+        let server = server(&dir);
+        let adt = provider(server.url(), "mock");
+        // classes implementing or using it; the program is no class
+        let classes = adt.implementations("zif_a").unwrap();
+        assert_eq!(classes, ["ZCL_IMPL", "ZCL_USER"]);
+        assert!(adt.implementations("ZIF_NONE").unwrap().is_empty());
+        let requests = server.requests();
+        assert!(requests[0].starts_with("/sap/bc/adt/discovery"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r
+                    .contains("usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Finterfaces%2Fzif_a"))
+        );
+        // one session for both requests, answers cached
+        assert_eq!(
+            requests.iter().filter(|r| r.contains("discovery")).count(),
+            1
+        );
+        let before = server.requests().len();
+        adt.implementations("ZIF_A").unwrap();
+        assert_eq!(server.requests().len(), before);
+        drop(server);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn post_needs_token_and_session() {
+        let dir = folder();
+        let server = server(&dir);
+        let mut stream = TcpStream::connect(server.url().trim_start_matches("http://")).unwrap();
+        let auth = base64(b"DEVELOPER:mock");
+        write!(
+            stream,
+            "POST /sap/bc/adt/repository/informationsystem/usageReferences?uri=%2Fsap%2Fbc%2Fadt%2Foo%2Finterfaces%2Fzif_a HTTP/1.1\r\nAuthorization: Basic {auth}\r\nX-CSRF-Token: {CSRF_TOKEN}\r\nContent-Length: 0\r\n\r\n"
+        )
+        .unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        // without the session cookie the token is not valid
+        assert!(answer.starts_with("HTTP/1.1 403"), "{answer}");
+        assert!(answer.contains("X-CSRF-Token: Required"));
         drop(server);
         let _ = std::fs::remove_dir_all(dir);
     }

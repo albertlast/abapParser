@@ -36,6 +36,10 @@ pub struct Workspace {
     errors: Mutex<Vec<String>>,
 }
 
+/// Implementations of an interface named by a provider are checked against
+/// their sources up to this many.
+const MAX_CHECKED_IMPLEMENTATIONS: usize = 50;
+
 /// Includes may include each other in cycles; expansion stops here.
 const MAX_INCLUDES: usize = 500;
 
@@ -176,12 +180,29 @@ impl Workspace {
         if let Some(c) = self.implementations.lock().unwrap().get(&key) {
             return c.clone();
         }
-        let classes = match self.provider.implementations(&key) {
+        let candidates = match self.provider.implementations(&key) {
             Ok(c) => c,
             Err(e) => {
                 self.errors.lock().unwrap().push(format!("{key}: {e}"));
                 Vec::new()
             }
+        };
+        // a where-used list also names classes only using the interface:
+        // keep those whose definition implements it; long lists are kept
+        // unchecked, they are too many to follow anyway
+        let classes = if candidates.len() > MAX_CHECKED_IMPLEMENTATIONS {
+            candidates
+        } else {
+            candidates
+                .into_iter()
+                .filter(|c| {
+                    self.object(&SourceRef::class(c)).is_some_and(|o| {
+                        type_info(&o.symbols, c).is_some_and(|i| {
+                            i.interfaces.iter().any(|x| x.eq_ignore_ascii_case(&key))
+                        })
+                    })
+                })
+                .collect()
         };
         self.implementations
             .lock()

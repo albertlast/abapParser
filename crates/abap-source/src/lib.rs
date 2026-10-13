@@ -236,7 +236,8 @@ pub trait SourceProvider: Send + Sync {
     }
 
     /// Global classes implementing an interface, upper case, when the
-    /// provider can list them; folders can, an SAP system is not asked.
+    /// provider can list them. May name more classes, e.g. an SAP system
+    /// answers with its where-used list; callers check the class sources.
     fn implementations(&self, _interface: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
