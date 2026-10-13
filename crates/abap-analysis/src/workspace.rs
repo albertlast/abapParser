@@ -841,6 +841,76 @@ START-OF-SELECTION.
     }
 
     #[test]
+    fn submitted_programs() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZCALLER"),
+            "REPORT zcaller.
+DATA gv_id TYPE i.
+DATA gv_count TYPE i.
+START-OF-SELECTION.
+  SELECT SINGLE id FROM zheads INTO @gv_id.
+  SUBMIT zpost WITH p_id = gv_id WITH p_mode = 'X' AND RETURN.",
+        );
+        p.insert(
+            SourceRef::program("ZPOST"),
+            "REPORT zpost.
+PARAMETERS p_id TYPE i.
+PARAMETERS p_mode TYPE c.
+DATA gv_total TYPE i.
+INITIALIZATION.
+  gv_total = 0.
+START-OF-SELECTION.
+  SELECT SINGLE amount FROM zitems INTO @gv_total WHERE id = @p_id.
+  PERFORM post.
+FORM post.
+  UPDATE ztotals SET total = @gv_total WHERE id = @p_id.
+ENDFORM.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::program("ZCALLER"), 1);
+        let start = l
+            .procedures
+            .iter()
+            .find(|p| p.unit.as_deref() == Some("PROG:ZCALLER"))
+            .unwrap();
+        // the tables of the submitted program, its own data not; ZTOTALS
+        // depends on ZHEADS through gv_id passed to p_id
+        let effects: Vec<String> = start
+            .effects
+            .iter()
+            .map(|e| {
+                format!(
+                    "{} via {} from {} tables {}",
+                    e.name,
+                    e.via
+                        .iter()
+                        .map(|v| v.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    e.inputs.join(","),
+                    e.tables.join(",")
+                )
+            })
+            .collect();
+        assert_eq!(
+            effects,
+            [
+                "ZTOTALS via ZPOST from  tables ZHEADS,ZITEMS",
+                "gv_id via  from  tables ZHEADS"
+            ],
+            "{:#?}",
+            start.effects
+        );
+        // not followed with depth 0
+        let l = ws.logic(&SourceRef::program("ZCALLER"), 0);
+        assert!(l
+            .procedures
+            .iter()
+            .all(|p| p.effects.iter().all(|e| e.name != "ZTOTALS")));
+    }
+
+    #[test]
     fn calls_through_dictionary_types() {
         let mut p = MemoryProvider::new();
         p.insert(

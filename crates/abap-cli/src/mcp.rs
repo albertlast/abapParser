@@ -21,7 +21,7 @@ const MAX_ANSWER: usize = 80_000;
 const INSTRUCTIONS: &str = "Static analysis of ABAP code. Objects are named \
 KIND:NAME: CLAS:ZCL_ORDERS, INTF:ZIF_X, PROG:ZREPORT (also includes), \
 FUNC:Z_FM, FUGR:ZGROUP, TABL:BAPIRET2 (dictionary structures and tables), \
-DTEL:XUBNAME. Sources come from local folders and/or an SAP system and \
+DTEL:XUBNAME, DDLS:I_COUNTRY (CDS views: get_symbols tells their sources and fields). Sources come from local folders and/or an SAP system and \
 include SAP standard code. Start with get_symbols or get_logic for an \
 object; follow calls with get_call_graph; read code with get_source using \
 the rows the other tools report.";
@@ -113,6 +113,18 @@ impl Server {
     fn call(&self, name: &str, args: &Value) -> Result<String, Failure> {
         match name {
             "get_source" => self.source(args),
+            "get_symbols" if self.reference(args)?.kind == ObjectKind::Ddls => {
+                let r = self.reference(args)?;
+                let unit = self
+                    .workspace()?
+                    .unit(&r)
+                    .ok_or_else(|| self.not_found(&r))?;
+                let d = abap_analysis::cds(unit.file.source());
+                Ok(match Detail::of(args) {
+                    Detail::Full => compact(&d),
+                    Detail::Summary => cut_text(text::cds(&d)),
+                })
+            }
             "get_symbols" => {
                 let object = self.object(args)?;
                 Ok(match Detail::of(args) {
@@ -181,6 +193,8 @@ impl Server {
                         logic_answer(&logic, Detail::of(args))
                     }
                     "statements" => compact(&abap_analysis::statements(&source)),
+                    "cds" if full => compact(&abap_analysis::cds(&source)),
+                    "cds" => cut_text(text::cds(&abap_analysis::cds(&source))),
                     other => return Err(Failure::Tool(format!("unknown analysis {other}"))),
                 })
             }
@@ -375,7 +389,7 @@ fn error(id: Value, code: i32, message: &str) -> Value {
 fn tools() -> Value {
     let object = json!({
         "type": "string",
-        "description": "KIND:NAME, e.g. CLAS:ZCL_ORDERS, INTF:ZIF_X, PROG:ZREPORT, FUNC:Z_FM, FUGR:ZGROUP",
+        "description": "KIND:NAME, e.g. CLAS:ZCL_ORDERS, INTF:ZIF_X, PROG:ZREPORT, FUNC:Z_FM, FUGR:ZGROUP, DDLS:I_COUNTRY",
     });
     let detail = json!({
         "type": "string",
@@ -485,7 +499,7 @@ fn tools() -> Value {
                 "type": "object",
                 "properties": {
                     "source": {"type": "string"},
-                    "analysis": {"type": "string", "enum": ["symbols", "calls", "db", "logic", "statements"]},
+                    "analysis": {"type": "string", "enum": ["symbols", "calls", "db", "logic", "statements", "cds"]},
                     "procedure": {"type": "string"},
                     "detail": detail,
                 },
@@ -646,6 +660,29 @@ ENDCLASS.",
         );
         assert!(!err);
         assert_eq!(text, "      2 form f: function X (unresolved)\n");
+    }
+
+    #[test]
+    fn cds_views() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::data_definition("ZI_COUNTRY"),
+            "define view entity ZI_Country as select from t005 { key land1 as Country }",
+        );
+        let s = Server::new(Ok(Box::new(p)));
+        let (text, err) = call(&s, "get_symbols", json!({"object": "DDLS:ZI_COUNTRY"}));
+        assert!(!err, "{text}");
+        assert!(
+            text.contains("  from T005\n    key Country = T005.LAND1\n"),
+            "{text}"
+        );
+        let (text, _) = call(
+            &s,
+            "get_symbols",
+            json!({"object": "DDLS:ZI_COUNTRY", "detail": "full"}),
+        );
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["sources"][0]["name"], "T005");
     }
 
     #[test]

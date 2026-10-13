@@ -132,7 +132,17 @@ pub fn statements_json_async(source: String) -> AsyncTask<JsonTask> {
     JsonTask::new(move || Ok(abap_analysis::json::statements(&source)))
 }
 
-/// Compact text of one source: `symbols`, `calls`, `db` or `logic`.
+#[napi]
+pub fn cds_json(source: String) -> String {
+    abap_analysis::json::cds(&source)
+}
+
+#[napi(ts_return_type = "Promise<string>")]
+pub fn cds_json_async(source: String) -> AsyncTask<JsonTask> {
+    JsonTask::new(move || Ok(abap_analysis::json::cds(&source)))
+}
+
+/// Compact text of one source: `symbols`, `calls`, `db`, `logic` or `cds`.
 #[napi]
 pub fn text(analysis: String, source: String) -> Result<String> {
     abap_analysis::json::text(&analysis, &source).map_err(Error::from_reason)

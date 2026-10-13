@@ -13,7 +13,7 @@ CallKind = Literal["method", "constructor", "function", "form", "submit", "trans
 
 ConditionKind = Literal["or", "equiv", "and", "not", "compare", "is", "in", "between", "predicate", "catch"]
 
-DataScope = Literal["parameter", "local", "attribute", "global", "database", "other"]
+DataScope = Literal["parameter", "local", "attribute", "global", "database", "external", "other"]
 
 DbOperation = Literal["insert", "update", "modify", "delete", "merge", "select", "native"]
 
@@ -27,6 +27,9 @@ Direction = Literal["importing", "exporting", "changing", "returning", "using", 
 
 OperandKind = Literal["literal", "data", "call", "constructor", "arithmetic", "template", "component"]
 """What an operand of a condition is."""
+
+Store = Literal["memory", "parameter", "file", "shared_buffer", "shared_memory"]
+"""Where data outside of the program and the database is kept."""
 
 TypingKind = Literal["type", "like", "type_ref_to", "like_ref_to", "table", "range", "line_of", "structure", "for"]
 
@@ -85,6 +88,85 @@ class CallGraph(TypedDict):
     roots: List[str]
     schema_version: int
     units: List[GraphUnit]
+
+
+class _CdsAssociationRequired(TypedDict):
+    kind: str
+    """COMPOSITION OF instead of ASSOCIATION TO; TO PARENT for the other way"""
+    name: str
+    """the name it is used with, e.g. `_Text`"""
+    target: str
+    """the entity it leads to, upper case"""
+
+
+class CdsAssociation(_CdsAssociationRequired, total=False):
+    cardinality: str
+    """e.g. `[0..*]`"""
+    on: str
+    """ON as written"""
+
+
+class _CdsDefinitionRequired(TypedDict):
+    elements: List[CdsElement]
+    kind: str
+    """as written after DEFINE or EXTEND, lower case: `view entity`, `root view entity`, `view`, `table function`, `abstract entity`, `custom entity`, `hierarchy`, `extend view entity` ..."""
+    name: str
+    """the entity as written"""
+    schema_version: int
+    sources: List[CdsSource]
+    """data sources: SELECT FROM, joins, PROJECTION ON, and the selects joined by UNION; upper case"""
+    span: Span
+
+
+class CdsDefinition(_CdsDefinitionRequired, total=False):
+    """A CDS definition, from its DDL source: what it reads and what its elements are made of."""
+    associations: List[CdsAssociation]
+    implemented_by: str
+    """a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth`"""
+    label: str
+    """`@EndUserText.label`"""
+    parameters: List[CdsParameter]
+    """`WITH PARAMETERS`"""
+    sql_view: str
+    """`@AbapCatalog.sqlViewName` of a classic view, upper case"""
+    where_text: str
+    """WHERE as written"""
+
+
+class _CdsElementRequired(TypedDict):
+    association: bool
+    """an association exposed in the element list"""
+    key: bool
+    name: str
+    """the name it has in the entity: the alias, else the last part"""
+    text: str
+    """the expression as written, or the type of a field"""
+
+
+class CdsElement(_CdsElementRequired, total=False):
+    """An element of the select list, or a field of an entity without select."""
+    fields: List[str]
+    """the fields it is made of, as `SOURCE.FIELD` upper case with the alias resolved; through an association `_ASSOC.FIELD`; parameters as `$PARAMETERS.P`"""
+
+
+class CdsParameter(TypedDict):
+    name: str
+    typing: str
+    """as written"""
+
+
+class _CdsSourceRequired(TypedDict):
+    name: str
+    """table, view or entity, upper case"""
+    role: str
+    """`from`, `inner join`, `left outer join`, `right outer join`, `cross join`, `projection`, or `union` for the FROM of a following select"""
+
+
+class CdsSource(_CdsSourceRequired, total=False):
+    """A data source of a CDS view."""
+    alias: str
+    on: str
+    """ON of a join as written"""
 
 
 class _ClassRequired(TypedDict):
@@ -361,7 +443,7 @@ class _EffectRequired(TypedDict):
 class Effect(_EffectRequired, total=False):
     """A data object outside the procedure, or a database table, that it writes, with what the written values depend on."""
     tables: List[str]
-    """database tables read that the values depend on, upper case"""
+    """database tables and stores read that the values depend on, upper case, stores named like `memory:ZORDERS`"""
     via: List[BlockRef]
     """the called procedures that write it, when not written directly"""
 
@@ -635,16 +717,19 @@ class Step(_StepRequired, total=False):
 
 class _TableAccessRequired(TypedDict):
     access: AccessKind
-    """`read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE"""
+    """`read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER, TRANSFER and their deletes"""
     name: str
-    """table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses"""
+    """table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)`"""
     operation: DbOperation
+    """for stores: `select` when read, `modify` when written, `delete`"""
 
 
 class TableAccess(_TableAccessRequired, total=False):
-    """A database table read or written by a statement."""
+    """A database table, or data kept outside the program (`store`), read or written by a statement."""
     depends: Dependency
     """writes through a call: what the written rows depend on in the called procedure"""
+    store: Store
+    """data kept outside the program and the database"""
     via: BlockRef
     """accessed by the called procedure, not by the statement itself"""
 

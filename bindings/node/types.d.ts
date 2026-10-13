@@ -76,6 +76,73 @@ export interface CallGraph {
 
 export type CallKind = "method" | "constructor" | "function" | "form" | "submit" | "transaction" | "include" | "transformation";
 
+export interface CdsAssociation {
+  /** e.g. `[0..*]` */
+  cardinality?: string;
+  /** COMPOSITION OF instead of ASSOCIATION TO; TO PARENT for the other way */
+  kind: string;
+  /** the name it is used with, e.g. `_Text` */
+  name: string;
+  /** ON as written */
+  on?: string;
+  /** the entity it leads to, upper case */
+  target: string;
+}
+
+/** A CDS definition, from its DDL source: what it reads and what its elements are made of. */
+export interface CdsDefinition {
+  associations?: CdsAssociation[];
+  elements: CdsElement[];
+  /** a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth` */
+  implemented_by?: string;
+  /** as written after DEFINE or EXTEND, lower case: `view entity`, `root view entity`, `view`, `table function`, `abstract entity`, `custom entity`, `hierarchy`, `extend view entity` ... */
+  kind: string;
+  /** `@EndUserText.label` */
+  label?: string;
+  /** the entity as written */
+  name: string;
+  /** `WITH PARAMETERS` */
+  parameters?: CdsParameter[];
+  schema_version: number;
+  /** data sources: SELECT FROM, joins, PROJECTION ON, and the selects joined by UNION; upper case */
+  sources: CdsSource[];
+  span: Span;
+  /** `@AbapCatalog.sqlViewName` of a classic view, upper case */
+  sql_view?: string;
+  /** WHERE as written */
+  where_text?: string;
+}
+
+/** An element of the select list, or a field of an entity without select. */
+export interface CdsElement {
+  /** an association exposed in the element list */
+  association: boolean;
+  /** the fields it is made of, as `SOURCE.FIELD` upper case with the alias resolved; through an association `_ASSOC.FIELD`; parameters as `$PARAMETERS.P` */
+  fields?: string[];
+  key: boolean;
+  /** the name it has in the entity: the alias, else the last part */
+  name: string;
+  /** the expression as written, or the type of a field */
+  text: string;
+}
+
+export interface CdsParameter {
+  name: string;
+  /** as written */
+  typing: string;
+}
+
+/** A data source of a CDS view. */
+export interface CdsSource {
+  alias?: string;
+  /** table, view or entity, upper case */
+  name: string;
+  /** ON of a join as written */
+  on?: string;
+  /** `from`, `inner join`, `left outer join`, `right outer join`, `cross join`, `projection`, or `union` for the FROM of a following select */
+  role: string;
+}
+
 export interface Class {
   aliases: Alias[];
   /** DATA, CLASS-DATA and CONSTANTS */
@@ -150,7 +217,7 @@ export interface DataAccess {
   whole?: boolean;
 }
 
-export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "other";
+export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "other";
 
 /** One database access statement. */
 export interface DbAccess {
@@ -327,7 +394,7 @@ export interface Effect {
   scope: DataScope;
   /** the steps writing it */
   statements: number[];
-  /** database tables read that the values depend on, upper case */
+  /** database tables and stores read that the values depend on, upper case, stores named like `memory:ZORDERS` */
   tables?: string[];
   /** the called procedures that write it, when not written directly */
   via?: BlockRef[];
@@ -583,15 +650,21 @@ export interface Step {
   writes?: DataAccess[];
 }
 
-/** A database table read or written by a statement. */
+/** Where data outside of the program and the database is kept. */
+export type Store = "memory" | "parameter" | "file" | "shared_buffer" | "shared_memory";
+
+/** A database table, or data kept outside the program (`store`), read or written by a statement. */
 export interface TableAccess {
-  /** `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE */
+  /** `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER, TRANSFER and their deletes */
   access: AccessKind;
   /** writes through a call: what the written rows depend on in the called procedure */
   depends?: Dependency;
-  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses */
+  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)` */
   name: string;
+  /** for stores: `select` when read, `modify` when written, `delete` */
   operation: DbOperation;
+  /** data kept outside the program and the database */
+  store?: Store;
   /** accessed by the called procedure, not by the statement itself */
   via?: BlockRef;
 }

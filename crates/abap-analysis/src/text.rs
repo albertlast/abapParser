@@ -397,6 +397,77 @@ fn squeeze(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// A CDS definition: its sources and associations, then each element with
+/// the fields it is made of.
+pub fn cds(d: &m::CdsDefinition) -> String {
+    let mut out = String::new();
+    let mut head = format!("{} {}", d.kind.to_uppercase(), d.name);
+    if let Some(v) = &d.sql_view {
+        head.push_str(&format!(" (SQL view {v})"));
+    }
+    if let Some(l) = &d.label {
+        head.push_str(&format!(" '{l}'"));
+    }
+    line(&mut out, 0, &head, Some(&d.span));
+    if !d.parameters.is_empty() {
+        let p: Vec<String> = d
+            .parameters
+            .iter()
+            .map(|p| format!("{} : {}", p.name, p.typing))
+            .collect();
+        let _ = writeln!(out, "  parameters: {}", p.join(", "));
+    }
+    for s in &d.sources {
+        let _ = write!(out, "  {} {}", s.role, s.name);
+        if let Some(a) = &s.alias {
+            let _ = write!(out, " as {a}");
+        }
+        if let Some(on) = &s.on {
+            let _ = write!(out, " on {on}");
+        }
+        out.push('\n');
+    }
+    for a in &d.associations {
+        let _ = write!(
+            out,
+            "  {} {}{} to {}",
+            a.kind,
+            a.name,
+            a.cardinality.as_deref().unwrap_or(""),
+            a.target
+        );
+        if let Some(on) = &a.on {
+            let _ = write!(out, " on {on}");
+        }
+        out.push('\n');
+    }
+    if let Some(w) = &d.where_text {
+        let _ = writeln!(out, "  where {w}");
+    }
+    if let Some(m) = &d.implemented_by {
+        let _ = writeln!(out, "  implemented by {m}");
+    }
+    for e in &d.elements {
+        let key = if e.key { "key " } else { "" };
+        let from = if e.association {
+            "association".to_string()
+        } else if e.fields.is_empty() {
+            e.text.clone()
+        } else if e.fields.len() == 1 && !e.text.contains([' ', '(']) {
+            // a field as it is: where it comes from says it all
+            e.fields[0].clone()
+        } else {
+            format!(
+                "{} from {}",
+                shorten(&e.text, MAX_STATEMENT),
+                e.fields.join(", ")
+            )
+        };
+        let _ = writeln!(out, "    {key}{} = {from}", e.name);
+    }
+    out
+}
+
 /// A processing block: `class->method`, `form name`, `function_module name`.
 pub fn block(b: &m::BlockRef) -> String {
     match &b.class {
@@ -637,6 +708,7 @@ fn scope(s: m::DataScope) -> &'static str {
         m::DataScope::Attribute => "attribute",
         m::DataScope::Global => "global",
         m::DataScope::Database => "database table",
+        m::DataScope::External => "external",
         m::DataScope::Other => "other",
     }
 }

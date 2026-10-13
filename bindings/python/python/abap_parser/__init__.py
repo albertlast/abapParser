@@ -13,7 +13,7 @@ import json
 from typing import List, Optional, TypedDict
 
 from . import _native
-from .types import Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo
+from .types import CdsDefinition, Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo
 
 __all__ = [
     "symbols",
@@ -117,12 +117,18 @@ def statements(source: str) -> List[StatementInfo]:
     return json.loads(_native.statements_json(source))
 
 
+def cds(source: str) -> CdsDefinition:
+    """A CDS data definition (DDL source): its sources, joins, associations,
+    parameters and the fields each element is made of."""
+    return json.loads(_native.cds_json(source))
+
+
 def text(analysis: str, source: str) -> str:
     """Compact text of one ABAP source file, e.g. for a language model:
     "symbols" (definitions written like ABAP), "calls" and "db" (one line
     each), "logic" (per procedure its effects with the statements and
-    conditions). Rows tell where to find things. Raises ValueError for an
-    unknown analysis."""
+    conditions), "cds" for a CDS data definition. Rows tell where to find
+    things. Raises ValueError for an unknown analysis."""
     return _native.text(analysis, source)
 
 
@@ -178,6 +184,11 @@ async def logic_object_async(reference: str, options: SourceOptions, depth: int 
 async def statements_async(source: str) -> List[StatementInfo]:
     """:func:`statements` in a worker thread."""
     return await asyncio.to_thread(statements, source)
+
+
+async def cds_async(source: str) -> CdsDefinition:
+    """:func:`cds` in a worker thread."""
+    return await asyncio.to_thread(cds, source)
 
 
 async def text_async(analysis: str, source: str) -> str:

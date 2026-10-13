@@ -468,6 +468,10 @@ impl SourceProvider for AdtProvider {
                 }
                 self.source(r, &format!("/sap/bc/adt/ddic/tables/{name}/source/main"))
             }
+            (ObjectKind::Ddls, _) => self.source(
+                r,
+                &format!("/sap/bc/adt/ddic/ddl/sources/{name}/source/main"),
+            ),
             (ObjectKind::Dtel, _) => {
                 let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
                 Ok(self
