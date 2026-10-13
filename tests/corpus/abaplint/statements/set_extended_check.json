@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "SET EXTENDED CHECK OFF.",
+  "expect": "match",
+  "type": "SetExtendedCheck"
+ },
+ {
+  "abap": "SET EXTENDED CHECK ON.",
+  "expect": "match",
+  "type": "SetExtendedCheck"
+ },
+ {
+  "abap": "SET EXTENDED CHECK OFF.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

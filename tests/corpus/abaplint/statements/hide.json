@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "HIDE gv_field.",
+  "expect": "match",
+  "type": "Hide"
+ },
+ {
+  "abap": "HIDE foobar#.",
+  "expect": "match",
+  "type": "Hide"
+ },
+ {
+  "abap": "HIDE gv_field.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

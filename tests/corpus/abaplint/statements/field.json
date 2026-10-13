@@ -1,0 +1,73 @@
+[
+ {
+  "abap": "FIELD sdfds MODULE sdfs ON INPUT.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD sdfds MODULE sdfs.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "field go->gv module sdfsd on request.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "field foo-bar.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar MODULE check_matnr ON CHAIN-REQUEST.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar WITH bar-moo.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar WITH '0001'.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "field foo-bar select * from ztab\n                        where field = foo-bar into result\n                        whenever not found\n                        send errormessage.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar MODULE moo AT CURSOR-SELECTION.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD MARC-WERKS SELECT * FROM T001W WHERE WERKS = MARC-WERKS.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "field foo-bar select * from t001\n                       where bukrs = foo-bar into t001\n                       whenever not found\n                       send errormessage.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar MODULE modulename ON CHAIN-INPUT.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD foo-bar ON REQUEST MODULE fill_table.",
+  "expect": "match",
+  "type": "Field"
+ },
+ {
+  "abap": "FIELD sdfds MODULE sdfs ON INPUT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

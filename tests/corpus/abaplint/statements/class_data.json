@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "class-data EOL type CHAR01 value CL_ABAP_CHAR_UTILITIES=>CR_LF.",
+  "expect": "match",
+  "type": "ClassData"
+ },
+ {
+  "abap": "CLASS-DATA gv_out TYPE xstring.",
+  "expect": "match",
+  "type": "ClassData"
+ },
+ {
+  "abap": "class-data gv_var type zfoo value 'FOO' read-only .",
+  "expect": "match",
+  "type": "ClassData"
+ }
+]

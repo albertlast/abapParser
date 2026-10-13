@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDENHANCEMENT.",
+  "expect": "match",
+  "type": "EndEnhancement"
+ },
+ {
+  "abap": "ENDENHANCEMENT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,208 @@
+[
+ {
+  "abap": "PARAMETERS p_insp TYPE sciins_inf-inspecname OBLIGATORY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_glob TYPE c RADIOBUTTON GROUP g1 DEFAULT 'X'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameters p_user   TYPE sci_dynp-usr DEFAULT sy-uname.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_objs   TYPE sci_dynp-i_objs OBLIGATORY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_foobar   TYPE sdfs LOWER CASE DEFAULT 'asdf'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_up TYPE string LOWER CASE MEMORY ID gr8.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS write TYPE asdf AS LISTBOX VISIBLE LENGTH 40 LOWER CASE OBLIGATORY DEFAULT 'sdf'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETER p_local  RADIOBUTTON GROUP g1.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_path  TYPE string LOWER CASE MODIF ID pat.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameter p_def type c default ' ' as checkbox.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameters p_size default 1000 type i.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS rb_down RADIOBUTTON GROUP rb1 USER-COMMAND space.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_mail TYPE so_dli_nam OBLIGATORY MATCHCODE OBJECT zfoobar.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETER p_url  TYPE string LOWER CASE VISIBLE LENGTH 40.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_backfn TYPE text40 NO-DISPLAY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS cb_errl AS CHECKBOX DEFAULT 'X'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETER p_top  TYPE i DEFAULT 100 OBLIGATORY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_aid LIKE toaom-archiv_id OBLIGATORY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_file(128) TYPE c LOWER CASE OBLIGATORY DEFAULT 'C:\\filename.xls'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_mail TYPE c LENGTH 40 LOWER CASE.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS moo-boo LIKE foo-bar.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameters foo radiobutton group 123.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS foo TYPE bar-moo VALUE CHECK DEFAULT '*'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETER moo TYPE /foo/bar MODIF ID 011.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_bar TYPE /foo/bar AS LISTBOX USER-COMMAND baar VISIBLE LENGTH 35.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS value TYPE p LENGTH 5 DECIMALS 1.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_foo USER-COMMAND 01 AS CHECKBOX.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_data01 LIKE (p_type01) MODIF ID 01 VALUE CHECK.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameters bar like sy-ucomm.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "parameters bar like sy-ucomm memory id 123.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_layout TYPE slis_vari MEMORY ID sy-repid NO-DISPLAY.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS %blah RADIOBUTTON GROUP func MODIF ID old DEFAULT 'X'.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_foo LIKE moo-boo-loo MODIF ID foo.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_sel TYPE char10 OBLIGATORY AS LISTBOX VISIBLE LENGTH 15 DEFAULT 'BAR' USER-COMMAND ukey.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS ?trans TYPE trkorr.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS ldb_abc NO-DISPLAY DEFAULT 'X' FOR TABLE tab.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS dy_bar LIKE foo-bar FOR TABLE tab VALUE-REQUEST.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS sdf RADIOBUTTON GROUP a DEFAULT 'X' USER-COMMAND ?.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS sdf RADIOBUTTON GROUP a USER-COMMAND /0.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_spmon LIKE s513-spmon+2(4).",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
+  "abap": "PARAMETERS p_insp TYPE sciins_inf-inspecname OBLIGATORY.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

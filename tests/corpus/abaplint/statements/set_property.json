@@ -1,0 +1,33 @@
+[
+ {
+  "abap": "SET PROPERTY OF io_app_obj 'StatusBar' = 'OLE Call'.",
+  "expect": "match",
+  "type": "SetProperty"
+ },
+ {
+  "abap": "SET PROPERTY OF cell 'Text' = text NO FLUSH.",
+  "expect": "match",
+  "type": "SetProperty"
+ },
+ {
+  "abap": "SET PROPERTY OF foo-bar PROPERTY = value NO FLUSH EXPORTING foo = P1.",
+  "expect": "match",
+  "type": "SetProperty"
+ },
+ {
+  "abap": "SET PROPERTY OF foo-bar PROPERTY = value NO FLUSH EXPORTING #1 = P1 #2 = P2.",
+  "expect": "match",
+  "type": "SetProperty"
+ },
+ {
+  "abap": "SET PROPERTY OF ex 'Visible' = 1 no flush queueonly.",
+  "expect": "match",
+  "type": "SetProperty"
+ },
+ {
+  "abap": "SET PROPERTY OF io_app_obj 'StatusBar' = 'OLE Call'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,235 @@
+[
+ {
+  "abap": "INSERT tactz FROM TABLE lt_tactz.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT INTO zuser VALUES ls_user.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo CLIENT SPECIFIED.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT INTO ztable client specified VALUES ls_values.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "insert zdata from table lt_table accepting duplicate keys.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT (c_tabname) FROM ls_foobar.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT (c_tabname) CLIENT SPECIFIED FROM TABLE lt_table.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT (mv_tabname) CONNECTION default FROM ig_row.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT (mv_tabname) CONNECTION (mv_connection_key) FROM ig_row.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zdata CONNECTION 'R/3*MYCON' FROM lv_data.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zdata CONNECTION 'DEFAULT' FROM lv_data.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "insert into ztable client specified connection (l_db) values entry.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT ztable FROM TABLE @lt_data.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT ztotals FROM ( SELECT FROM zheader FIELDS number GROUP BY mandt, number ).",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT INTO ztable VALUES @current.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zdata CONNECTION R/3*MOO FROM lv_data.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zdata CONNECTION (con).",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo FROM @ls_wa.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT (mv_tabname) FROM @ls_wa.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo CLIENT SPECIFIED FROM @ls_wa.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo CLIENT SPECIFIED FROM TABLE @lt_wa.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa INDICATORS NOT NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM TABLE @itab INDICATORS NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM TABLE @itab INDICATORS NULL STRUCTURE %zind ACCEPTING DUPLICATE KEYS.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT INTO zalpha VALUES @wa INDICATORS NOT NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa INDICATORS NOT NULL BITFIELD %zind.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa INDICATORS (lv_ind).",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa OPTIONS USING CLIENT @lv PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa OPTIONS PRIVILEGED ACCESS CONNECTION (lv_con).",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa OPTIONS CONNECTION (lv_con).",
+  "expect": "match",
+  "type": "InsertDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT * FROM zbeta ).",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT * FROM zbeta ) ACCEPTING DUPLICATE KEYS.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT FROM zbeta FIELDS c1, c2 ).",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT * FROM zbeta WITH PRIVILEGED ACCESS ).",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT * FROM zbeta ) OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM ( SELECT FROM zbeta FIELDS c1, c2 WHERE c3 = @lv ) ACCEPTING DUPLICATE KEYS.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM TABLE @itab MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zalpha FROM @wa INDICATORS NULL STRUCTURE %zind MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "InsertDatabase"
+ },
+ {
+  "abap": "INSERT zfoo CLIENT SPECIFIED.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "INSERT INTO ztable VALUES @ls_row.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,33 @@
+[
+ {
+  "abap": "SET PF-STATUS 'STATUS_0004'.",
+  "expect": "match",
+  "type": "SetPFStatus"
+ },
+ {
+  "abap": "SET PF-STATUS 'STATUS_0004' EXCLUDING lt_fcode.",
+  "expect": "match",
+  "type": "SetPFStatus"
+ },
+ {
+  "abap": "set pf-status 'FOO' of program 'ZFOO' excluding lt_exc.",
+  "expect": "match",
+  "type": "SetPFStatus"
+ },
+ {
+  "abap": "set pf-status 'LIST' immediately excluding ftab.",
+  "expect": "match",
+  "type": "SetPFStatus"
+ },
+ {
+  "abap": "SET PF-STATUS foo-bar EXCLUDING excl OF PROGRAM modul-pool.",
+  "expect": "match",
+  "type": "SetPFStatus"
+ },
+ {
+  "abap": "SET PF-STATUS 'STATUS_0004'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

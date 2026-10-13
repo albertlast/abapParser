@@ -1,0 +1,15 @@
+[package]
+name = "abap-sql"
+description = "Open SQL parser for ABAP database statements"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+abap-syntax.workspace = true
+abap-model.workspace = true
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

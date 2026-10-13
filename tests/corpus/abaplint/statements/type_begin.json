@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "TYPES BEGIN OF gty_icon.",
+  "expect": "match",
+  "type": "TypeBegin"
+ },
+ {
+  "abap": "TYPES BEGIN OF /foo/bar.",
+  "expect": "match",
+  "type": "TypeBegin"
+ },
+ {
+  "abap": "TYPES BEGIN OF gty_icon %_FINAL.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

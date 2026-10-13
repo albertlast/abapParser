@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "PUT ldb.",
+  "expect": "match",
+  "type": "Put"
+ },
+ {
+  "abap": "PUT ldb.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

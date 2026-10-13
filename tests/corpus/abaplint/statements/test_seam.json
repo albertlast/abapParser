@@ -1,0 +1,24 @@
+[
+ {
+  "abap": "TEST-SEAM foo.",
+  "expect": "match",
+  "type": "TestSeam"
+ },
+ {
+  "abap": "TEST-SEAM foo-bar.",
+  "expect": "match",
+  "type": "TestSeam"
+ },
+ {
+  "abap": "TEST-SEAM foo.",
+  "expect": "match",
+  "type": "TestSeam",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "END-TEST-SEAM.",
+  "expect": "match",
+  "type": "EndTestSeam",
+  "release": "OpenABAP"
+ }
+]

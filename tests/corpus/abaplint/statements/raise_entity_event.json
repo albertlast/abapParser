@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "RAISE ENTITY EVENT /foo/bar~send FROM lt_events.",
+  "expect": "match",
+  "type": "RaiseEntityEvent"
+ },
+ {
+  "abap": "RAISE ENTITY EVENT foo~bar FROM lt_events.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "interface if_ixml_node deferred.",
+  "expect": "match",
+  "type": "InterfaceDeferred"
+ },
+ {
+  "abap": "INTERFACE zif_foobar DEFERRED PUBLIC.",
+  "expect": "match",
+  "type": "InterfaceDeferred"
+ },
+ {
+  "abap": "INTERFACE zif_foo DEFERRED.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

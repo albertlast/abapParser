@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "get dataset p_filename position lv_size.",
+  "expect": "match",
+  "type": "GetDataset"
+ },
+ {
+  "abap": "GET DATASET me->mv_file ATTRIBUTES ls_attr.",
+  "expect": "match",
+  "type": "GetDataset"
+ },
+ {
+  "abap": "get dataset p_filename position lv_size.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

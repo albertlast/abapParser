@@ -1,0 +1,251 @@
+[
+ {
+  "abap": "OPEN CURSOR WITH HOLD l_db_cursor FOR SELECT mandt objct FROM usr12 WHERE mandt = lv_mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "open cursor l_cursor for select * from ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "open cursor l_cursor for select * from ztab connection foo.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR WITH HOLD mv_cursor FOR SELECT (iv_select) FROM (iv_from) WHERE (iv_where) GROUP BY (iv_group) ORDER BY (iv_order).",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR WITH HOLD lv_cursor FOR SELECT (lt_fields) FROM (lv_tab) WHERE (lt_where) %_HINTS DB6 'USE_FOO'.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR WITH HOLD lv_cur\n    FOR SELECT (name) FROM (tabname)\n    CLIENT SPECIFIED\n    %_HINTS ORACLE var\n            INFORMIX var\n            MSSQLNT 'TABLE &TABLE& INDEX=0'.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR lv_cursor FOR SELECT * FROM ztab WITH PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v752"
+ },
+ {
+  "abap": "OPEN CURSOR WITH HOLD lv_cursor FOR SELECT * FROM ztab WITH PRIVILEGED ACCESS WHERE id = lv_id.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v752"
+ },
+ {
+  "abap": "OPEN CURSOR lv_cursor FOR SELECT * FROM ztab WITH PRIVILEGED ACCESS.",
+  "expect": "unknown",
+  "release": "v751"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab1 ORDER BY PRIMARY KEY OPTIONS USING ALL CLIENTS.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS PRIVILEGED ACCESS CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "OpenCursor",
+  "minRelease": "v816"
+ },
+ {
+  "abap": "OPEN CURSOR @DATA(cursor) FOR SELECT * FROM ztab OPTIONS USING ALL CLIENTS.",
+  "expect": "unknown",
+  "release": "v758"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ztab USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab USING CLIENT @mandt UNION ALL SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') UNION ALL SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ('ztab') USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') UNION ALL SELECT f1 FROM ('ztab') USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') USING CLIENT @mandt UNION ALL SELECT f1 FROM ('ztab').",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ('ztab') USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab CLIENT SPECIFIED WHERE k = @sy-mandt UNION ALL SELECT f1 FROM ztab USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab USING CLIENT @mandt UNION ALL SELECT f1 FROM ztab CLIENT SPECIFIED WHERE k = @sy-mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') CLIENT SPECIFIED WHERE k = @sy-mandt UNION ALL SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') CLIENT SPECIFIED WHERE k = @sy-mandt UNION ALL SELECT f1 FROM ztab USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') CLIENT SPECIFIED WHERE k = @sy-mandt UNION ALL SELECT f1 FROM ('ztab') USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab CLIENT SPECIFIED WHERE k = @sy-mandt UNION ALL SELECT f1 FROM ('ztab') USING CLIENT @mandt.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ('ztab') USING CLIENT @mandt UNION ALL SELECT f1 FROM ('ztab') CLIENT SPECIFIED WHERE k = @curr.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ztab UNION SELECT f1 FROM ztab.",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ( SELECT f1 FROM ztab UNION ALL SELECT f1 FROM ztab ).",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab UNION ALL ( SELECT f1 FROM ztab UNION SELECT f1 FROM ztab ).",
+  "expect": "match",
+  "type": "OpenCursor"
+ },
+ {
+  "abap": "OPEN CURSOR WITH HOLD l_db_cursor FOR SELECT mandt objct FROM usr12 WHERE mandt = lv_mandt.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "OPEN CURSOR @cu FOR SELECT f1 FROM ztab CLIENT SPECIFIED WHERE k = @sy-mandt.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

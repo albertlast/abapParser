@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDON.",
+  "expect": "match",
+  "type": "EndOn"
+ },
+ {
+  "abap": "ENDON.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

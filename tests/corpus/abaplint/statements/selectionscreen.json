@@ -1,0 +1,313 @@
+[
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK 1 WITH FRAME TITLE TEXT-001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 1001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF LINE.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN END OF LINE.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN FUNCTION KEY 1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN SKIP 1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "selection-screen uline.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 120 AS SUBSCREEN NO INTERVALS.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK object WITH FRAME TITLE title NO INTERVALS.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN SKIP.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN INCLUDE BLOCKS b6.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF TABBED BLOCK block FOR 20 LINES.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 28(6) text-215 MODIF ID f11 FOR FIELD value1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN TAB (15) tab1 USER-COMMAND u1 DEFAULT SCREEN 100.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 2000 AS WINDOW TITLE TEXT-001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN POSITION 33.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN POSITION POS_LOW.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN POSITION POS_HIGH.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK blo WITH FRAME.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 400 AS SUBSCREEN.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN END OF BLOCK b1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN END OF BLOCK -b1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT (60) cmt_dump FOR FIELD cb_dump.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT (30) FOR FIELD p_del.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 5(13) text-002 FOR FIELD p_non.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "selection-screen comment (24) txt_path  for field p_path  modif id pth.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 1002 TITLE s_title.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT /1(35) text-001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 1000 AS SUBSCREEN NESTING LEVEL 3.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "selection-screen begin of screen 4000 title title as window.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF TABBED BLOCK tab1 FOR 10 LINES NO INTERVALS.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "selection-screen pushbutton /1(50) text-001 user-command us01.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN ULINE /1(72).",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN TAB (20) button1 USER-COMMAND push1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 3(20) FOR FIELD fboo MODIF ID 004.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT (20) foo MODIF ID s3.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN INCLUDE PARAMETERS param.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN INCLUDE SELECT-OPTIONS so_user.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 1(40) text-001 MODIF ID 1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN END OF BLOCK text-001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN PUSHBUTTON /01(40) foo USER-COMMAND push VISIBLE LENGTH 10.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN PUSHBUTTON 1(10) foo USER-COMMAND 'FOOB'.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN PUSHBUTTON 55(60) push USER-COMMAND cmd MODIF ID md1 VISIBLE LENGTH 20.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN TAB (40) text-100 USER-COMMAND tab DEFAULT SCREEN 10.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 3(20) FOR FIELD l_var VISIBLE LENGTH 20.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN PUSHBUTTON pos(18) p_foo USER-COMMAND foo.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK loo WITH FRAME TITLE TEXT-loo.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN TAB (30) name USER-COMMAND 1234 DEFAULT SCREEN 1234 MODIF ID foo.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN TAB (20) nam USER-COMMAND push1 DEFAULT PROGRAM zfoobar SCREEN 1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT 1(20) foo FOR FIELD ?foo.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN COMMENT (15) TEXT-001 FOR FIELD p_foo ID 002.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN POSITION 33 FOR TABLE tab.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN EXCLUDE IDS 001.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN EXCLUDE PARAMETERS foobar.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF VERSION 001 text-a01.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN END   OF VERSION 002.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN ULINE MODIF ID fk1.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN DEFAULT SCREEN 1010.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "selection-screen begin of block file with frame title t-002.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF SCREEN 2000 title foo-bar.",
+  "expect": "match",
+  "type": "SelectionScreen"
+ },
+ {
+  "abap": "SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

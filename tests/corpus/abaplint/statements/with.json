@@ -1,0 +1,263 @@
+[
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable CLIENT SPECIFIED )\n    SELECT * FROM +cte WHERE mandt = @sy-mandt INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH\n  +carriers AS ( SELECT FROM scarr\n                        FIELDS carrid, carrname )\n  SELECT FROM spfli AS s\n           INNER JOIN +carriers AS c\n             ON s~carrid = c~carrid\n         FIELDS c~carrname, s~connid\n         WHERE s~carrid = 'UA'\n         INTO TABLE @FINAL(itab)\n         UP TO 10 ROWS.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT col1, col2 FROM ztab1 ),\n       +cte2 AS ( SELECT t1~col1, t2~col1 FROM +cte1 AS t1 CROSS JOIN +cte1 AS t2 )\n    SELECT FROM +cte2 FIELDS col1 INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte( col1, col2 ) AS ( SELECT id, val FROM ztab )\n    SELECT FROM +cte FIELDS col1 INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT FROM ( ztab1 AS t1\n                    INNER JOIN ztab2 AS t2 ON t1~id = t2~id )\n                    LEFT OUTER JOIN ztab3 AS t3 ON t3~id = t1~id\n                  FIELDS t1~id, t2~val\n                  WHERE t1~id = @lv_id )\n    SELECT FROM +cte FIELDS id INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT FROM ztab1 AS t1\n                    INNER JOIN ztab2 AS t2 ON\n                    CASE t1~col\n                      WHEN @lv_1 THEN 1\n                      ELSE 0\n                    END = 1\n                  FIELDS t1~col, t2~val )\n    SELECT FROM +cte FIELDS col INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT FROM ztab\n                  FIELDS id,\n                    COALESCE( CASE col WHEN @lv_1 THEN col ELSE @lv_2 END, @lv_3 ) AS result )\n    SELECT FROM +cte FIELDS id INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT FROM ztab\n                  FIELDS id, CAST( col AS INT1 ) AS casted )\n    SELECT FROM +cte FIELDS id INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT col1 FROM ztab1 ),\n       +cte2 AS ( SELECT FROM +cte1 FIELDS col1\n                  UNION\n                  SELECT FROM +cte1 FIELDS col1 )\n    SELECT FROM +cte2 FIELDS col1 INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable WITH PRIVILEGED ACCESS )\n    SELECT * FROM +cte INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v752"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable WITH PRIVILEGED ACCESS )\n    SELECT * FROM +cte WITH PRIVILEGED ACCESS INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v752"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable )\n    SELECT * FROM +cte INTO TABLE @DATA(result) PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "With",
+  "release": "v758"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable WITH PRIVILEGED ACCESS )\n    SELECT * FROM +cte INTO TABLE @DATA(result).",
+  "expect": "unknown",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable )\n    SELECT * FROM +cte INTO TABLE @DATA(result) PRIVILEGED ACCESS.",
+  "expect": "unknown",
+  "release": "v756"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable )\n    SELECT * FROM +cte INTO TABLE @DATA(result) PRIVILEGED ACCESS.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "WITH +p AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\zassoc AS llt )\n    SELECT col1 FROM +p AS p WHERE col2 = 'AB' AND col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\zassoc1, \\zassoc2 )\n    SELECT col1 FROM +a WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\zassoc AS x ),\n         +b AS ( SELECT * FROM +a ) WITH ASSOCIATIONS ( \\x AS y )\n    SELECT col1 FROM +b WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\x ),\n         +b AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\y ),\n         +c AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\z )\n    SELECT * FROM +a INTO TABLE @DATA(r).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\zassoc AS x ),\n         +b AS ( SELECT * FROM +a ) WITH ASSOCIATIONS ( \\x AS y ),\n         +c AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\zassoc1, \\zassoc2 )\n    SELECT col1 FROM +a WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT FROM zcds( p_langu = @sy-langu ) AS t FIELDS * ) WITH ASSOCIATIONS ( \\zassoc AS x ),\n         +b AS ( SELECT FROM +a FIELDS * ) WITH ASSOCIATIONS ( \\x AS y ),\n         +c AS ( SELECT FROM ztab AS t FIELDS * ) WITH ASSOCIATIONS ( \\zassoc1, \\zassoc2 )\n    SELECT col1 FROM +b WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT col1 AS r, col2 AS a FROM ztab WHERE col3 = @sy-repid ),\n          +b AS ( SELECT FROM ztab2 FIELDS col1, col2, \\zassoc-col1 AS v1, \\zassoc-col2 AS v2 )\n               WITH ASSOCIATIONS ( \\zassoc\\zassoc2[ WHERE col1 LIKE '%e%' ] AS foo REDIRECTED TO +a VIA ztab )\n    SELECT FROM +b AS result FIELDS \\foo[ WHERE col1 < 6 ]-r\n      WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS ( \\_spfli )\n    SELECT * FROM +cte\\_spfli AS spfli INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT col1, col2 FROM ztab ) WITH ASSOCIATIONS ( \\zassoc ),\n          +b AS ( SELECT FROM zcds( p_langu = @sy-langu ) FIELDS * ) WITH ASSOCIATIONS ( \\zassoc2 AS t )\n    SELECT col1 FROM +a WHERE col3 = @sy-repid INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab ) WITH ASSOCIATIONS (lv_assoc)\n    SELECT * FROM +a INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT col1, col2 FROM ztab WHERE col3 = @sy-repid ) WITH HIERARCHY t1\n    SELECT * FROM +a INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "WITH +a AS ( SELECT * FROM ztab AS t1 WHERE col3 = @sy-repid ) WITH HIERARCHY t1 WITH ASSOCIATIONS ( \\zassoc )\n    SELECT * FROM +a INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "With",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT col FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT col FROM ztab INTO TABLE @lt.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT SINGLE col FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO TABLE @DATA(lt_r).",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO @wa.",
+  "expect": "match",
+  "type": "WithLoop"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO TABLE @lt PACKAGE SIZE 10.",
+  "expect": "match",
+  "type": "WithLoop"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO (lv1, lv2).",
+  "expect": "match",
+  "type": "WithLoop"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO @wa PACKAGE SIZE 10.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT mandt FROM ztable CLIENT SPECIFIED )\n    SELECT * FROM +cte WHERE mandt = @sy-mandt INTO TABLE @DATA(result).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT col FROM ztab )\n    SELECT FROM +cte FIELDS col INTO TABLE @DATA(lt_r).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( JOIN ztarget AS xx ON 1 = 1 )\n   SELECT k FROM +cte INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( JOIN MANY TO ONE ztarget AS xx ON 1 = 1 )\n   SELECT k FROM +cte INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( JOIN ONE TO MANY ztarget AS xx ON +cte~k = xx~k )\n   SELECT k FROM +cte INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( JOIN #my_tag MANY TO ONE ztarget AS xx ON +cte~k = xx~k )\n   SELECT k FROM +cte INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( JOIN EXACT ONE TO ONE ztarget AS xx ON +cte~k = xx~k )\n   SELECT k FROM +cte INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1 )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1 AS x )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1[ #my_tag ] AS x )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1[ #my_tag LEFT OUTER ] AS x )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1[ #my_tag ONE TO ONE ] AS x )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ },
+ {
+  "abap": "WITH +cte1 AS ( SELECT * FROM ztab )\n   WITH ASSOCIATIONS ( +cte1~\\zassoc1[ #my_tag WHERE zcol = @lv ] AS x )\n   SELECT k FROM +cte1 INTO TABLE @lt.",
+  "expect": "match",
+  "type": "With"
+ }
+]

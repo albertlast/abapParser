@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "TYPE-POOL abc.",
+  "expect": "match",
+  "type": "TypePool"
+ },
+ {
+  "abap": "TYPE-POOL abc.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

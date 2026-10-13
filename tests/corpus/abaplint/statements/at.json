@@ -1,0 +1,52 @@
+[
+ {
+  "abap": "AT NEW field.",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT END OF field.",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT NEW (ls_foo-field).",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT END OF (ls_foo-field).",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT NEW <foo>.",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT END OF <bar>.",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT group.",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT END OF field(10).",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT NEW field+4(2).",
+  "expect": "match",
+  "type": "At"
+ },
+ {
+  "abap": "AT %FG01.",
+  "expect": "match",
+  "type": "At"
+ }
+]

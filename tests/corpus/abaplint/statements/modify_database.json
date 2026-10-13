@@ -1,0 +1,171 @@
+[
+ {
+  "abap": "MODIFY t100 FROM <ls_t100>.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo CLIENT SPECIFIED.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY (c_tabname) FROM ls_content.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo FROM TABLE mt_mat.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY (lv_table) CONNECTION (lv_db) FROM TABLE it_data.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY table CONNECTION lv_con FROM TABLE lt_data.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY table CONNECTION 'R/3*MYCON' FROM TABLE lt_data.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY /abc/tablea FROM @is_tablea.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY /abc/tableb FROM TABLE @it_tableb.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo FROM @ls_wa.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY (lv_tab) FROM @ls_wa CONNECTION (lv_db).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo CLIENT SPECIFIED FROM @ls_wa.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo CLIENT SPECIFIED FROM TABLE @lt_wa.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM @wa INDICATORS NOT NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab INDICATORS NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab INDICATORS NOT NULL BITFIELD %zind.",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM @wa INDICATORS (lv_ind).",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab OPTIONS USING CLIENT @lv PRIVILEGED ACCESS CONNECTION (lv_con).",
+  "expect": "match",
+  "type": "ModifyDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT * FROM zbeta ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT FROM zbeta FIELDS zcol1, zcol2 ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT * FROM zbeta WHERE zcol1 = @lv ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT * FROM zbeta WITH PRIVILEGED ACCESS ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT * FROM zbeta ) OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT ' 9 ', zcol2, zcol3, zcol4 FROM zalpha WHERE zcol1 = ' 2 ' ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM ( SELECT FROM zalpha FIELDS zcol1, zcol2, zcol3, currency_conversion( amount = zcol_price, source_currency = zcol_curr, target_currency = zcol_curr, exchange_rate_date = @sy-datlo, on_error = @zcl_handler=>c_on_error-fail ) AS zcol_price ).",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM @wa MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zalpha FROM TABLE @itab INDICATORS NULL STRUCTURE %zind MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "ModifyDatabase"
+ },
+ {
+  "abap": "MODIFY zfoo CLIENT SPECIFIED.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MODIFY zfoo FROM TABLE lt_data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "SUBTRACT foo FROM bar.",
+  "expect": "match",
+  "type": "Subtract"
+ }
+]

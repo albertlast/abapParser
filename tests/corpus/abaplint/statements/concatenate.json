@@ -1,0 +1,73 @@
+[
+ {
+  "abap": "concatenate space space into lv_foo.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE lv_tmp iv_pack INTO lv_xstring IN BYTE MODE.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE lv_tmp iv_pack INTO lv_xstring IN CHARACTER MODE.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE lv_result '0' lv_bits+21(7) INTO lv_result.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE foo bar INTO lv_result RESPECTING BLANKS.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE <ls_file>-file-path+1 <ls_file>-file-filename INTO lv_filename.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE <ls_node>-chmod <ls_node>-name INTO lv_string SEPARATED BY space.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE lv_result lv_base+lv_offset(lv_len) INTO lv_result IN BYTE MODE.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE '/SAP/PUBLIC/zgit/' 'script.js' INTO lv_url.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE LINES OF tab INTO <fs> SEPARATED BY lv_sep RESPECTING BLANKS.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE LINES OF cl_slin_io=>old_line_to_src( <ls_line> ) INTO lv_tmp.",
+  "expect": "match",
+  "type": "Concatenate"
+ },
+ {
+  "abap": "CONCATENATE asdf.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "CONCATENATE lv_got li_param->get_type( ) INTO lv_got IN BYTE MODE.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "CONCATENATE |dsfds| |sfs| into DATA(sdf).",
+  "expect": "unknown"
+ },
+ {
+  "abap": "CONCATENATE 'sdfs' 'sdf' INTO DATA(dsfs) SEPARATED BY |a|.",
+  "expect": "unknown"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "END-OF-PAGE.",
+  "expect": "match",
+  "type": "EndOfPage"
+ },
+ {
+  "abap": "END-OF-PAGE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

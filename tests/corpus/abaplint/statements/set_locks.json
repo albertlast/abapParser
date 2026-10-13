@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "SET LOCKS OF sdf\n    ENTITY ent\n    FROM source\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "SetLocks"
+ }
+]

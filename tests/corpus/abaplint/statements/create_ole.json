@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "CREATE OBJECT cv_ole_app lv_ole_app.",
+  "expect": "match",
+  "type": "CreateOLE"
+ },
+ {
+  "abap": "CREATE OBJECT cv_ole_app lv_ole_app.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

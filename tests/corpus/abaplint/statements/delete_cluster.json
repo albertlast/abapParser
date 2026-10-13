@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "DELETE FROM DATABASE lawdivindx(cu) ID 'LAW_CUSTOMER_CREDIT'.",
+  "expect": "match",
+  "type": "DeleteCluster"
+ },
+ {
+  "abap": "DELETE FROM DATABASE foo(ba) CLIENT sy-mandt ID key.",
+  "expect": "match",
+  "type": "DeleteCluster"
+ },
+ {
+  "abap": "DELETE FROM DATABASE /space/name(aa) ID lv_id.",
+  "expect": "match",
+  "type": "DeleteCluster"
+ },
+ {
+  "abap": "DELETE FROM DATABASE lawdivindx(cu) ID 'LAW_CUSTOMER_CREDIT'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "STATICS BEGIN OF foo.",
+  "expect": "match",
+  "type": "StaticBegin"
+ },
+ {
+  "abap": "STATICS BEGIN OF foo OCCURS 0.",
+  "expect": "match",
+  "type": "StaticBegin"
+ }
+]

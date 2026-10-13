@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "CLASS zcl_foo_super DEFINITION LOAD.",
+  "expect": "match",
+  "type": "ClassDefinitionLoad"
+ }
+]

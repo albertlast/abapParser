@@ -1,0 +1,33 @@
+[
+ {
+  "abap": "ASSIGN LOCAL COPY OF INITIAL LINE OF <table> TO <fs>.",
+  "expect": "match",
+  "type": "AssignLocalCopy"
+ },
+ {
+  "abap": "assign local copy of <lt_foo> to <lt_bar>.",
+  "expect": "match",
+  "type": "AssignLocalCopy"
+ },
+ {
+  "abap": "ASSIGN LOCAL COPY OF INITIAL (L_VAR) TO <WA>.",
+  "expect": "match",
+  "type": "AssignLocalCopy"
+ },
+ {
+  "abap": "ASSIGN LOCAL COPY OF INITIAL data[] TO <lt_data>.",
+  "expect": "match",
+  "type": "AssignLocalCopy"
+ },
+ {
+  "abap": "ASSIGN LOCAL COPY OF MAIN TABLE FIELD (gl_tabf) TO <feld>.",
+  "expect": "match",
+  "type": "AssignLocalCopy"
+ },
+ {
+  "abap": "ASSIGN LOCAL COPY OF INITIAL LINE OF <table> TO <fs>.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

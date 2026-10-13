@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "PROCESS ON HELP-REQUEST.",
+  "expect": "match",
+  "type": "ProcessOnHelpRequest"
+ },
+ {
+  "abap": "PROCESS ON HELP-REQUEST.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

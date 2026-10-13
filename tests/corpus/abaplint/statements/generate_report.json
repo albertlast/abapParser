@@ -1,0 +1,48 @@
+[
+ {
+  "abap": "generate report lv_name.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "generate report lv_name\n  without selection-screen\n  message lv_message\n  include lv_include\n  line lv_line\n  word lv_word.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "GENERATE REPORT lv_name\n  MESSAGE lv_message\n  INCLUDE lv_include\n  LINE    lv_line\n  WORD    lv_word\n  OFFSET  lv_offset.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "GENERATE REPORT l_name WITH PRECOMPILED HEADERS.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "GENERATE REPORT l_name WITH PRECOMPILED HEADERS WITH TEST CODE.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "generate report lv_report\n    message lv_message\n    include lv_include\n    line lv_line\n    message-id ls_message\n    shortdump-id lv_shortdump.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "generate report lv_report\n    message    lv_message\n    message-id lv_msgid\n    line       lv_line\n    word       lv_word\n    include    lv_include\n    shortdump-id lv_dump\n    directory entry lv_directory.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "generate report lv_report\n    with precompiled headers\n    include     lv_include\n    message     lv_message\n    line        lv_line\n    offset      lv_offset\n    word        lv_word\n    trace-file  lv_trace\n    directory entry lv_trdir.",
+  "expect": "match",
+  "type": "GenerateReport"
+ },
+ {
+  "abap": "generate report lv_name.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

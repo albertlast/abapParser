@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "catch system-exceptions import_mismatch_errors = 1.",
+  "expect": "match",
+  "type": "CatchSystemExceptions"
+ },
+ {
+  "abap": "CATCH SYSTEM-EXCEPTIONS conversion_errors = zcl_foobar=>const.",
+  "expect": "match",
+  "type": "CatchSystemExceptions"
+ },
+ {
+  "abap": "catch system-exceptions import_mismatch_errors = 1.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

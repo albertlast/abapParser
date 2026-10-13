@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "READ TEXTPOOL lv_cp INTO lt_tpool LANGUAGE mv_language.",
+  "expect": "match",
+  "type": "ReadTextpool"
+ },
+ {
+  "abap": "READ TEXTPOOL lv_cp INTO lt_tpool.",
+  "expect": "match",
+  "type": "ReadTextpool"
+ },
+ {
+  "abap": "read textpool lv_cp language mv_lang into lt_tpool state 'A'.",
+  "expect": "match",
+  "type": "ReadTextpool"
+ },
+ {
+  "abap": "READ TEXTPOOL lv_cp INTO lt_tpool LANGUAGE mv_language.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

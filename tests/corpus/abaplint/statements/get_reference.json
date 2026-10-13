@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "GET REFERENCE OF ig_data INTO <ls_stab>-value.",
+  "expect": "match",
+  "type": "GetReference"
+ },
+ {
+  "abap": "GET REFERENCE OF foo INTO lv_ref.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

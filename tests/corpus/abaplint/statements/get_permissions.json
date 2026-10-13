@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL AUTHORIZATION ENTITY ent\n    REQUEST sourc\n    RESULT DATA(result)\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE ENTITY ZDMO_C_RAPG_ProjectTP\n     FROM VALUE #( ( RapBoUUID = rap_generator_project-RapBoUUID ) )\n     REQUEST permission_request\n     RESULT DATA(permission_result)\n     FAILED DATA(failed_permission_result)\n     REPORTED DATA(reported_permission_result).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL AUTHORIZATION ENTITY ent\n    REQUEST sourc\n    RESULT DATA(result)\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "GetPermissions",
+  "release": "OpenABAP"
+ }
+]

@@ -1,0 +1,430 @@
+[
+ {
+  "abap": "WRITE 'foobar'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / 'hello'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE lv_row TO lv_char.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write lc_val to lv_time USING EDIT MASK '__:__:__'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE lv_flag AS CHECKBOX INPUT OFF NO-GAP.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE lv_value TO lv_value_c EXPONENT 0 NO-GROUPING NO-SIGN.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE pv_qty UNIT pv_uom TO lv_text1.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write <item> to lv_value no-grouping no-sign decimals 10.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT /10 'sdf'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write coltext to header_text(4) as icon left-justified.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write lv_foo no-gap.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 'Hello' COLOR 6.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write /(100) 'foobar'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE foo COLOR 1 INTENSIFIED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write mark as checkbox.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE foo INPUT ON.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write line_horizontal_line as line no-gap.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write sym_minus_box as symbol no-gap.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write /(100) 'foobar' color = 4.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write l_intern_date to l_extern_date mm/dd/yyyy.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write at 52 'sdf' color = 2 inverse.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write lv_int_value to lv_ext_value exponent lv_exponent.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT 10 'sdf'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 25 'hello'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE (4) lv_var NO-GAP.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE /.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write l_x right-justified to ls_dump.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE space COLOR 2 INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write lv_val to lv_res currency lv_cur round lv_round no-sign no-zero.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE lv_date DD/MM/YYYY.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE lv_time ENVIRONMENT TIME FORMAT.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write / lv_ts time zone sy-zonlo.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write icon_message_error as icon hotspot.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write / lv_foo under text-001.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write 60(1) sy-vline.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write /3(50) sdf.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write at /(20) wa_str-name.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 'hello' HOTSPOT COLOR 5 INVERSE ON.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write 2(50) text-003 color 3 intensified on.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT (len) fill COLOR 3.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write lv_val to lv_ext style lv_style no-zero no-sign.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / lv_bar INPUT.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE icon_tools AS ICON HOTSPOT ON COLOR COL_NORMAL.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write val to text(len) using no edit mask.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT (lv_at) lv_name COLOR COL_HEADING QUICKINFO lv_info.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 1(4) 'FOO' CENTERED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE ('CL_FOO=>BAR') TO lv_value.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT 125(6) foo-bar COLOR COL_POSITIVE CENTERED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / 'bar' INTENSIFIED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write at GI_GEN_H_MSG-HOTSPOT_COL ICON_REPLACE as icon.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE value CURRENCY cur TO s.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT (length) lv_text COLOR = var1 INTENSIFIED = var2 HOTSPOT = var3.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE (16) foo COLOR = r INVERSE = i.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 'sdf' TO table INDEX index.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT pos(length) symbol AS SYMBOL NO-GAP.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT lv_pos(4) lv_icon AS ICON.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT / moo.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT /20 moo.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write (*) l_line2.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT /pos foo.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT <baubles_memory>-position_x(1) 'hello'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT ls_output-field(ls_len-outputlen) <l_fs> NO-GAP.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT lv_position_x(1) 'o' COLOR COL_TOTAL INTENSIFIED ON INVERSE OFF FRAMES OFF.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |<td>{ lv_date DATE = USER }</td>|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |<td>{ lv_time TIME = USER }</td>|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |<td>{ lv_date DATE = ENVIRONMENT }</td>|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |<td>{ lv_time TIME = ENVIRONMENT }</td>|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |{ g_name WIDTH = 30 }|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE <moo>+<offs>-end-end.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "write at 5(ls_structure-field) 'hello world'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE foo COLOR OFF INTENSIFIED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE (6)sy-sysid.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |{ bar DECIMALS = 0 ALIGN = RIGHT WIDTH = 15 }|.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT /.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT / 'sdf'.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT / 'sdf' AS LINE.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE AT / 'sdf' COLOR 3.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE (variable) TO var-txt(len).",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE (var) TO dr-txt LEFT-JUSTIFIED.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / <pnumber>.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / (10) moo.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE / (10) <pnumber>.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE 'foobar'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "WRITE lv.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "WRITE lv TO lv2.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

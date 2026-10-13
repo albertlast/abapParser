@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "AT LINE-SELECTION.",
+  "expect": "match",
+  "type": "AtLineSelection"
+ },
+ {
+  "abap": "AT LINE-SELECTION.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

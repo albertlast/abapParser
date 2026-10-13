@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "continue.",
+  "expect": "match",
+  "type": "Continue"
+ }
+]

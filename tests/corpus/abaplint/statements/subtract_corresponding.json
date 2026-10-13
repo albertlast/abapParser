@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SUBTRACT-CORRESPONDING foo FROM bar.",
+  "expect": "match",
+  "type": "SubtractCorresponding"
+ },
+ {
+  "abap": "SUBTRACT-CORRESPONDING foo FROM bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

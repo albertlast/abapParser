@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDCATCH.",
+  "expect": "match",
+  "type": "EndCatch"
+ },
+ {
+  "abap": "ENDCATCH.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

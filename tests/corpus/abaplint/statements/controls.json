@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "CONTROLS tctrl TYPE TABLEVIEW USING SCREEN 200.",
+  "expect": "match",
+  "type": "Controls"
+ },
+ {
+  "abap": "CONTROLS tstrip TYPE TABSTRIP.",
+  "expect": "match",
+  "type": "Controls"
+ },
+ {
+  "abap": "CONTROLS tctrl TYPE TABLEVIEW USING SCREEN 200.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

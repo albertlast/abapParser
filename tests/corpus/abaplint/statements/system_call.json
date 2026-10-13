@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "system-call query class ls_class-clsname.",
+  "expect": "match",
+  "type": "SystemCall"
+ },
+ {
+  "abap": "SYSTEM-CALL OBJMGR CLONE me TO result.",
+  "expect": "match",
+  "type": "SystemCall"
+ },
+ {
+  "abap": "SYSTEM-CALL ict\n  DID\n    ihttp_scid_base64_escape_x\n  PARAMETERS\n    tmp_s\n    lv_string\n    c_last_error.",
+  "expect": "match",
+  "type": "SystemCall"
+ },
+ {
+  "abap": "SYSTEM-CALL ICT\n    DID\n      ihttp_scid_jscript_escape\n    PARAMETERS\n      unescaped\n      escaped\n      options\n      c_last_error.",
+  "expect": "match",
+  "type": "SystemCall"
+ },
+ {
+  "abap": "system-call query class ls_class-clsname.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

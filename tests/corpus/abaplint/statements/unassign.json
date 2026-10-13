@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "UNASSIGN <blah>.",
+  "expect": "match",
+  "type": "Unassign"
+ },
+ {
+  "abap": "UNASSIGN <%%foo>.",
+  "expect": "match",
+  "type": "Unassign"
+ }
+]

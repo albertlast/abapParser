@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "MODULE user_command_2000 INPUT.",
+  "expect": "match",
+  "type": "Module"
+ },
+ {
+  "abap": "MODULE pbo_2000 OUTPUT.",
+  "expect": "match",
+  "type": "Module"
+ },
+ {
+  "abap": "MODULE okcode.",
+  "expect": "match",
+  "type": "Module"
+ },
+ {
+  "abap": "MODULE user_command_2000 INPUT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

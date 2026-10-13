@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "truncate dataset i_filename at current position.",
+  "expect": "match",
+  "type": "TruncateDataset"
+ },
+ {
+  "abap": "truncate dataset i_filename at current position.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

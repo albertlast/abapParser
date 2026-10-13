@@ -1,0 +1,43 @@
+[
+ {
+  "abap": "FUNCTION-POOL zfoobar MESSAGE-ID ab.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL zfoobar MESSAGE-ID ab LINE-SIZE 100.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL zfoo NO STANDARD PAGE HEADING MESSAGE-ID zabc.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL zfoo NO STANDARD PAGE HEADING MESSAGE-ID Y>.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL Z--R NO STANDARD PAGE HEADING MESSAGE-ID zaaa.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL YFOO MESSAGE-ID Y-.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL YFOO MESSAGE-ID Y?.",
+  "expect": "match",
+  "type": "FunctionPool"
+ },
+ {
+  "abap": "FUNCTION-POOL zfoo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

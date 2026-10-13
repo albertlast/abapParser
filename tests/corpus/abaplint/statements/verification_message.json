@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "VERIFICATION-MESSAGE point msg.",
+  "expect": "match",
+  "type": "VerificationMessage"
+ },
+ {
+  "abap": "VERIFICATION-MESSAGE 'ABORT' 'error' PRIORITY 4.",
+  "expect": "match",
+  "type": "VerificationMessage"
+ },
+ {
+  "abap": "VERIFICATION-MESSAGE point msg.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

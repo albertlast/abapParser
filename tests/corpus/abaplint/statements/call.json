@@ -1,0 +1,174 @@
+[
+ {
+  "abap": "cl_gui_cfw=>flush( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "cl_gui_cfw=>flush( ) .",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "cl_gui_cfw=>flush(\r\n) .",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "lif_object~delete( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "gui( )->go_home( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "cl_abap_unit_assert=>assert_subrc( msg = 'Error while parsing'(001) ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD (lv_class_name)=>jump.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "<ls_late>-obj->deserialize( iv_package = <ls_late>-package ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD ('CL_OO_FACTORY')=>('CREATE_INSTANCE').",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "ro_html->add( |var\"\\n| ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "ro_html->add( |var{\nmoo }| ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD o_conv->reset( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "lo_sdf->set_cell( ip_row = 7 ip_column = 'C' ip_value = -10  ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lo_instance->('CREATE_CLIF_SOURCE').",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "ii_client->request->set_header_field( name  = '~request_method' value = 'POST' ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "mo_files->add_string( iv_extra  = 'source' iv_ext    = 'xml' ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "mo_files->add_string( iv_extra  = 'source' ) ##NO_TEXT.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lo_obj->(lv_method) PARAMETER-TABLE lt_parameters.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD <ls_meta>-obj->(<ls_meta>-meta-handler) PARAMETER-TABLE lt_parameters.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "ro_html->add( '<thead><tr>' ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD (class)=>(meth) PARAMETER-TABLE ptab EXCEPTION-TABLE etab.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "zcl_demo_customer=>get( |{ zcl_demo_salesorder=>get( |{ it_key_tab[ name = 'SalesOrderId' ]-value }| )->get_kunnr( ) }| )->zif_gw_methods~map_to_entity( REF #( er_entity ) ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "lcl_foo=>bar( !name = !moo ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lo_foo->bar\n  IMPORTING\n    field1 = DATA(lv_field1).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lo_foo->bar\n  IMPORTING\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1)\n    field1 = DATA(lv_field1).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lr_salv->get_sorts( )->add_sort(\n  EXPORTING\n    columnname = 'COLUMN'\n    subtotal   = if_salv_c_bool_sap=>true ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "moo( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD lcl_class=>m_foo->mr_bar->get_thing\nEXPORTING\n  iv_id     = l_id\nIMPORTING\n  er_thing  = lr_thing\nEXCEPTIONS\n  not_found = 1.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "assert_true( xsdbool( not->negated_expression IS INSTANCE OF cl_blah ) ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD env=>instance->go_server->encode.",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "CALL METHOD zcl_class=>method( ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "go_mr_api->get(\n    exporting\n      i_url              = i_url\n    exceptions\n      parameter_missing  = /foo/cx_mime_repo=>rc-parameter_missing\n      permission_failure = /foo/cx_mime_repo=>rc-permission_failure\n      others             = /foo/cx_mime_repo=>rc-others ).",
+  "expect": "match",
+  "type": "Call"
+ },
+ {
+  "abap": "my_object->meth( foo->* ).",
+  "expect": "match",
+  "type": "Call",
+  "release": "v756"
+ },
+ {
+  "abap": "CALL METHOD lo_obj->method( ).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "OVERLAY lv_qty WITH '000000000000000000'.",
+  "expect": "match",
+  "type": "Overlay"
+ },
+ {
+  "abap": "OVERLAY foo WITH bar ONLY '.'.",
+  "expect": "match",
+  "type": "Overlay"
+ }
+]

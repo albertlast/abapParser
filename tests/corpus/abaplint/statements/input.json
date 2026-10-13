@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "INPUT.",
+  "expect": "match",
+  "type": "Input"
+ },
+ {
+  "abap": "INPUT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

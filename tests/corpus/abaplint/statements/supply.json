@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SUPPLY foo = bar TO CONTEXT ctx.",
+  "expect": "match",
+  "type": "Supply"
+ },
+ {
+  "abap": "SUPPLY foo = bar TO CONTEXT ctx.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

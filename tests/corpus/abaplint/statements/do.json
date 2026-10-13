@@ -1,0 +1,42 @@
+[
+ {
+  "abap": "DO var TIMES.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO 10 TIMES.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO 10 TIMES VARYING foo FROM from NEXT next.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO 10 TIMES VARYING field FROM foo NEXT bar.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO VARYING var FROM foo NEXT bar.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "DO 16 TIMES VARYING field1 FROM foo NEXT bar VARYING field2 FROM foo NEXT bar.",
+  "expect": "match",
+  "type": "Do"
+ },
+ {
+  "abap": "do 10 times varying l_ch from l_char(1) next l_char+1(1) range l_char.",
+  "expect": "match",
+  "type": "Do"
+ }
+]

@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "SET RUN TIME CLOCK RESOLUTION LOW.",
+  "expect": "match",
+  "type": "SetRunTime"
+ },
+ {
+  "abap": "SET RUN TIME CLOCK RESOLUTION HIGH.",
+  "expect": "match",
+  "type": "SetRunTime"
+ },
+ {
+  "abap": "SET RUN TIME ANALYZER ON.",
+  "expect": "match",
+  "type": "SetRunTime"
+ },
+ {
+  "abap": "SET RUN TIME ANALYZER OFF.",
+  "expect": "match",
+  "type": "SetRunTime"
+ },
+ {
+  "abap": "SET RUN TIME CLOCK RESOLUTION LOW.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

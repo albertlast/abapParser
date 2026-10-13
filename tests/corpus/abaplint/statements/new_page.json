@@ -1,0 +1,93 @@
+[
+ {
+  "abap": "new-page line-size lv_width.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE NO-TITLE NO-HEADING.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE WITH-TITLE.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "new-page print off.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE LINE-COUNT 15.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE WITH-HEADING.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE PRINT ON PARAMETERS params NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE NO-TITLE NO-HEADING PRINT ON PARAMETERS par ARCHIVE PARAMETERS arc NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE PRINT ON PARAMETERS params NO DIALOG NEW-SECTION.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE PRINT ON DESTINATION 'NULL' NO DIALOG LINE-SIZE 0252 LINE-COUNT 0065.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE PRINT ON\n  DESTINATION 'LOCAL'\n  COVER TEXT gv_text\n  LIST AUTHORITY 'AUTH'\n  IMMEDIATELY ' '\n  KEEP IN SPOOL 'X'\n  LINE-SIZE 182\n  LINE-COUNT 65\n  NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE PRINT ON\n  LIST DATASET lv_name\n  COVER TEXT   lv_title\n  IMMEDIATELY  ' '\n  NEW LIST IDENTIFICATION 'X'\n  NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE\n  PRINT ON\n  LINE-SIZE               123\n  LIST NAME               lv_name\n  LIST AUTHORITY          lv_auth\n  DESTINATION             lv_dest\n  COVER TEXT              lv_cover_text\n  LIST DATASET            lv_list_dataset\n  IMMEDIATELY             lv_immediately\n  NEW LIST IDENTIFICATION lv_new_list_id\n  KEEP IN SPOOL           lv_keep\n  LAYOUT                  lv_layot\n  SAP COVER PAGE          lv_cover_page\n  NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE\n          PRINT ON\n          LINE-SIZE               132\n          DESTINATION             sdfsd\n          LIST NAME               proliadfsastn\n          IMMEDIATELY             sdfsd\n          NEW LIST IDENTIFICATION 'X'\n          KEEP IN SPOOL           'X'\n          LIST DATASET            'A100'\n          SAP COVER PAGE          sdfasdf-prsap\n          RECEIVER                sdfasdf-prrec\n          DEPARTMENT              sdfasdf-prabt\n          NO DIALOG.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE NO-TITLE\n     NO-HEADING\n     PRINT ON KEEP IN SPOOL 'X'\n              IMMEDIATELY 'X'\n              NO DIALOG\n              DESTINATION target\n              COPIES bar\n              LIST NAME foo.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "NEW-PAGE NO-TOPOFPAGE.",
+  "expect": "match",
+  "type": "NewPage"
+ },
+ {
+  "abap": "new-page line-size lv_width.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "CLASS-DATA BEGIN OF blah READ-ONLY.",
+  "expect": "match",
+  "type": "ClassDataBegin"
+ }
+]

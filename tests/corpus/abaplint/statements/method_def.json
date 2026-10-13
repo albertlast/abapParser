@@ -1,0 +1,619 @@
+[
+ {
+  "abap": "CLASS-METHODS status IMPORTING io_repo TYPE REF TO lcl_repo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS get_message RETURNING VALUE(rv_message) TYPE string RAISING lcx_exception.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS expo IMPORTING io_rep TYPE REF TO lcl_repo it_fil TYPE scts_tadir OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods read IMPORTING iv_name TYPE clike CHANGING  cg_data TYPE any RAISING lcx_exception.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS create_dynpro IMPORTING !dynp_node TYPE REF TO if_ixml_element RAISING !zcx_zg_link.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods show IMPORTING iv_key            TYPE string VALUE(iv_current) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS m1 IMPORTING !VALUE(iv_x) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS m1 IMPORTING !REFERENCE(iv_x) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS m1 IMPORTING !value(iv_x) TYPE i EXPORTING !value(ev_y) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m1 RETURNING !VALUE(rv_x) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m1 RETURNING !value(rv_x) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS export IMPORTING iv_zip    TYPE abap_bool DEFAULT abap_true.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS convert_int FOR TESTING RAISING lcx_exception.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS refresh REDEFINITION.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods foobaaar final.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods BIND_ALV_OLE2 exceptions MISS_GUIDE.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event FOR EVENT sapevent OF cl_gui_html_viewer.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event ABSTRACT FOR EVENT sapevent OF cl_gui_html_viewer.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods ADAPT_PARAMETERS final redefinition .",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event FOR EVENT sapevent OF cl_gui_html_viewer IMPORTING action frame.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS methodblah IMPORTING is_clskey TYPE sdf RAISING lcx_foo cx_bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS add IMPORTING foo TYPE string OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS add IMPORTING foo TYPE string OPTIONAL bar TYPE string OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS handler FOR EVENT message OF cl_ci_test_root IMPORTING !p_checksum_1.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods CONVERT changing !CO_sdf type ref to ZCL_sdf optional.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods ADD_NEW importing !IP_TYPE type zasdf default zc_bar=>foo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods read abstract importing i_filename type csequence.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods add_abap IMPORTING it_abap  TYPE STANDARD TABLE.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS user IMPORTING iv_user TYPE xubname DEFAULT sy-uname.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods find_dot_abapgit RAISING lcx_exception.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS add_entity EXPORTING VALUE(foobar) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS get_count IMPORTING iv_index TYPE i RETURNING VALUE(rv_value) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods CONSTRUCTOR importing foobar type ref to /IWBEP/IF_MGW_CONV_SRV_RUNTIME raising /IWBEP/CX_MGW_TECH_EXCEPTION .",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods ADD importing OBJ type ANY optional CONTEXT type SIMPLE optional preferred parameter OBJ.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS check_input RAISING resumable(zcx_exception).",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "class-methods SET_CELL_VALUE_IN_EXCEL changing value(CV_CELL_WIDTH) type I optional.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods foo importing it_foo type INDEX TABLE.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "class-methods get importing bar like lcl_cla=>field.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS method1 DEFAULT FAIL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS foo IMPORTING inp TYPE LINE OF bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS method2 DEFAULT IGNORE.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods CONSTRUCTOR\n  importing\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional\n    foo type index table optional.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS format_message importing id like sy-msgid.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS format_message importing id like sy-msgid default sy-msgid.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS format_message importing lang type langu default '-'.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS name IMPORTING REFERENCE(i_center) TYPE REF TO zcl_bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS blah IMPORTING is_blah LIKE LINE OF mt_blah.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods DESTRUCTOR NOT AT END OF MODE.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods name exporting !out type %_C_POINTER.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS run IMPORTING parameter TYPE zif_definitions~ty_type.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS foo FOR TABLE FUNCTION bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS foo FOR TABLE FUNCTION /foo/bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "class-methods run importing it_list like gt_list[].",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS get_uri_query_parameter\n    IMPORTING\n      name      TYPE string\n      default   TYPE string OPTIONAL\n      mandatory TYPE abap_bool\n    EXPORTING\n      value     TYPE string.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "class-methods bar exceptions /space/cx_error.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS test1 ABSTRACT FOR TESTING RAISING cx_static_check.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS connection_graph\n    FOR DDL OBJECT\n    OPTIONS CDS SESSION CLIENT REQUIRED.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS get_shortest_path AMDP OPTIONS CDS SESSION CLIENT current.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS moo AMDP OPTIONS READ-ONLY CDS SESSION CLIENT current.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS m AMDP OPTIONS READ-ONLY IMPORTING VALUE(iv) TYPE i EXPORTING VALUE(ev) TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS m AMDP OPTIONS READ-ONLY.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS /ui2/bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS /ui2/foo_bar RETURNING VALUE(ro_/ui2/moo) TYPE REF TO /ui2/boo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS validate_foo  FOR VALIDATE ON SAVE IMPORTING keys FOR foo~bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS modify_foo    FOR MODIFY IMPORTING  keys FOR ACTION foo~bar RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS features_foo  FOR FEATURES IMPORTING keys REQUEST requested_features FOR bar RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS determine_foo FOR DETERMINE ON MODIFY IMPORTING keys FOR foo~bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "CLASS-METHODS get_shortest_path\n  AMDP OPTIONS CDS SESSION CLIENT current\n  IMPORTING VALUE(i_airport_from) TYPE zabap_graph_spfli_edge-AirportFrom\n            VALUE(i_airport_to)   TYPE zabap_graph_spfli_edge-AirportTo\n  EXPORTING VALUE(e_routes)       TYPE tt_routes\n  RAISING   cx_amdp_execution_error.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS read FOR READ IMPORTING keys FOR READ /foo/bar RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS set_foo FOR DETERMINE ON SAVE IMPORTING keys FOR foo~set_foo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS create FOR MODIFY IMPORTING entities FOR CREATE item.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS update FOR MODIFY IMPORTING entities FOR UPDATE header.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS delete FOR MODIFY IMPORTING keys FOR DELETE links.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS item FOR MODIFY IMPORTING enti FOR CREATE header\\_item.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS item FOR READ IMPORTING keys FOR READ header\\_item FULL resqu RESULT result LINK association_links.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS modify FOR BEHAVIOR IMPORTING\n  roots_to_create FOR CREATE booking\n  roots_to_update FOR UPDATE booking\n  roots_to_delete FOR DELETE booking.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS read FOR BEHAVIOR IMPORTING it_booking_key FOR READ booking RESULT et_booking.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS lock FOR BEHAVIOR IMPORTING it_booking_key FOR LOCK booking.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS lock FOR LOCK IMPORTING keys FOR LOCK /foo/bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS foo FOR MODIFY IMPORTING sdf FOR ACTION sdf~sdf.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS sdf FOR GLOBAL AUTHORIZATION IMPORTING REQUEST sdf FOR sdf RESULT sdf.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS get_auth FOR INSTANCE AUTHORIZATION IMPORTING keys REQUEST requested_authorizations FOR ent RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS get_instance_features FOR INSTANCE FEATURES IMPORTING keys REQUEST requested_features FOR Project RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS GetDefaultsForChild FOR READ IMPORTING keys FOR FUNCTION Root~GetDefaultsForChild RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "methods ON_POPUP_NEEDED default ignore\n    for event POPUP_NEEDED of zif_sdfds\n    importing\n      !ljlkja\n      !safdsf .",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS\n      precheck_update FOR PRECHECK\n        IMPORTING entities FOR UPDATE Review.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS precheck_delete FOR PRECHECK\n        IMPORTING keys FOR DELETE Review.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS\n    augment FOR MODIFY\n    IMPORTING\n        entities_create FOR CREATE LabelAll\\_Label\n        entities_update FOR UPDATE Label.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS\n    validatetransportrequest FOR VALIDATE ON SAVE\n      IMPORTING\n        KEYS FOR Label~ValidateTransportRequest.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS get_global_features FOR GLOBAL FEATURES\n    IMPORTING\n    REQUEST REQUESTED_FEATURES FOR LabelText\n    RESULT result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS earlynumbering_create FOR NUMBERING\n        IMPORTING entities FOR CREATE Recipe.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS check_auth FOR AUTHORIZATION\n    IMPORTING it_entity_key REQUEST is_request FOR bar\n    RESULT    rt_result.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS doSave FOR DETERMINATION foo~dosave IMPORTING keys FOR bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS valida FOR VALIDATION foobar~validateRatio IMPORTING keys FOR mmoo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS modify FOR BEHAVIOR IMPORTING foo FOR UPDATE moo.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "class-methods get amdp options cds session client dependent\n      importing value(iv_source) type /foo/bar.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS reload FOR MODIFY abc FOR ACTION foo~reload.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event FOR ENTITY EVENT events FOR root~raised.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event FOR ENTITY EVENT IMPORTING events FOR root~raised.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_event FINAL FOR ENTITY EVENT IMPORTING REFERENCE(events) FOR root~raised.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS on_events FOR ENTITY EVENT\n    created_events FOR root~created\n    changed_events FOR root~changed\n    deleted_events FOR root~deleted.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m_returning_table_for_create\n    RETURNING VALUE(instances) TYPE TABLE FOR CREATE z_i_entity.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m_importing_response_mapped\n    IMPORTING mapped TYPE RESPONSE FOR MAPPED EARLY z_i_entity OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m_importing_action_result\n    IMPORTING result TYPE TABLE FOR ACTION RESULT z_i_entity~Approve OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m_importing_read_result\n    IMPORTING result TYPE TABLE FOR READ RESULT z_i_entity OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS method2 DEFAULT IGNORE.",
+  "expect": "match",
+  "type": "MethodDef",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "METHODS test1 FOR TESTING RETURNING VALUE(vbeln) TYPE string.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo EXPORTING bar TYPE ANY STRUCTURE.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo RETURNING VALUE(bar) TYPE ANY STRUCTURE.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "CLASS-METHODS on_event FOR ENTITY EVENT events FOR root~raised.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "CLASS-METHODS determine_parameters RETURNING VALUE(rs_parameters) TYPE ty_parameters RAISING ycx_see IMPORTING io_owner TYPE REF TO ycl_see_history io_session TYPE REF TO zif_gg_session_v1.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo RAISING cx_foo EXPORTING bar TYPE i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo RETURNING VALUE(rv_bar) TYPE i IMPORTING baz TYPE i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo EXCEPTIONS bar IMPORTING baz TYPE i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "METHODS foo IMPORTING bar TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "MethodDef",
+  "release": "v916"
+ },
+ {
+  "abap": "METHODS foo IMPORTING bar TYPE ANY STRUCTURE OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef",
+  "release": "v916"
+ },
+ {
+  "abap": "METHODS foo CHANGING bar TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "MethodDef",
+  "release": "v916"
+ },
+ {
+  "abap": "METHODS foo CHANGING bar TYPE ANY STRUCTURE OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef",
+  "release": "v916"
+ },
+ {
+  "abap": "METHODS foo IMPORTING bar TYPE ANY STRUCTURE CHANGING baz TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "MethodDef",
+  "release": "v916"
+ },
+ {
+  "abap": "METHODS foo AMDP OPTIONS CDS SESSION CLIENT CURRENT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "METHODS foo EXCEPTIONS bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "METHODS foo FOR TABLE FUNCTION zfoo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "METHODS on_event FOR ENTITY EVENT events FOR root~raised.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

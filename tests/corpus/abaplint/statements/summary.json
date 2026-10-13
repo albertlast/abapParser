@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SUMMARY.",
+  "expect": "match",
+  "type": "Summary"
+ },
+ {
+  "abap": "SUMMARY.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

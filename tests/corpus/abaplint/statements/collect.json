@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "COLLECT WA_VBBE INTO IT_VBBE.",
+  "expect": "match",
+  "type": "Collect"
+ },
+ {
+  "abap": "COLLECT users.",
+  "expect": "match",
+  "type": "Collect"
+ },
+ {
+  "abap": "collect foo into bar-moo assigning field-symbol(<foo>).",
+  "expect": "match",
+  "type": "Collect"
+ }
+]

@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "SET BLANK LINES ON.",
+  "expect": "match",
+  "type": "SetBlank"
+ },
+ {
+  "abap": "SET BLANK LINES OFF.",
+  "expect": "match",
+  "type": "SetBlank"
+ },
+ {
+  "abap": "SET BLANK LINES ON.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

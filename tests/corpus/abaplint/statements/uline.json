@@ -1,0 +1,73 @@
+[
+ {
+  "abap": "ULINE.",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE (92).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE /(80).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE /1(76).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT /.",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT (c_line_size).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT /1(80) .",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT 3(12).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT /(right).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE /10.",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT /(10) NO-GAP.",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT p_offset(131).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE AT column(length).",
+  "expect": "match",
+  "type": "Uline"
+ },
+ {
+  "abap": "ULINE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

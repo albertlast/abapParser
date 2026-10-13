@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "REFRESH bar.",
+  "expect": "match",
+  "type": "Refresh"
+ },
+ {
+  "abap": "REFRESH tab-520.",
+  "expect": "match",
+  "type": "Refresh"
+ },
+ {
+  "abap": "REFRESH tab-520m FROM TABLE t520m.",
+  "expect": "match",
+  "type": "Refresh"
+ },
+ {
+  "abap": "REFRESH bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

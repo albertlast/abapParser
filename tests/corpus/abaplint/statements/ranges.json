@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "ranges l_prot_only for smodilog-prot_only.",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "RANGES moo FOR foo-bar OCCURS 50.",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "RANGES $tadir$ FOR tadir-devclass OCCURS 10.",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "RANGES lr_prctr FOR <foo>-prctr.",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "RANGES r_sdata FOR data-sdata(3).",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "RANGES foo-bar FOR bar.",
+  "expect": "match",
+  "type": "Ranges"
+ },
+ {
+  "abap": "ranges l_prot_only for smodilog-prot_only.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

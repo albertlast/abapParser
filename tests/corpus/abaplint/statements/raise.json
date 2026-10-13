@@ -1,0 +1,162 @@
+[
+ {
+  "abap": "raise exception type zcx_root.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION lx_root.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE RESUMABLE EXCEPTION TYPE zcx_foobar.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE lcx_exception EXPORTING iv_text = lv_text.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE /iwbep/cx_mgw_not_impl_exc.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE /iwbep/cx_mgw_not_impl_exc EXPORTING textid = \n/iwbep/cx_mgw_not_impl_exc=>method_not_implemented method = 'CREATE_DEEP_ENTITY'.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE RESUMABLE EXCEPTION TYPE zcx_error EXPORTING textid = zcx_error=>some_values_too_high.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION me->dd_sobject_store-exception.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION lr_/foo/cx_bar.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE cx_error MESSAGE e004(clas) EXPORTING previous = lx_error.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID 'ZZZ' NUMBER '001' WITH <fs>-value.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_error MESSAGE s123(c$).",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION NEW zcx_excel( i_message = 'Worksheet not found.').",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE exc.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE SHORTDUMP TYPE /foo/bar MESSAGE e401(/foo/bar) WITH iv_table.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID 'ZZZ' NUMBER '001' WITH |23234|.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID 'ZZZ' NUMBER '001' WITH |23234| && |sdf|.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcxsdfsd MESSAGE e003(zsdfsdf)\n    WITH lx_error->get_text( )\n    EXPORTING previous = lx_error.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcxsdfsd MESSAGE e006\n    WITH\n      'Hello'(001)\n      'VALUE'\n      CONV symsgv( lo->get_text( ) )\n      space.",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foo\n     MESSAGE e100 WITH COND #( WHEN moo-boo IS INITIAL\n                               THEN lo_typedescr->get_relative_name( )\n                               ELSE ls_ddic-sdf ).",
+  "expect": "match",
+  "type": "Raise"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v750"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID 'ZFOO' TYPE 'E' NUMBER 001.",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v750"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_bar MESSAGE e000(zp_foo) WITH lv_moo.",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v750"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar MESSAGE ID 'ZFOO' TYPE 'E' NUMBER 001 WITH bar.",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v750"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foobar USING MESSAGE.",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v752"
+ },
+ {
+  "abap": "RAISE EXCEPTION NEW zcx_foobar( ).",
+  "expect": "match",
+  "type": "Raise",
+  "minRelease": "v752"
+ },
+ {
+  "abap": "RAISE EXCEPTION NEW cx_blah( ) MESSAGE e003.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "RAISE zcx_foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "RAISE EXCEPTION TYPE zcx_foo.",
+  "expect": "match",
+  "type": "Raise",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "RAISE EXCEPTION NEW zcx_foo( ).",
+  "expect": "match",
+  "type": "Raise",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

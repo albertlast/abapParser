@@ -1,0 +1,58 @@
+[
+ {
+  "abap": "INSERT REPORT is_progdir-name FROM it_source STATE 'I' PROGRAM TYPE is_progdir-subc.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT lv_include FROM lt_source.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "insert report lv_include from lt_content extension type p_extension.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT lv_name FROM tab EXTENSION TYPE ext DIRECTORY ENTRY entry.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT lv_name FROM tab EXTENSION TYPE ext STATE 'A'.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "insert report lv_name from tab state 'A' extension type 'CM' KEEPING DIRECTORY ENTRY.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT name FROM prog UNICODE ENABLING 'X'.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT name FROM prog FIXED-POINT ARITHMETIC 'X'.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT lv_prog FROM lt_tab VERSION 'X'.",
+  "expect": "match",
+  "type": "InsertReport"
+ },
+ {
+  "abap": "INSERT REPORT lv_prog FROM lt_tab VERSION 'X'.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "INSERT REPORT prog FROM lt_source.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

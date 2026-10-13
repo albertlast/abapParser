@@ -1,0 +1,43 @@
+[
+ {
+  "abap": "FIELD-SYMBOLS <sdf$> TYPE ty_$.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "field-symbols <fs_*bar> type any.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <foo>.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <bar> STRUCTURE usr02 DEFAULT usr02.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <moo?>.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <?moo>.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <mo?o>.",
+  "expect": "match",
+  "type": "FieldSymbol"
+ },
+ {
+  "abap": "FIELD-SYMBOLS <fs> TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "FieldSymbol",
+  "release": "v916"
+ }
+]

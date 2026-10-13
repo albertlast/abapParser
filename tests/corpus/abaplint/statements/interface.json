@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "INTERFACE lif_gui_page.",
+  "expect": "match",
+  "type": "Interface"
+ },
+ {
+  "abap": "interface ZIF_something public.",
+  "expect": "match",
+  "type": "Interface"
+ }
+]

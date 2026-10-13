@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "CALL SCREEN 0011.",
+  "expect": "match",
+  "type": "CallScreen"
+ },
+ {
+  "abap": "CALL SCREEN 3000 STARTING AT 10 2.",
+  "expect": "match",
+  "type": "CallScreen"
+ },
+ {
+  "abap": "CALL SCREEN '0900' STARTING AT 25 5 ENDING AT gv_end_spalte gv_end_zeile.",
+  "expect": "match",
+  "type": "CallScreen"
+ },
+ {
+  "abap": "CALL SCREEN 0011.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

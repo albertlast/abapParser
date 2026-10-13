@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "set country 'DE'.",
+  "expect": "match",
+  "type": "SetCountry"
+ },
+ {
+  "abap": "set country 'DE'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

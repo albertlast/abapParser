@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "AT USER-COMMAND.",
+  "expect": "match",
+  "type": "AtUserCommand"
+ },
+ {
+  "abap": "AT USER-COMMAND.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

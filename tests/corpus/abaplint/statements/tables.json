@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "TABLES ztab.",
+  "expect": "match",
+  "type": "Tables"
+ },
+ {
+  "abap": "TABLES ztab.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "SET TITLEBAR 'TITLE'.",
+  "expect": "match",
+  "type": "SetTitlebar"
+ },
+ {
+  "abap": "SET TITLEBAR 'TITLE_2000' WITH text-t08.",
+  "expect": "match",
+  "type": "SetTitlebar"
+ },
+ {
+  "abap": "set titlebar 'T00' with field1 field2.",
+  "expect": "match",
+  "type": "SetTitlebar"
+ },
+ {
+  "abap": "SET TITLEBAR 'TITLE_3000' OF PROGRAM sy-cprog WITH text-001.",
+  "expect": "match",
+  "type": "SetTitlebar"
+ },
+ {
+  "abap": "SET TITLEBAR 'TITLE'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

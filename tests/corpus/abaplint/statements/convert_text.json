@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "CONVERT TEXT foo-text INTO SORTABLE CODE foo-xtext.",
+  "expect": "match",
+  "type": "ConvertText"
+ }
+]

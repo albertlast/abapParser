@@ -1,0 +1,58 @@
+[
+ {
+  "abap": "DEFINE foo.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE foo-bar.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE bar%foo.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "define macro>.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE ?macro?.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE foo$bar.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE foo_bar.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE %_foo-*bar*.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "define &xdsfds.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE /afl/log_init.",
+  "expect": "match",
+  "type": "Define"
+ },
+ {
+  "abap": "DEFINE foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

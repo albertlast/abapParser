@@ -1,0 +1,790 @@
+[
+ {
+  "abap": "SELECT foo FROM ztable.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT sdfs FROM basdf WHERE name is null.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select netwr from vbakuk into l_netwr where vbeln = l_vbeln and vbtyp in ('C').",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * INTO data FROM table WHERE name LIKE l_name ESCAPE '!' AND text NOT LIKE l_text ESCAPE '!'.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT node_key INTO CORRESPONDING FIELDS OF @<entity> FROM snwd_so WHERE (where_clause) ORDER BY (orderby_clause).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT vbeln INTO CORRESPONDING FIELDS OF lt_table FROM vbak WHERE (where_clause) ORDER BY (orderby_clause).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field INTO l_val FROM table WHERE field1 IN var AND field2 LT sy-datum AND field3 GT sy-datum AND NOT field4 = 'X'.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select field into target up to 1 rows from tab where foo = bar.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM zfoo INTO ls_bar UP TO 1 ROWS WHERE moo = boo AND (lt_where) AND bar = foo.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select field1 field2 into corresponding fields of gt_target from zfoo for all entries in lt_table where number = lt_table-number.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT p~field1 p~field2 INTO (lv_field1, lv_field2) FROM ztab AS p WHERE p~field = lv_field.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select field count(*) into (l_field, l_count) from ztab where field = bar group by number.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select field appending table lt_tab from ztable package size 10 where foo = 'B'.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM cds_view( param2 = @lv_val2, param = @lv_val1 ).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM foo INTO CORRESPONDING FIELDS OF TABLE lt_foo PACKAGE SIZE 100 WHERE moo = stru-value1 AND boo = stru-value2.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field1 field2 INTO  (lv_field1, lv_field2) FROM  ztab AS tab\n  WHERE field < wa-field\n  AND max >= ALL ( select max FROM  ztable WHERE field = wa-field ) ORDER BY field.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "select * from (name) into table <table> package size lv_size where (lv_where).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field1 field2\n  APPENDING CORRESPONDING FIELDS OF TABLE gt_data\n  FROM ztable PACKAGE SIZE 10\n  FOR ALL ENTRIES IN lt_input \n  WHERE field = lt_input-field.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field1 field2\n  APPENDING CORRESPONDING FIELDS OF TABLE gt_data\n  PACKAGE SIZE 10 FROM ztable\n  FOR ALL ENTRIES IN lt_input \n  WHERE field = lt_input-field.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "\n  SELECT DISTINCT (sdf)\n  FROM (sdf)\n  UP TO lv_limit ROWS\n  INTO <record>\n  WHERE (sdf)\n  GROUP BY (sdf)\n  HAVING (sdf)\n  ORDER BY (sdf).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * from mara INTO TABLE @<lt_mara> PACKAGE SIZE @lv_pack.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT blah FROM (db_table_name) INTO @tree WHERE (t_where_clause_blah).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT DISTINCT * FROM (db_table_name) INTO @tree WHERE (t_where_clause_blah).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT DISTINCT blah FROM (db_table_name) INTO @tree WHERE (t_where_clause_blah).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT DISTINCT blah, blah_blah FROM (db_table_name) INTO @tree WHERE (t_where_clause_blah).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT key_property, \\_path-expression FROM cds_view INTO @DATA(result).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT key_property, \\_path-expression AS path FROM cds_view INTO @DATA(result).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT aaa, \\_association-shortText AS ShortText FROM cds_view INTO @DATA(var).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT vbeln, vbtyp,\n  CASE\n    WHEN auart = 'ZAMA' THEN @lc_name1\n    WHEN auart = 'ZACR' THEN @lc_name2\n   ELSE @lc_name3\n END AS ernam\n FROM vbak\n  INTO @DATA(ls_vbak2).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field1 field2\n    INTO CORRESPONDING FIELDS OF TABLE lt_http\n    FROM ztab PACKAGE SIZE 2500\n    WHERE status not BETWEEN 200 and 299\n    and status <> 0\n    AND bar IN i_bar.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM t100 WHERE ( msgnr BETWEEN '001' AND '010' OR msgnr = '050' ).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM t100 WHERE ( msgnr BETWEEN '001' AND '010' OR msgnr = '050').",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM zsdfsd FIELDS @abap_true WHERE name = @sdf INTO @DATA(dddsf) UP TO 1 ROWS.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT field1 INTO CORRESPONDING FIELDS OF TABLE li_tab FROM dbtab\n  PACKAGE SIZE 2500\n  WHERE foo IN bar\n  %_HINTS ORACLE 'sdfsdf'.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM zfoo PACKAGE SIZE 5000 INTO TABLE tab\n    WHERE compdate < del_date\n    AND   status BETWEEN 200 AND 300\n    AND   id IN lr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT a~lgnum            AS lgnum,\n    a~lgtyp            AS lgtyp,\n    a~access_group     AS aisle,\n    SUM( CAST( CAST( a~par_value AS NUMC ) AS INT8 ) ) AS loc_cnt_empty_total\n    FROM /mycomp/stmval AS a\n    WHERE a~lgnum = 'DE01'\n    AND a~lgtyp = 'LG01'\n    AND a~par_name = 'TEST'\n    GROUP BY a~lgnum, a~lgtyp, a~access_group\n    INTO CORRESPONDING FIELDS OF @ls_aisle_ptwy_index.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT 'X'\n  FROM /mycomp/wplog\n WHERE lgnum      = @ms_wplace-lgnum\n   AND wp_id      = @ms_wplace-wp_id\n   AND uname      = @iv_uname\n   AND logout_ts  = @space\n  INTO @DATA(lv_exists).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM zsdfsd\n      FIELDS val\n      WHERE activ    EQ @abap_true\n      ORDER BY PRIMARY KEY\n      INTO @DATA(lv_crmode)\n      UP TO 1 ROWS.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM vbpa\n      FIELDS *\n      WHERE vbeln EQ @ms_vbrk-vbeln\n      AND parvw EQ @sdfsdf\n      ORDER BY posnr ASCENDING\n      INTO @sdfsdf\n      UP TO 1 ROWS.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT @abap_true FROM edimsg\n      INTO @DATA(l_exist)\n      UP TO 1 ROWS\n      WHERE mestyp = @i_message_type\n      ORDER BY PRIMARY KEY.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM sdffds\n    FIELDS *\n    WHERE sdf EQ @lv_sdfsd\n    INTO CORRESPONDING FIELDS OF @sdfsdf.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM ekkn AS e\n     INNER JOIN ekko AS k ON e~ebeln EQ k~ebeln\n     INNER JOIN vbkd AS v ON k~ebeln EQ v~bstkd\n     FIELDS e~vbeln\n     FOR ALL ENTRIES IN @mt_lips\n     WHERE v~vbeln EQ @mt_lips-vgbel\n     INTO @DATA(sdf)\n     UP TO 1 ROWS.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT SUM( field )\n         INTO sum\n         FROM ztab\n         WHERE matnr = matnr\n         AND   werks = werks\n         GROUP BY matnr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT SUM( labst )\n    INTO <foo>-labst UP TO 1 ROWS\n    FROM mard\n    WHERE matnr = <mooo>-matnr\n      AND werks = <mooo>-werks\n      AND lgort = <mooo>-lgpro\n    GROUP BY matnr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT @me->v_werks AS werks, lgort, matnr, labst\n    INTO @lt_foo\n    FROM tab\n    WHERE (lv_where_f).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT MAX( lfgja )\n    INTO var1\n    FROM mardh\n    GROUP BY matnr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT MAX( lfgja )\n    INTO var1\n    FROM mardh CLIENT SPECIFIED\n    GROUP BY matnr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT MAX( lfgja ) MAX( lfmon )\n    INTO (var1, var2)\n    FROM mardh\n    GROUP BY matnr.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT mkpf~bldat mseg~mblnr mseg~mjahr mseg~bwart\n     INTO CORRESPONDING FIELDS OF wa_mov\n     FROM mkpf INNER JOIN mseg\n     ON mkpf~mandt = mseg~mandt\n     AND mkpf~mjahr = mseg~mjahr\n     CONNECTION (dbcon)\n     WHERE mkpf~bldat IN s_bldat\n     AND mseg~bwart IN s_bwart\n     AND mkpf~mjahr IN s_mjahr\n     AND mseg~werks EQ i_werks\n     AND (gwc_werks_mseg) %_HINTS ORACLE 'HELLO'.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT\n    SUM( ztab_agg~value1 )\n    SUM( ztab_agg~value2 )\n      FROM ztab_agg\n      INTO ( ls_out-value1,\n       ls_out-value2 )\n     WHERE key1 = ls_in-key1\n       AND key2 = ls_in-key2\n       AND key3 = ls_in-key3\n       AND key4 = ls_in-key4\n       AND key5 = lv_key5\n       GROUP BY key1\n          key2\n          key3\n          key4\n          key5.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT  t_hdr~id_main\n            t_hdr~id_item\n            t_attr~flag_a\n            t_attr~value_a\n            t_mat~text_a\n            t_qty~num_a\n            t_evt~counter_a\n            t_evt~date_a\n            t_evt~ref_a\n            t_evt~qty_check\n            t_qty~amount_a\n            t_qty~unit_a\n            t_vendor~id_vendor\n            INTO CORRESPONDING FIELDS OF ls_result\n            FROM ( ( ( ( ( ( ( zt_header AS t_hdr\n                   INNER JOIN zt_event AS t_evt\n                     ON  t_hdr~id_main = t_evt~id_main\n                     AND t_hdr~id_item = t_evt~id_item )\n                   INNER JOIN zt_attr AS t_attr\n                     ON  t_attr~id_main = t_hdr~id_main\n                     AND t_attr~id_item = t_hdr~id_item\n                     AND t_attr~key_a = t_hdr~key_a     )\n                   INNER JOIN zt_material  AS t_mat\n                     ON  t_hdr~id_item = t_mat~matnr    )\n                   INNER JOIN zt_link AS t_link\n                     ON  t_hdr~id_item = t_link~matnr\n                     AND t_hdr~id_main = t_link~id_main )\n                   INNER JOIN zt_map AS t_map\n                     ON  t_link~doc_no = t_map~doc_no\n                     AND t_link~doc_pos = t_map~doc_pos )\n                   INNER JOIN zt_qty AS t_qty\n                     ON  t_map~doc_no = t_qty~doc_no\n                     AND t_map~doc_pos = t_qty~doc_pos\n                     AND t_map~doc_sub = t_qty~doc_sub  )\n                   INNER JOIN zt_vendor AS t_vendor\n                     ON  t_hdr~id_main = t_vendor~id_main\n                     AND t_hdr~id_item = t_vendor~id_item\n                     AND t_hdr~key_a = t_vendor~key_a\n                     AND t_map~site_id = t_vendor~cust_id )\n            WHERE t_hdr~id_main EQ ls_input-id_main\n            AND   t_hdr~id_item IN lt_item_rng\n            AND   t_hdr~group_a EQ space\n            AND   t_evt~ref_a IN lt_ref_rng\n            AND   t_map~site_id IN lt_site_rng\n            AND   t_vendor~client_id = ls_input-client_id\n            AND   t_qty~amount_a IN lt_amt_rng.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT f1 COUNT(*) INTO ( wa-id1 , wa-id2 ) UP TO 3 ROWS FROM ztab GROUP BY f1 HAVING f1 = 5.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT f1 FROM ztab GROUP BY f1 HAVING f1 = ( SELECT MAX( f1 ) FROM ztab WHERE f2 = iv ) INTO CORRESPONDING FIELDS OF ls.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT DISTINCT (lv_fields) FROM ztab INTO lv_wa GROUP BY (lv_fields) HAVING NOT (lv_where).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT ( col1 - col2 ) * ( col3 - col4 ) AS result FROM ztab INTO wa.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT FROM ztable FIELDS field1 WHERE field2 = @lv_val INTO @DATA(ls_row).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v750"
+ },
+ {
+  "abap": "SELECT FROM ztable FIELDS field1, field2 WHERE status = @lv_status INTO @DATA(ls_result).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v750"
+ },
+ {
+  "abap": "SELECT a~field1 b~field2 INTO ( lv_val1, lv_val2 ) FROM ztab1 AS a INNER JOIN ztab2 AS b ON a~id = b~id\n    WHERE a~type = '035' AND b~spras EQ sy-langu.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v750"
+ },
+ {
+  "abap": "SELECT a~field1 b~field2 INTO ( lv_val1, lv_val2 ) FROM ztab1 AS a INNER JOIN ztab2 AS b ON a~id = b~id\n    WHERE a~type = '035' AND b~spras EQ sy-langu.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "SELECT \\_assoc1-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT key_property, \\_assoc1-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT \\_assoc1-col AS c FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT \\_assoc1\\_assoc2-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT t1~\\_assoc1-col FROM ztab1 AS t1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT \\_assoc1[ key1 < 3 ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT \\_assoc1[ WHERE key1 < 3 ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT \\_assoc1[ INNER WHERE key1 < 3 ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT \\_assoc1[ ONE TO ONE ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT \\_assoc1[ LEFT OUTER WHERE key1 < 3 ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1 WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT * FROM ztab1\\_assoc1 WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1( col1 = 'AB', col2 = 3 ) WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1[ col4 = @sy-uname ] WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1[ INNER ] WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1 \\_assoc2 WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1 ( col1 = 'AB' ) WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "unknown",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1 [ col4 = @sy-uname ] WHERE col4 = @sy-uname INTO @DATA(r).",
+  "expect": "unknown",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT \\_assoc1 [ key1 < 3 ]-col FROM ztab1 INTO @DATA(r).",
+  "expect": "unknown",
+  "release": "v751"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v758"
+ },
+ {
+  "abap": "SELECT field APPENDING TABLE lt FROM ztab PACKAGE SIZE 10 WHERE id = lv_id PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v758"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id PRIVILEGED ACCESS.",
+  "expect": "unknown",
+  "release": "v756"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id PRIVILEGED ACCESS.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT * FROM ztab ORDER BY PRIMARY KEY INTO @DATA(wa) OPTIONS USING ALL CLIENTS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 ORDER BY PRIMARY KEY INTO @DATA(wa2) OPTIONS USING ALL CLIENTS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v816"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO @DATA(wa) OPTIONS USING ALL CLIENTS.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT foo FROM ztab.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo bar FROM ztab WHERE id = 1.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo FROM ztab INTO wa.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo FROM ztab INTO CORRESPONDING FIELDS OF @wa.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo bar FROM ztab INTO (lv1, lv2).",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE @lt_t PACKAGE SIZE 10.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM ztab APPENDING TABLE @lt_t PACKAGE SIZE 10.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE @lt_t PACKAGE SIZE 10 WHERE id = 1.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT * INTO CORRESPONDING FIELDS OF TABLE @lt_t PACKAGE SIZE 10 FROM ztab WHERE id = 1.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT COUNT(*) FROM ztab GROUP BY id.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT id COUNT(*) FROM ztab GROUP BY id HAVING COUNT(*) > 1.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo FROM ztab ORDER BY PRIMARY KEY.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo bar FROM ztab ORDER BY foo.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT foo FROM ztab INTO @wa UP TO 1 ROWS.",
+  "expect": "match",
+  "type": "SelectLoop"
+ },
+ {
+  "abap": "SELECT SINGLE foo FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT SINGLE * FROM ztab INTO @wa WHERE id = 1.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT SINGLE foo FROM ztab INTO wa.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT foo FROM ztab UNION SELECT foo FROM ztab2 INTO TABLE @lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT foo FROM ztab UNION ALL SELECT foo FROM ztab2 INTO TABLE @lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT * FROM ztab INTO TABLE @lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT * FROM ztab APPENDING TABLE @lt_t WHERE id = 1.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT foo FROM ztab INTO TABLE lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT foo FROM ztab APPENDING TABLE @lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT foo FROM ztab APPENDING CORRESPONDING FIELDS OF TABLE @lt_t.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT(*) FROM ztab INTO @lv_cnt.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT( * ) FROM ztab INTO lv_cnt WHERE id = 1.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT(*) FROM ztab.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT(*) FROM ztab HAVING COUNT(*) > 1.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT(*) FROM ztab ORDER BY PRIMARY KEY.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT SUM( val ) FROM ztab INTO lv_sum.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT MAX( val ) FROM ztab INTO lv_max.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT MIN( val ) FROM ztab INTO lv_min.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT AVG( val ) FROM ztab INTO lv_avg.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT COUNT(DISTINCT id) FROM ztab INTO lv_cnt.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT SUM( val ) MAX( val ) FROM ztab INTO (lv_sum, lv_max).",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT MIN( val ) MAX( val ) FROM ztab INTO (lv_min, lv_max).",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT num MAX( count ) COUNT(*) INTO TABLE lt_tab FROM zfoo.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT ROW_NUMBER( ) OVER( ORDER BY col ) AS rn FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT RANK( ) OVER( ORDER BY col ) AS rk FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT SUM( amount ) OVER( PARTITION BY grp ) AS running FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT ROW_NUMBER( ) OVER( ORDER BY col ) AS rn FROM ztab INTO @wa WHERE id = 1.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "v757"
+ },
+ {
+  "abap": "SELECT SUM( amount ) FROM ztab INTO @wa.",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT MAX( val ) MIN( val ) FROM ztab INTO (lv_max, lv_min).",
+  "expect": "match",
+  "type": "Select"
+ },
+ {
+  "abap": "SELECT * FROM ztab CLIENT SPECIFIED INTO @wa.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "SELECT * FROM ztab CONNECTION (con) INTO TABLE @lt_data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "SELECT * FROM tadir\n    UP TO 1 ROWS\n    INTO @row\n    ORDER BY obj_name DESCENDING.",
+  "expect": "match",
+  "type": "SelectLoop",
+  "release": "Newest",
+  "lang": "Normal"
+ },
+ {
+  "abap": "SELECT * FROM ztab CLIENT SPECIFIED INTO TABLE @lt_data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "SELECT * FROM ztab USING CLIENT @lv_mandt INTO TABLE @lt_data.",
+  "expect": "unknown",
+  "release": "v740sp05",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "SELECT * FROM (lv_tabname) INTO TABLE @lt_data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "SELECT * FROM ztab\\_assoc INTO TABLE @lt_data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

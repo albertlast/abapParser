@@ -1,0 +1,73 @@
+[
+ {
+  "abap": "FETCH NEXT CURSOR lv_cursor INTO TABLE lt_table PACKAGE SIZE lv_size.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR cur INTO ls_record.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR c INTO CORRESPONDING FIELDS OF TABLE lt_table PACKAGE SIZE 10000.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR c APPENDING CORRESPONDING FIELDS OF TABLE lt_tab PACKAGE SIZE iv_size.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR c INTO CORRESPONDING FIELDS OF TABLE lt_result.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR c INTO CORRESPONDING FIELDS OF <wa>.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR l_cursor INTO lt_data PACKAGE SIZE 1000.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR l_cursor INTO TABLE lt_data PACKAGE SIZE 1000.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR @lc_cur INTO @ls_wa EXTENDED RESULT @lo_ext.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR @lc_cur INTO TABLE @lt EXTENDED RESULT @lo_ext PACKAGE SIZE 100.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR @lc_cur INTO @ls_wa INDICATORS NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR @lc_cur INTO TABLE @lt INDICATORS NULL STRUCTURE %zind PACKAGE SIZE 100.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR @lc_cur INTO TABLE @lt INDICATORS NOT NULL BITFIELD %zind.",
+  "expect": "match",
+  "type": "FetchNextCursor"
+ },
+ {
+  "abap": "FETCH NEXT CURSOR lv_cursor INTO TABLE lt_table PACKAGE SIZE lv_size.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

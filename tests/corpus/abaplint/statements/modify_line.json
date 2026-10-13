@@ -1,0 +1,143 @@
+[
+ {
+  "abap": "MODIFY LINE sy-index FIELD VALUE lv_val FROM gc_false.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE FIELD VALUE mark FROM space.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line lineno.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line 2.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE 2 INDEX 0 FIELD VALUE val.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line 1 index 0 field value foo bar boo.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line 2 of page lv_pagno index sy-lsind field format <lv_format> INVERSE = lv_inverse.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line ls_row-linno of page ls_row-pagno index sy-lsind field value gv_mark from lv_selected.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "modify line l_index index sy-lsind line format input off.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE foo-bar INDEX 0 LINE VALUE FROM l_bar.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE FIELD VALUE gv_line FIELD FORMAT lv_format INPUT = lv_input.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE l_line OF CURRENT PAGE LINE FORMAT INPUT OFF.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE line FIELD FORMAT new INTENSIFIED ON.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT RESET FIELD VALUE txt FROM TEXT-001.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE line FIELD FORMAT new INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT RESET COLOR 7.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT INTENSIFIED.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE sy-index FIELD VALUE val FROM var.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT INVERSE COLOR 5 FIELD VALUE foo-bar.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT COLOR COL_NORMAL RESET FIELD FORMAT fmt COLOR COL_KEY.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT INPUT OFF INVERSE RESET INTENSIFIED.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE line LINE FORMAT  COLOR COL_NEGATIVE\n                    FIELD FORMAT foo-flg_sel INPUT OFF\n                    FIELD VALUE  foo-flg_sel FROM SPACE.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT COLOR 2.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE LINE FORMAT INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE sy-index LINE FORMAT INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY CURRENT LINE FIELD FORMAT icon_4 HOTSPOT ON.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE sdf FIELD FORMAT sdf INPUT.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE sy-index FIELD VALUE lv_val FROM gc_false.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

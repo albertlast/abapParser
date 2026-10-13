@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "FIELDS TEXT-000.",
+  "expect": "match",
+  "type": "Fields"
+ },
+ {
+  "abap": "FIELDS TEXT-000.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

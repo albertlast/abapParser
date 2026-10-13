@@ -1,0 +1,22 @@
+{
+  "name": "@abap-parser/core",
+  "version": "0.1.0",
+  "description": "ABAP parser: symbols and statements of ABAP source code",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types.d.ts",
+    "abap_parser.node"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "build:debug": "node build.mjs --debug",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

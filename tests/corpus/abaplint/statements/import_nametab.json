@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "IMPORT NAMETAB ls_data lt_data ID lv_name.",
+  "expect": "match",
+  "type": "ImportNametab"
+ },
+ {
+  "abap": "IMPORT NAMETAB ls_data lt_data ID lv_name.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

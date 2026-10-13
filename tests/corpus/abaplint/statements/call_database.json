@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "CALL DATABASE PROCEDURE ('ZFOO')\n  EXPORTING foo = bar\n  IMPORTING moo = boo.",
+  "expect": "match",
+  "type": "CallDatabase"
+ },
+ {
+  "abap": "CALL DATABASE PROCEDURE (lv_name) CONNECTION (lv_con) PARAMETER-TABLE lt_par.",
+  "expect": "match",
+  "type": "CallDatabase"
+ },
+ {
+  "abap": "CALL DATABASE PROCEDURE ('ZFOO') EXPORTING foo = bar IMPORTING moo = boo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

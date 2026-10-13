@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "DEMAND foo = bar FROM CONTEXT ctx.",
+  "expect": "match",
+  "type": "Demand"
+ },
+ {
+  "abap": "demand foo = bar from context ctx messages into l_msg.",
+  "expect": "match",
+  "type": "Demand"
+ },
+ {
+  "abap": "DEMAND foo = bar FROM CONTEXT ctx.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

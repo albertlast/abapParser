@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SUPPRESS DIALOG.",
+  "expect": "match",
+  "type": "SuppressDialog"
+ },
+ {
+  "abap": "SUPPRESS DIALOG.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

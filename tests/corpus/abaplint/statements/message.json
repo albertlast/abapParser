@@ -1,0 +1,267 @@
+[
+ {
+  "abap": "MESSAGE 'Saved' TYPE 'S'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE 'Fill URL' TYPE 'S' DISPLAY LIKE 'E'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE ID msgid TYPE msgty NUMBER msgno.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE ID msgid TYPE msgty NUMBER msgno WITH msgv1 msgv2 msgv3 msgv4 INTO lv_err.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE ID lr_return->id TYPE lr_return->type NUMBER lr_return->number INTO DATA(error_message) \nWITH lr_return->message_v1 lr_return->message_v2 lr_return->message_v3 lr_return->message_v4.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e800(zfoobar) INTO lv_message.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message e059(0k) with 'error' raising fatal.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message i420(foo#) with lv_var.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE i420(foo@) WITH foo bar.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE i420(foo@) WITH foo bar INTO loo.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE i420(foo@) WITH foo bar boo1 boo2 INTO loo.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE i420(foo/) WITH foo bar.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE i420(foo!) WITH foo bar.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message id sy-msgid type 'I' number sy-msgno display like 'E' with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message id sy-msgid type 'I' number sy-msgno display like 'E'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message id sy-msgid type 'I' number sy-msgno.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE w100(foo#) WITH ls_msg-msgv1.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e001(a&) WITH lv_par1.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e001(a>) RAISING exists.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE x001(>1) WITH 'foo'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e000(zz) INTO DATA(error1) WITH 'asdf' raising zsdf.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e000(zz) INTO DATA(error2) raising zsdf WITH 'asdf'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e000(zz) RAISING zsdf INTO DATA(error3) WITH 'asdf'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e000(zz) WITH 'asdf' raising zsdf INTO DATA(error4).",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e000(zz) RAISING zsdf WITH 'asdf' into data(error5).",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE 'sdf' TYPE 'E' RAISING cancel.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE A600 WITH 'Moo'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message E001(0A) with 'FATAL' raising FATAL_ERROR.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e019 RAISING tree_not-allowed.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE ID '00' TYPE 'E' NUMBER '000'.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e014(foo/bar) WITH TEXT-e03.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e014(foo/bar/moo/boo) WITH TEXT-e03.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message e100(c+).",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "message e100(c+) raising INCONSISTENT_INPUT.",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE s027(b~).",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE e014(r§).",
+  "expect": "match",
+  "type": "Message"
+ },
+ {
+  "abap": "MESSAGE 'sdf' TYPE 'S'.",
+  "expect": "match",
+  "type": "Message",
+  "release": "v702"
+ },
+ {
+  "abap": "MESSAGE e100(/foo/bar) WITH <fs>-sdf <fs>-sdf <fs>-sdf INTO l_message.",
+  "expect": "match",
+  "type": "Message",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE e099(zcustom) RAISING input_not_valid.",
+  "expect": "match",
+  "type": "Message",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE s443(zcustom) INTO l_message WITH lv_lines |sdfsdf|.",
+  "expect": "match",
+  "type": "Message",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE ID l_return-id\n  TYPE l_return-type\n  NUMBER l_return-number\n  WITH l_return-message_v1 l_return-message_v2 l_return-message_v3 l_return-message_v4\n  INTO l_message.",
+  "expect": "match",
+  "type": "Message",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE |sdf| TYPE 'S'.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "message e101(00) with io_cx_excel->if_message~get_text( ) into lv_dummy.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "MESSAGE ID get_msg_id( ) TYPE 'E' NUMBER '004'.",
+  "expect": "unknown",
+  "release": "Newest"
+ },
+ {
+  "abap": "MESSAGE s000(oo) WITH mv_text rv_result.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE ix_exception TYPE 'S' DISPLAY LIKE 'E'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE 'Commit was successful' TYPE 'S'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE lv_text TYPE 'S'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE s000(oo) WITH mv_text rv_result.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "MESSAGE e001(foo) RAISING bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

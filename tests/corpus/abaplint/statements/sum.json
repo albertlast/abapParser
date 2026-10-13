@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SUM.",
+  "expect": "match",
+  "type": "Sum"
+ },
+ {
+  "abap": "SUM.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

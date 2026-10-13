@@ -1,0 +1,78 @@
+"use strict";
+
+const native = require("./abap_parser.node");
+
+/**
+ * Classes, interfaces, routines and declarations of one ABAP source file.
+ * @param {string} source ABAP source code
+ * @returns {import("./types").FileSymbols}
+ */
+function symbols(source) {
+  return JSON.parse(native.symbolsJson(source));
+}
+
+/**
+ * Database accesses of one ABAP source file: tables, fields, joins,
+ * conditions and targets of every SELECT, INSERT, UPDATE, MODIFY, DELETE.
+ * @param {string} source ABAP source code
+ * @returns {import("./types").DbAccess[]}
+ */
+function dbAccess(source) {
+  return JSON.parse(native.dbAccessJson(source));
+}
+
+/**
+ * Calls of one ABAP source file: methods, constructors, function modules,
+ * forms, programs, transactions; types resolved within the file.
+ * @param {string} source ABAP source code
+ * @returns {import("./types").Call[]}
+ */
+function calls(source) {
+  return JSON.parse(native.callsJson(source));
+}
+
+/**
+ * Call graph across objects, sources loaded from folders and/or an SAP system.
+ * Blocks while loading.
+ * @param {string[]} roots objects like "CLAS:ZCL_ORDERS", "PROG:ZREPORT", "FUNC:Z_FM"
+ * @param {import("./index").SourceOptions} options where the sources are
+ * @param {number} [depth=1] hops to follow from the roots
+ * @returns {import("./types").CallGraph}
+ */
+function callGraph(roots, options, depth = 1) {
+  return JSON.parse(native.callGraphJson(roots, JSON.stringify(options), depth));
+}
+
+/**
+ * Source text of one object, or null when it does not exist. Blocks while loading.
+ * @param {string} reference object like "CLAS:ZCL_ORDERS" or "CLAS:ZCL_ORDERS/implementations"
+ * @param {import("./index").SourceOptions} options where the sources are
+ * @returns {string | null}
+ */
+function fetchSource(reference, options) {
+  return native.fetchSource(reference, JSON.stringify(options));
+}
+
+/**
+ * Logic of the procedures of one ABAP source file: statements nested along the
+ * control structures with their conditions and guards, data read and written
+ * with the statements providing each value, control flow and effects.
+ * @param {string} source ABAP source code
+ * @returns {import("./types").FileLogic}
+ */
+function logic(source) {
+  return JSON.parse(native.logicJson(source));
+}
+
+/**
+ * Statements of one ABAP source file, with kind, text and position.
+ * @param {string} source ABAP source code
+ * @returns {import("./types").StatementInfo[]}
+ */
+function statements(source) {
+  return JSON.parse(native.statementsJson(source));
+}
+
+module.exports = {
+  symbols, dbAccess, calls, callGraph, fetchSource, logic, statements, version: native.version,
+};

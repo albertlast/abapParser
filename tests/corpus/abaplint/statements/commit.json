@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "COMMIT WORK.",
+  "expect": "match",
+  "type": "Commit"
+ },
+ {
+  "abap": "COMMIT WORK AND WAIT.",
+  "expect": "match",
+  "type": "Commit"
+ },
+ {
+  "abap": "commit connection (lv_name).",
+  "expect": "match",
+  "type": "Commit"
+ },
+ {
+  "abap": "commit connection lv_con.",
+  "expect": "match",
+  "type": "Commit"
+ },
+ {
+  "abap": "COMMIT WORK.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

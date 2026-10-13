@@ -1,0 +1,22 @@
+[
+ {
+  "abap": "SPLIT iv_data AT gc_newline INTO TABLE lt_result.",
+  "expect": "match",
+  "type": "Split"
+ },
+ {
+  "abap": "SPLIT iv_data AT gc_newline INTO TABLE lt_result IN CHARACTER MODE.",
+  "expect": "match",
+  "type": "Split"
+ },
+ {
+  "abap": "SPLIT ls_raw-body AT gc_newline INTO ls_commit-message lv_trash.",
+  "expect": "match",
+  "type": "Split"
+ },
+ {
+  "abap": "SPLIT foo AT bar INTO TABLE moo IN BYTE MODE.",
+  "expect": "match",
+  "type": "Split"
+ }
+]

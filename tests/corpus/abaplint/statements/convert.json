@@ -1,0 +1,62 @@
+[
+ {
+  "abap": "CONVERT TIME STAMP lv_stamp TIME ZONE tz INTO DATE dat TIME tim DAYLIGHT SAVING TIME dst.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT TIME STAMP obj->stru~created TIME ZONE sy-zonlo INTO DATE lv_date TIME lv_time.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT TIME STAMP <foo>-bar TIME ZONE me->zone INTO TIME lv_time.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT TIME STAMP iv_timestamp TIME ZONE iv_timezone INTO DATE lv_date.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "convert time t date d into time stamp lv_ts time zone 'UTC   '.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT DATE lv_date TIME lv_time INTO TIME STAMP rv_time TIME ZONE '      '.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT DATE iv_date INTO TIME STAMP lv_stamp TIME ZONE lv_zone.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT DATE SY-DATUM INTO INVERTED-DATE lv_inv.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "convert date lv_date time lv_time daylight saving time 'X' into time stamp lv_tstmp time zone lv_tzone.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT INVERTED-DATE lv_foo INTO DATE lv_bar.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT UTCLONG val INTO DATE DATA(dat) TIME DATA(tim) DAYLIGHT SAVING TIME DATA(dst) TIME ZONE 'EST'.",
+  "expect": "match",
+  "type": "Convert"
+ },
+ {
+  "abap": "CONVERT DATE dat TIME tim DAYLIGHT SAVING TIME 'X' TIME ZONE 'EST' INTO UTCLONG DATA(time_stamp).",
+  "expect": "match",
+  "type": "Convert"
+ }
+]

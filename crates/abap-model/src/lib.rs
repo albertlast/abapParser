@@ -1,0 +1,931 @@
+//! Output model of the ABAP parser. Everything here serializes to JSON with
+//! snake_case keys; Node.js and Python bindings return exactly this shape.
+//! The JSON Schema is generated with [`symbols_schema`].
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+/// Bumped on incompatible changes of the JSON shape.
+pub const SCHEMA_VERSION: u32 = 1;
+
+/// 1-based row and column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Position {
+    pub row: u32,
+    pub col: u32,
+}
+
+/// Source range from the first character of the first token to the end of the last token.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Span {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TypingKind {
+    /// `TYPE t`
+    Type,
+    /// `LIKE dobj`
+    Like,
+    /// `TYPE REF TO t`
+    TypeRefTo,
+    /// `LIKE REF TO dobj`
+    LikeRefTo,
+    /// internal table
+    Table,
+    /// `RANGE OF`
+    Range,
+    /// `LINE OF`
+    LineOf,
+    /// `STRUCTURE s`
+    Structure,
+    /// `FOR dobj`, SELECT-OPTIONS
+    For,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TableTyping {
+    /// `standard`, `sorted`, `hashed`, `any` or `index`; absent for `TYPE TABLE OF`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// primary key uniqueness, when stated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unique: Option<bool>,
+    /// key definition as written, e.g. `WITH UNIQUE KEY name`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// the line type is `REF TO ...`
+    pub line_is_ref: bool,
+    /// obsolete `WITH HEADER LINE`
+    pub header_line: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Typing {
+    pub kind: TypingKind,
+    /// Referenced type or data object; for tables the line type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table: Option<TableTyping>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub length: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<String>,
+    /// The typing clause as written.
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclarationKind {
+    /// DATA
+    Data,
+    /// CLASS-DATA
+    ClassData,
+    /// STATICS
+    Static,
+    /// CONSTANTS
+    Constant,
+    /// TYPES
+    Type,
+    /// FIELD-SYMBOLS
+    FieldSymbol,
+    /// PARAMETERS on a selection screen
+    Parameter,
+    /// SELECT-OPTIONS
+    SelectOption,
+    /// RANGES
+    Range,
+    /// TABLES work area
+    Tables,
+    /// NODES
+    Node,
+    /// `INCLUDE TYPE|STRUCTURE` inside a structure
+    Include,
+    /// value of an enumerated type
+    EnumValue,
+}
+
+/// A data object or type declaration. Structures declared with
+/// `BEGIN OF ... END OF` list their parts in `components`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Declaration {
+    pub name: String,
+    pub kind: DeclarationKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Visibility>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typing: Option<Typing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// `READ-ONLY` addition, always true for constants
+    pub read_only: bool,
+    /// declared with BEGIN OF ... END OF
+    pub is_structure: bool,
+    /// declared with BEGIN OF ENUM ... END OF ENUM
+    pub is_enum: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub components: Vec<Declaration>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    Importing,
+    Exporting,
+    Changing,
+    Returning,
+    /// FORM ... USING
+    Using,
+    /// FORM and function module TABLES
+    Tables,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Parameter {
+    pub name: String,
+    pub direction: Direction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typing: Option<Typing>,
+    /// `VALUE(name)`
+    pub by_value: bool,
+    pub optional: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+    /// `PREFERRED PARAMETER`
+    pub preferred: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct EventHandler {
+    pub class: String,
+    pub event: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Method {
+    pub name: String,
+    pub visibility: Visibility,
+    pub is_static: bool,
+    pub is_abstract: bool,
+    pub is_final: bool,
+    pub is_redefinition: bool,
+    pub is_for_testing: bool,
+    /// `DEFAULT IGNORE` or `DEFAULT FAIL`: `ignore` / `fail`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_handler: Option<EventHandler>,
+    /// RAP handler method, the text after `FOR`, e.g. `MODIFY`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rap_handler: Option<String>,
+    pub parameters: Vec<Parameter>,
+    /// class based exceptions, RAISING
+    pub raising: Vec<String>,
+    /// classic exceptions, EXCEPTIONS
+    pub exceptions: Vec<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Event {
+    pub name: String,
+    pub visibility: Visibility,
+    pub is_static: bool,
+    pub parameters: Vec<Parameter>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Alias {
+    pub name: String,
+    /// `interface~component`
+    pub component: String,
+    pub visibility: Visibility,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ImplementedInterface {
+    pub name: String,
+    pub visibility: Visibility,
+    pub partially_implemented: bool,
+    pub abstract_methods: Vec<String>,
+    pub final_methods: Vec<String>,
+    pub all_abstract: bool,
+    pub all_final: bool,
+}
+
+/// `BY DATABASE ...` of an AMDP method, whose body is SQLScript.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Amdp {
+    /// `procedure`, `function` or `graph_workspace`
+    pub kind: String,
+    /// database system, `HDB`
+    pub database: String,
+    /// e.g. `SQLSCRIPT`
+    pub language: String,
+    /// OPTIONS as written, e.g. `READ-ONLY`, `CDS SESSION CLIENT current`
+    pub options: Vec<String>,
+    /// USING: tables, views and AMDP methods used, e.g. `zcl_x=>get_rows`
+    pub using: Vec<String>,
+}
+
+/// METHOD ... ENDMETHOD in a class implementation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MethodImplementation {
+    /// as written, e.g. `zif_intf~method` for interface methods
+    pub name: String,
+    /// `BY DATABASE PROCEDURE|FUNCTION ...`, AMDP
+    pub is_amdp: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amdp: Option<Amdp>,
+    pub locals: Vec<Declaration>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ClassImplementation {
+    pub methods: Vec<MethodImplementation>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Class {
+    pub name: String,
+    /// `PUBLIC`: a global class
+    pub is_global: bool,
+    pub is_final: bool,
+    pub is_abstract: bool,
+    pub is_for_testing: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub superclass: Option<String>,
+    /// `CREATE PUBLIC|PROTECTED|PRIVATE`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create: Option<String>,
+    pub friends: Vec<String>,
+    /// RAP behavior pool, `FOR BEHAVIOR OF`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub behavior_of: Option<String>,
+    pub interfaces: Vec<ImplementedInterface>,
+    pub methods: Vec<Method>,
+    /// DATA, CLASS-DATA and CONSTANTS
+    pub attributes: Vec<Declaration>,
+    pub types: Vec<Declaration>,
+    pub events: Vec<Event>,
+    pub aliases: Vec<Alias>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<ClassImplementation>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Interface {
+    pub name: String,
+    pub is_global: bool,
+    pub interfaces: Vec<ImplementedInterface>,
+    pub methods: Vec<Method>,
+    pub attributes: Vec<Declaration>,
+    pub types: Vec<Declaration>,
+    pub events: Vec<Event>,
+    pub aliases: Vec<Alias>,
+    pub span: Span,
+}
+
+/// FORM subroutine or function module.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Routine {
+    pub name: String,
+    pub parameters: Vec<Parameter>,
+    pub raising: Vec<String>,
+    /// classic exceptions of function modules
+    pub exceptions: Vec<String>,
+    pub locals: Vec<Declaration>,
+    pub span: Span,
+}
+
+/// Dynpro module, `MODULE name INPUT|OUTPUT`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DialogModule {
+    pub name: String,
+    /// `input` or `output`, absent for the dynpro flow logic call
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    pub span: Span,
+}
+
+/// Event block like START-OF-SELECTION, up to the next processing block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct EventBlock {
+    /// the statement as written, e.g. `AT SELECTION-SCREEN ON p_file`
+    pub event: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct NamedSpan {
+    pub name: String,
+    pub span: Span,
+}
+
+/// REPORT, PROGRAM, FUNCTION-POOL, CLASS-POOL, INTERFACE-POOL or TYPE-POOL.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProgramHeader {
+    /// the keyword in lower case, e.g. `report`
+    pub kind: String,
+    pub name: String,
+    pub span: Span,
+}
+
+/// Symbols defined in one ABAP source file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct FileSymbols {
+    pub schema_version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub program: Option<ProgramHeader>,
+    pub classes: Vec<Class>,
+    pub interfaces: Vec<Interface>,
+    pub forms: Vec<Routine>,
+    pub function_modules: Vec<Routine>,
+    pub modules: Vec<DialogModule>,
+    pub event_blocks: Vec<EventBlock>,
+    pub macros: Vec<NamedSpan>,
+    /// INCLUDE statements, in source order
+    pub includes: Vec<NamedSpan>,
+    /// declarations outside classes and routines
+    pub declarations: Vec<Declaration>,
+    /// class implementations without a definition in this file, e.g.
+    /// the implementation part of a global class in its own include
+    pub orphan_implementations: Vec<OrphanImplementation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct OrphanImplementation {
+    pub class: String,
+    pub implementation: ClassImplementation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DbOperation {
+    /// SELECT, also inside OPEN CURSOR and WITH
+    Select,
+    Insert,
+    Update,
+    Modify,
+    Delete,
+    Merge,
+    /// other native SQL, e.g. CALL of a database procedure or DDL
+    Native,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DbTableRole {
+    /// FROM of a query, or the changed table of INSERT, UPDATE, MODIFY, DELETE, MERGE
+    Main,
+    /// joined in FROM
+    Join,
+    /// FROM of a subquery or of a common table expression
+    Subquery,
+    /// source table of MERGE ... USING
+    MergeSource,
+    /// common table expression, `+name`
+    Cte,
+    /// internal table as data source, `FROM @itab`; in SQLScript a table
+    /// variable, `FROM :lt_rows`
+    InternalTable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbTable {
+    /// database table or view as written; for dynamic tables the operand
+    /// inside the parentheses
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    /// CDS path expression after the name, e.g. `\_items`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// `(lv_table)`: name known only at runtime
+    pub dynamic: bool,
+    /// for a dynamic name that is a constant of the same file: its value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved: Option<String>,
+    pub role: DbTableRole,
+}
+
+/// A column reference, `qualifier~name` or `name`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbColumn {
+    pub name: String,
+    /// table alias or table name as written before `~`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qualifier: Option<String>,
+    /// resolved database table, from the qualifier or because there is only one table
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub table: Option<String>,
+}
+
+/// One element of the SELECT list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbField {
+    /// as written, e.g. `a~matnr`, `COUNT(*)`, `CASE ... END`
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    /// `count`, `max`, `min`, `sum`, `avg`, ... when the element is an aggregate
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aggregate: Option<String>,
+    /// columns read by the element; empty for `*` and literals
+    pub columns: Vec<DbColumn>,
+}
+
+/// A comparison in WHERE, HAVING or a join condition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbCondition {
+    pub left: String,
+    /// upper case, e.g. `=`, `IN`, `LIKE`, `BETWEEN`, `IS NULL`, `EXISTS`
+    pub operator: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    /// columns compared; host variables and literals are not included
+    pub columns: Vec<DbColumn>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbJoin {
+    /// `inner`, `left_outer`, `right_outer` or `cross`
+    pub kind: String,
+    pub table: DbTable,
+    pub on: Vec<DbCondition>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DbTargetKind {
+    /// INTO TABLE / APPENDING TABLE
+    Table,
+    /// a single work area
+    Structure,
+    /// `INTO (a, b, c)`
+    List,
+}
+
+/// Where selected data goes, INTO or APPENDING.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbTarget {
+    /// data objects as written, e.g. `@DATA(lt_rows)`, or each element of a list
+    pub targets: Vec<String>,
+    pub kind: DbTargetKind,
+    pub appending: bool,
+    /// INTO CORRESPONDING FIELDS OF
+    pub corresponding: bool,
+}
+
+/// Data source of INSERT, UPDATE and MODIFY, and of DELETE with a work area.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbSource {
+    /// the work area or internal table as written, absent for a subquery
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// FROM TABLE itab
+    pub is_table: bool,
+    /// FROM ( SELECT ... )
+    pub is_subquery: bool,
+}
+
+/// `column = value` in UPDATE ... SET.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbAssignment {
+    pub column: DbColumn,
+    pub value: String,
+}
+
+/// The processing block a statement belongs to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct BlockRef {
+    /// `method`, `form`, `function_module`, `module`, `event` or `program`
+    pub kind: String,
+    pub name: String,
+    /// class of a method
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class: Option<String>,
+}
+
+/// One database access statement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbAccess {
+    pub operation: DbOperation,
+    /// statement kind, e.g. `Select`, `SelectLoop`, `ModifyDatabase`, `OpenCursor`
+    pub statement: String,
+    /// every table taking part, joins and subqueries included
+    pub tables: Vec<DbTable>,
+    pub fields: Vec<DbField>,
+    pub joins: Vec<DbJoin>,
+    /// comparisons of WHERE, subqueries included
+    pub conditions: Vec<DbCondition>,
+    /// WHERE as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub where_text: Option<String>,
+    pub group_by: Vec<DbColumn>,
+    pub having: Vec<DbCondition>,
+    /// ORDER BY elements as written, e.g. `matnr DESCENDING`, `PRIMARY KEY`
+    pub order_by: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<DbTarget>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<DbSource>,
+    pub set: Vec<DbAssignment>,
+    /// internal table of FOR ALL ENTRIES IN
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub for_all_entries: Option<String>,
+    /// cursor variable of OPEN CURSOR
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    pub single: bool,
+    pub distinct: bool,
+    /// SELECT ... ENDSELECT loop
+    pub is_loop: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub up_to: Option<String>,
+    /// UNION, INTERSECT or EXCEPT used
+    pub set_operation: bool,
+    /// some part is only known at runtime: table, columns or condition
+    pub dynamic: bool,
+    pub client_specified: bool,
+    pub bypassing_buffer: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connection: Option<String>,
+    /// native SQL (HANA SQL or SQLScript): the statement as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_sql: Option<String>,
+    /// native SQL: variables read, `:name` written without the colon;
+    /// ABAP host variables of EXEC SQL, parameters and table variables of AMDP
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub host_variables: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<BlockRef>,
+    /// the statement as written
+    pub text: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CallKind {
+    /// method call, `obj->meth( )`, `zcl=>meth( )`, `CALL METHOD`
+    Method,
+    /// instance creation, `NEW zcl( )`, `CREATE OBJECT`
+    Constructor,
+    /// `CALL FUNCTION`
+    Function,
+    /// `PERFORM`
+    Form,
+    /// `SUBMIT`
+    Submit,
+    /// `CALL TRANSACTION`, `LEAVE TO TRANSACTION`
+    Transaction,
+    /// `INCLUDE`
+    Include,
+    /// `CALL TRANSFORMATION`
+    Transformation,
+}
+
+/// A call from one processing block to another, or a dependency on an include.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Call {
+    pub kind: CallKind,
+    /// the calling processing block
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<BlockRef>,
+    /// method, form, function module, program, transaction or include name;
+    /// for dynamic calls the operand as written
+    pub name: String,
+    /// class or interface of a method or constructor, when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class: Option<String>,
+    /// program of `PERFORM ... IN PROGRAM`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub program: Option<String>,
+    /// receiver as written, e.g. `lo_order`, `zcl_x`, `me`, `lo_a->get( )`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receiver: Option<String>,
+    /// `=>`, a static method
+    pub is_static: bool,
+    /// target known only at runtime
+    pub dynamic: bool,
+    /// additions like `DESTINATION 'NONE'`, `IN UPDATE TASK`, `AND RETURN`, `IF FOUND`
+    pub options: Vec<String>,
+    /// the target was found in the analyzed sources; always false for
+    /// single file analysis of targets outside the file
+    pub resolved: bool,
+    /// the class of the target inherits from or implements types that are
+    /// not in the sources, e.g. SAP standard classes; an unresolved method
+    /// may be defined there
+    pub hierarchy_incomplete: bool,
+    /// object the call is in, like `CLAS:ZCL_X`; set by the call graph
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    pub text: String,
+    pub span: Span,
+}
+
+/// One loaded source of a call graph.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct GraphUnit {
+    /// like `CLAS:ZCL_X`, `CLAS:ZCL_X/implementations`, `PROG:ZREPORT_TOP`
+    pub reference: String,
+    /// file path or URL
+    pub origin: String,
+    /// hops from the roots
+    pub depth: u32,
+}
+
+/// Calls across objects, loaded through the source providers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CallGraph {
+    pub schema_version: u32,
+    pub roots: Vec<String>,
+    pub units: Vec<GraphUnit>,
+    pub calls: Vec<Call>,
+    /// referenced objects no provider had
+    pub missing: Vec<String>,
+    /// provider errors, e.g. authorization failures
+    pub errors: Vec<String>,
+}
+
+/// One statement, as listed by the statements API.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StatementInfo {
+    /// statement kind, e.g. `Data`, `Select`, `CallFunction`; same names as abaplint
+    pub kind: String,
+    /// tokens joined by single spaces where the source has whitespace
+    pub text: String,
+    pub span: Span,
+}
+
+/// What an operand of a condition is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OperandKind {
+    /// `'text'`, `` `text` ``, `42`, `|text|`, `TEXT-001`
+    Literal,
+    /// a data object, e.g. `lv_x`, `ls_x-comp`, `lo->attr`, `zcl=>const`
+    Data,
+    /// a method or function call, e.g. `lines( itab )`, `lo->get( )`
+    Call,
+    /// `VALUE #( ... )`, `COND #( ... )`, `NEW zcl( )` ...
+    Constructor,
+    /// arithmetic, string or bit operators
+    Arithmetic,
+    /// a string template with embedded expressions
+    Template,
+    /// a component of the current table line, as in `LOOP ... WHERE comp = 1`
+    Component,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Operand {
+    pub kind: OperandKind,
+    /// as written
+    pub text: String,
+    /// the value of a literal, without quotes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionKind {
+    /// `children` combined with AND
+    And,
+    Or,
+    Equiv,
+    /// the single child negated
+    Not,
+    /// `left operator right`, e.g. `a = b`, `a CS b`
+    Compare,
+    /// `left IS [NOT] operator`, e.g. `INITIAL`, `BOUND`, `INSTANCE OF` with
+    /// the class in `right`
+    Is,
+    /// `left [NOT] IN values`, a range table or a value list
+    In,
+    /// `left [NOT] BETWEEN right AND high`
+    Between,
+    /// a predicate method call or function, e.g. `line_exists( ... )`, in `left`
+    Predicate,
+    /// the exception classes of CATCH, as written in `text`
+    Catch,
+}
+
+/// A logical expression.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Condition {
+    pub kind: ConditionKind,
+    /// as written
+    pub text: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub children: Vec<Condition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<Operand>,
+    /// upper case: the comparison operator, or the predicate of IS
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<Operand>,
+    /// upper bound of BETWEEN
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub high: Option<Operand>,
+    /// value list or range table of IN
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub values: Vec<Operand>,
+    /// `IS NOT`, `NOT IN`, `NOT BETWEEN`
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub negated: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AccessKind {
+    Read,
+    /// replaced, or partly when only a component is written
+    Write,
+    /// read and changed in place, e.g. the table of `APPEND ... TO itab`
+    Change,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DataScope {
+    /// declared in the procedure, inline declarations included
+    Local,
+    Parameter,
+    /// attribute of the class, also through `me->` or another object
+    Attribute,
+    /// global data, constants of other classes, system fields, or not known
+    Other,
+}
+
+/// A data object read or written by a statement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DataAccess {
+    /// lower case; attributes of other objects with the path to them, e.g.
+    /// `lo_order->items`, `zcl_x=>gv_count`; `me->` is left out
+    pub name: String,
+    /// the operand as written, e.g. `ls_item-matnr`
+    pub path: String,
+    pub access: AccessKind,
+    pub scope: DataScope,
+    /// writes: the whole data object is replaced, not just a component
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub whole: bool,
+    /// declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub declared: bool,
+    /// reads: statements whose writes may provide the value
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub sources: Vec<u32>,
+    /// reads: the value may come from before the procedure, e.g. from a
+    /// parameter or attribute
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub from_entry: bool,
+    pub position: Position,
+}
+
+/// A condition that holds when a step runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Guard {
+    /// the step with the condition, e.g. an IF, WHEN or CHECK
+    pub statement: u32,
+    /// the condition is false, e.g. in ELSE or after `IF x. RETURN. ENDIF.`
+    pub negated: bool,
+    /// the condition as written
+    pub text: String,
+}
+
+/// One statement of a procedure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Step {
+    /// index of the statement in the file, as in the statements API
+    pub id: u32,
+    /// statement kind, e.g. `If`, `Move`, `Loop`; same names as abaplint
+    pub kind: String,
+    pub text: String,
+    pub span: Span,
+    /// condition of IF, ELSEIF, WHEN, WHILE, CHECK, LOOP ... WHERE, CATCH ...
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub condition: Option<Condition>,
+    /// all conditions that hold when the step runs, outermost first
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub guards: Vec<Guard>,
+    /// data read, changed operands included
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub reads: Vec<DataAccess>,
+    /// data written, changed operands included
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub writes: Vec<DataAccess>,
+    /// the statements of a block: the body of IF, ELSEIF, ELSE, LOOP, TRY,
+    /// CATCH, WHEN ...; the steps of CASE are its WHENs. ELSEIF, ELSE, CATCH
+    /// and CLEANUP follow their IF or TRY as siblings, end statements are
+    /// left out
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub children: Vec<Step>,
+}
+
+/// Control flow from one step to the next.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct FlowEdge {
+    /// step id, absent for the entry of the procedure
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<u32>,
+    /// step id, absent for leaving the procedure
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<u32>,
+    /// `true`, `false`, `when`, `other`, `iterate`, `done`, `exception`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+/// A data object outside the procedure that it writes, with what the
+/// written values depend on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Effect {
+    pub name: String,
+    pub scope: DataScope,
+    /// the steps writing it
+    pub statements: Vec<u32>,
+    /// data read from before the procedure that the values depend on,
+    /// through assignments and through the conditions deciding them
+    pub inputs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProcedureParameter {
+    /// lower case
+    pub name: String,
+    pub direction: Direction,
+}
+
+/// The logic of a method, form, function module, dialog module or event
+/// block, or of the statements of a program outside of them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Procedure {
+    pub block: BlockRef,
+    pub span: Span,
+    pub parameters: Vec<ProcedureParameter>,
+    /// data declared in the procedure, lower case
+    pub locals: Vec<String>,
+    pub body: Vec<Step>,
+    pub flow: Vec<FlowEdge>,
+    pub effects: Vec<Effect>,
+}
+
+/// Control flow, conditions and data flow of the procedures of a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct FileLogic {
+    pub schema_version: u32,
+    pub procedures: Vec<Procedure>,
+}
+
+/// JSON Schema of [`FileSymbols`].
+pub fn symbols_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(FileSymbols)).expect("schema serializes")
+}
+
+/// JSON Schema of the database access API, an array of [`DbAccess`].
+pub fn db_access_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(Vec<DbAccess>)).expect("schema serializes")
+}
+
+/// JSON Schema of the calls API, an array of [`Call`].
+pub fn calls_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(Vec<Call>)).expect("schema serializes")
+}
+
+/// JSON Schema of the call graph API.
+pub fn call_graph_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(CallGraph)).expect("schema serializes")
+}
+
+/// JSON Schema of the statements API, an array of [`StatementInfo`].
+pub fn statements_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(Vec<StatementInfo>)).expect("schema serializes")
+}
+
+/// JSON Schema of the logic API.
+pub fn logic_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(FileLogic)).expect("schema serializes")
+}

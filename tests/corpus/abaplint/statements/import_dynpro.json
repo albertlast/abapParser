@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "IMPORT DYNPRO ls_h lt_f lt_e lt_m ID ls_dynp_id.",
+  "expect": "match",
+  "type": "ImportDynpro"
+ },
+ {
+  "abap": "IMPORT DYNPRO ls_h lt_f lt_e lt_m ID ls_dynp_id.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

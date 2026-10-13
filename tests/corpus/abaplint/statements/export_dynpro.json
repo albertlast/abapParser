@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "EXPORT DYNPRO H F E M ID KEY.",
+  "expect": "match",
+  "type": "ExportDynpro"
+ },
+ {
+  "abap": "EXPORT DYNPRO H F E M ID KEY.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

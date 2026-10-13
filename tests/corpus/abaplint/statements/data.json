@@ -1,0 +1,1200 @@
+[
+ {
+  "abap": "DATA lv_foo TYPE i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo LIKE LINE OF foo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo LIKE lv_foo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo TYPE REF TO cl_foobar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo TYPE TABLE OF i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo TYPE zcl_class=>typedef.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_foo LIKE sy-tabix.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo type ref to ZCL_FOOBAR.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo type ref to ZCL_FOOBAR .",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt_foo LIKE STANDARD TABLE OF ld_font_family.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt_data type table of d020s with header line.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA sdf TYPE c ##NEEDED.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "Data foo(89) type c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo type char100.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo100 type c length 100.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lv_int TYPE c LENGTH c_length.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data char.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data char(100).",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data sdf type table of ref to zcl_foobar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data range type range of string.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt_foo type table of bar initial size 0.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA tab LIKE STANDARD TABLE OF int INITIAL SIZE 2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo    type  i value -1.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foobar type abap_bool read-only value ABAP_FALSE ##NO_TEXT.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data item(4) value '  # '.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_field_cat_comp  LIKE LINE OF <ls_object_table>-field_catalog.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_ucomm TYPE TABLE OF sy-ucomm.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA tab LIKE foobar OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA tab LIKE foobar OCCURS 0.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA tab TYPE foobar OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA mt_stage TYPE SORTED TABLE OF ty_stage WITH UNIQUE KEY file-path file-filename.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo like bar[].",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_list TYPE ddictype WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ret TYPE TABLE OF bapiret2 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data mt_field TYPE TABLE OF ty_view_field WITH NON-UNIQUE SORTED KEY view_fieldname COMPONENTS view_fieldname WITH NON-UNIQUE SORTED KEY no_case COMPONENTS no_case.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA %id TYPE flag.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA /foo/bar TYPE /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lr_/foo/cx_bar TYPE REF TO /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA li_data(200) TYPE c OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lr_range type range of type WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data $field type c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data $fie$ld type c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt_foo type standard table of snodetext initial size 0 with header line.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ret TYPE TABLE OF foobar INITIAL SIZE 10 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo type p decimals 0 length 4.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo1 TYPE c LENGTH 1 VALUE 'A' READ-ONLY.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo2 TYPE c READ-ONLY LENGTH 1 VALUE 'A'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo3 TYPE c VALUE 'A' LENGTH 1 READ-ONLY.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo4 LENGTH 1 VALUE 'A' READ-ONLY TYPE c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo5 READ-ONLY LENGTH 1 VALUE 'A' TYPE c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo6 VALUE 'A' LENGTH 1 READ-ONLY TYPE c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo7(1) VALUE 'A' READ-ONLY TYPE c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo8(1) TYPE c VALUE 'A' READ-ONLY.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo9(1) READ-ONLY VALUE 'A' TYPE c.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo10(1) TYPE c READ-ONLY VALUE 'A'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo11 TYPE p DECIMALS 2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo12 DECIMALS 2 TYPE p.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo13 LENGTH 5 TYPE p DECIMALS 2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo14 DECIMALS 2 TYPE p LENGTH 5.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo15 TYPE p DECIMALS 2 VALUE 1.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo16 DECIMALS 2 TYPE p VALUE 1.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo17 VALUE 1 LENGTH 5 TYPE p DECIMALS 2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo18 VALUE 1 DECIMALS 2 TYPE p LENGTH 5.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA *foo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA bar*.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA moo*boo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA gt_data TYPE REF TO something OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_foo TYPE t_/moo/boo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_/moo/boo TYPE t_bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_/moo/boo TYPE t_/moo/boo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_/moo/boo TYPE STANDARD TABLE OF t_/moo/boo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE c LENGTH '5'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA gt_tab TYPE HASHED TABLE OF f_cut->type WITH UNIQUE KEY name1 name2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA moo LIKE STANDARD TABLE OF bar WITH DEFAULT KEY WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data foo-bar type string.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo- TYPE string.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo-- TYPE string.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA /sdfs/sdfsd-sdfsd TYPE string.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data mepo1313-evers like ekpo-evers.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_tab OCCURS 10.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_tab OCCURS 10 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA range TYPE RANGE OF char30 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE c %_PREDEFINED.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_attr_href LIKE SORTED TABLE OF ls_attr_href WITH NON-UNIQUE KEY val.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data bar like range of foo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo LIKE RANGE OF cl_abap_typedescr=>kind_elem.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA list(250) OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA complete_table LIKE SORTED TABLE OF zddic WITH HEADER LINE WITH UNIQUE KEY field1 field2.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE TABLE FOR UPDATE EntityItem.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE TABLE FOR READ RESULT EntityItem.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE TABLE FOR ACTION RESULT EntityItem~action.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_data TYPE STRUCTURE FOR HIERARCHY /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_events TYPE TABLE FOR EVENT /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ls_event  TYPE STRUCTURE FOR EVENT /foo/bar~send.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA range_ko LIKE RANGE OF structure_ref->field.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA wa TYPE zotel_spans WRITER FOR COLUMNS data.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA gt TYPE RANGE OF /foo/bar VALUE IS INITIAL.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA & TYPE c VALUE '&'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA &sdf TYPE c VALUE '&'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA &/sdfsd/bar TYPE c VALUE '&'.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA sdf TYPE LINE OF sdfsdf OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ?trans TYPE trkorr.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA create_rapbo_line TYPE STRUCTURE FOR CREATE ZDMO_R_RAPG_ProjectTP.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA update_field TYPE STRUCTURE FOR UPDATE ZDMO_R_RAPG_FieldTP.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA test_key TYPE STRUCTURE FOR ACTION IMPORT zdmo_r_rapg_projecttp~check_allowed_combinations_det.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt LIKE LINE OF tab OCCURS 1 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA line? TYPE i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA li?ne TYPE i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA ?line TYPE i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA create_rapbonode_cba_line TYPE STRUCTURE FOR CREATE ZDMO_R_RAPG_ProjectTP\\_Node.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA create_rapbonode_cba TYPE TABLE FOR CREATE ZDMO_R_RAPG_ProjectTP\\_Node.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA permission_request TYPE STRUCTURE FOR PERMISSIONS REQUEST zfoobar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA update_line TYPE STRUCTURE FOR UPDATE zDMO_R_RAPG_ProjectTP\\\\Project .",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA lt_chart_create TYPE TABLE FOR CREATE /dmo/fsa_r_roottp\\\\root\\_chart.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA draft_keys TYPE TABLE FOR DETERMINATION zDMO_R_RAPG_ProjectTP\\\\Node~SetRepositoryObjectNames_det.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA rapbo TYPE STRUCTURE FOR READ RESULT ZDMO_R_RAPG_ProjectTP\\\\node\\_Project .",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data sdf type sdf boxed.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA t_name TYPE STANDARD TABLE OF string VALUE IS INITIAL.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA change TYPE REQUEST FOR CHANGE ZACB_I_Label_S.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA text_tky_link TYPE STRUCTURE FOR READ LINK ZACB_I_Label\\_LabelText.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt_delete type table for delete /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt type table for read import /foo/bar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "data lt type table for update /foo/bar\\\\/bar/moo.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA f#oo# TYPE i.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA foo TYPE TABLE FOR UPDATE EntityItem.",
+  "expect": "match",
+  "type": "Data",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "DATA test_keys TYPE TABLE FOR ACTION IMPORT zdmo_r_rapg_projecttp~check_allowed_combinations_det.",
+  "expect": "match",
+  "type": "Data",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "DATA draft_keys TYPE TABLE FOR DETERMINATION zDMO_R_RAPG_ProjectTP\\\\Node~SetRepositoryObjectNames_det.",
+  "expect": "match",
+  "type": "Data",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR ACTION IMPORT zentity~zaction.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v773"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR ACTION RESULT zentity~zaction.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v773"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FUNCTION IMPORT zentity~zfn.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v773"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FUNCTION RESULT zentity~zfn.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v773"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR ACTION IMPORT zentity~zaction.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR ACTION RESULT zentity~zaction.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FUNCTION IMPORT zentity~zfn.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FUNCTION RESULT zentity~zfn.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v774"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR KEY OF zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v775"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR KEY OF zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v775"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR DETERMINATION zentity~zdet.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR VALIDATION zentity~zval.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR DETERMINATION zentity~zdet.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR VALIDATION zentity~zval.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v776"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE RESPONSE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v777"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v778"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v778"
+ },
+ {
+  "abap": "DATA t TYPE REQUEST FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v778"
+ },
+ {
+  "abap": "DATA t TYPE REQUEST FOR DELETE zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v778"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR ACTION REQUEST zentity~zaction.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v779"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR FUNCTION REQUEST zentity~zfn.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v779"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR PERMISSIONS KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR PERMISSIONS KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR PERMISSIONS REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR PERMISSIONS RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v780"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR INSTANCE FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR INSTANCE FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR GLOBAL AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR GLOBAL AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR GLOBAL FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR GLOBAL FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE TABLE FOR READ CHANGES zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v915"
+ },
+ {
+  "abap": "DATA t TYPE STRUCTURE FOR READ CHANGES zentity.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v915"
+ },
+ {
+  "abap": "DATA something TYPE STANDARD TABLE OF  WITH DEFAULT KEY.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOCATOR FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype READER FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype WRITER FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOB HANDLE FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype READ-ONLY LOCATOR FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOB HANDLE FOR ALL BLOB COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOB HANDLE FOR ALL CLOB COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOCATOR FOR COLUMNS clob1 blob2.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE ztype LOCATOR FOR ALL BLOB COLUMNS READER FOR ALL CLOB COLUMNS.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v731"
+ },
+ {
+  "abap": "DATA t TYPE t_deep WITH INDICATORS ind TYPE abap_bool.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE t_deep WITH INDICATORS ind.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v781"
+ },
+ {
+  "abap": "DATA t TYPE t_deep WITH INDICATORS ind AS BITFIELD.",
+  "expect": "match",
+  "type": "Data",
+  "release": "v784"
+ },
+ {
+  "abap": "DATA foo TYPE ANY STRUCTURE.",
+  "expect": "unknown"
+ }
+]

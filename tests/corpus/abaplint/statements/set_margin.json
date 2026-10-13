@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "SET MARGIN 1 5.",
+  "expect": "match",
+  "type": "SetMargin"
+ },
+ {
+  "abap": "SET MARGIN 00.",
+  "expect": "match",
+  "type": "SetMargin"
+ },
+ {
+  "abap": "SET MARGIN 10.",
+  "expect": "match",
+  "type": "SetMargin"
+ },
+ {
+  "abap": "SET MARGIN 1 5.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

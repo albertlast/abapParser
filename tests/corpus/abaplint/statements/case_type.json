@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "CASE TYPE OF typedescr.",
+  "expect": "match",
+  "type": "CaseType"
+ },
+ {
+  "abap": "CASE TYPE OF me->something.",
+  "expect": "match",
+  "type": "CaseType"
+ }
+]

@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "SKIP.",
+  "expect": "match",
+  "type": "Skip"
+ },
+ {
+  "abap": "SKIP TO LINE 12.",
+  "expect": "match",
+  "type": "Skip"
+ },
+ {
+  "abap": "SKIP 1.",
+  "expect": "match",
+  "type": "Skip"
+ },
+ {
+  "abap": "SKIP.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

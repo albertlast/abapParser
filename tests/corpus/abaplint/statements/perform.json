@@ -1,0 +1,107 @@
+[
+ {
+  "abap": "PERFORM set_pf_status IN PROGRAM rsdbrunt IF FOUND.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM create_variant USING <ls_classdf>-clsname.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM upfile CHANGING p_upfile.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM run(zprogram) USING foo bar moo.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM (lv_form) IN PROGRAM.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "perform (lv_form) in program (lv_prog) changing lv_foo if found.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM sub TABLES bar USING foo.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM run.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM run(zfoobar).",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM send ON COMMIT.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "perform moo in program zbar if found using foo changing bar.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM moo ON COMMIT LEVEL lv_level.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM moo ON ROLLBACK.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM read_*table(zfoo) USING code.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM %run IN PROGRAM (L_REPID) CHANGING foo.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM foo(zbar) IF FOUND USING l_data CHANGING l_chg.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM foo?.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM ru$n$.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "perform sy-index of v01 v02 v03 v04.",
+  "expect": "match",
+  "type": "Perform"
+ },
+ {
+  "abap": "PERFORM run(zfoobar).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "PERFORM foo USING 1 + 2.",
+  "expect": "unknown"
+ }
+]

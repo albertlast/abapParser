@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "GET PARAMETER ID 'GR8' FIELD gv_memid_gr8.",
+  "expect": "match",
+  "type": "GetParameter"
+ },
+ {
+  "abap": "GET PARAMETER ID 'ZID' FIELD ls_foo-bar.",
+  "expect": "match",
+  "type": "GetParameter"
+ },
+ {
+  "abap": "GET PARAMETER ID 'GR8' FIELD gv_memid_gr8.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

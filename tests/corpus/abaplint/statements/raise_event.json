@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "RAISE EVENT message.",
+  "expect": "match",
+  "type": "RaiseEvent"
+ },
+ {
+  "abap": "RAISE EVENT message EXPORTING p_kind    = c_error p_test    = c_my_name.",
+  "expect": "match",
+  "type": "RaiseEvent"
+ },
+ {
+  "abap": "RAISE EVENT my_event.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

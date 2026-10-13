@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "TEST-INJECTION seoredef.",
+  "expect": "match",
+  "type": "TestInjection"
+ }
+]

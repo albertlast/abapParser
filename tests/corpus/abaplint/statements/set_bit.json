@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "SET BIT ( lv_offset MOD 8 ) + 1 OF lv_x.",
+  "expect": "match",
+  "type": "SetBit"
+ },
+ {
+  "abap": "SET BIT lv_prev_pos OF r_pwd_hash TO lv_bit.",
+  "expect": "match",
+  "type": "SetBit"
+ }
+]

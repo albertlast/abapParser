@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "WHEN TYPE cl_bar INTO DATA(bar).",
+  "expect": "match",
+  "type": "WhenType"
+ },
+ {
+  "abap": "WHEN TYPE lcl INTO lo_lcl.",
+  "expect": "match",
+  "type": "WhenType"
+ },
+ {
+  "abap": "WHEN TYPE zcl_type.",
+  "expect": "match",
+  "type": "WhenType"
+ }
+]

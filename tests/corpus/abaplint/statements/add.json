@@ -1,0 +1,42 @@
+[
+ {
+  "abap": "add 2 to lv_foo.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "add 2 to\n lv_foo.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "add 2 to\r\n lv_foo.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "add zcl_class=>c_diagonal to lo_foo->mode.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "ADD sdf-dsf THEN sdf-dsf UNTIL sdf-dsf GIVING sdf-sdf.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "ADD sdfsd THEN sdfsd UNTIL sdfsd TO sdfds.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "ADD foo THEN foo UNTIL foo GIVING foo ACCORDING TO foo.",
+  "expect": "match",
+  "type": "Add"
+ },
+ {
+  "abap": "ADD <ledger>-tsl01 THEN <ledger>-tsl02 UNTIL <ledger>-tsl16\n    ACCORDING TO lo=>pos\n    GIVING gs-vas.",
+  "expect": "match",
+  "type": "Add"
+ }
+]

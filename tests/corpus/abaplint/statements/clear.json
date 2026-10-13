@@ -1,0 +1,52 @@
+[
+ {
+  "abap": "CLEAR foobar.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR cg_value+sy-fdpos.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR fontx-color WITH 'X'.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR me->zif_foo~field.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "clear ld_data_changes with abap_true in character mode.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR ct_source[].",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "clear borderx with 'X'.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR value+l_pos(*).",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR <l_byte> WITH byte IN BYTE MODE.",
+  "expect": "match",
+  "type": "Clear"
+ },
+ {
+  "abap": "CLEAR $foo$.",
+  "expect": "match",
+  "type": "Clear"
+ }
+]

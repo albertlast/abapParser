@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "INSERT TEXTPOOL is_progdir-name FROM it_tpool LANGUAGE mv_language STATE 'I'.",
+  "expect": "match",
+  "type": "InsertTextpool"
+ },
+ {
+  "abap": "INSERT textpool l_name FROM it_tpool LANGUAGE sy-langu.",
+  "expect": "match",
+  "type": "InsertTextpool"
+ },
+ {
+  "abap": "INSERT TEXTPOOL target FROM tab.",
+  "expect": "match",
+  "type": "InsertTextpool"
+ },
+ {
+  "abap": "INSERT TEXTPOOL prog FROM lt_tpool LANGUAGE sy-langu.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

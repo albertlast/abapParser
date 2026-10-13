@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "DELETE TEXTPOOL ls_foo-name.",
+  "expect": "match",
+  "type": "DeleteTextpool"
+ },
+ {
+  "abap": "DELETE TEXTPOOL iv_program LANGUAGE iv_program STATE lv_state.",
+  "expect": "match",
+  "type": "DeleteTextpool"
+ },
+ {
+  "abap": "DELETE TEXTPOOL lv_pool LANGUAGE '*'.",
+  "expect": "match",
+  "type": "DeleteTextpool"
+ },
+ {
+  "abap": "DELETE TEXTPOOL ls_foo-name.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

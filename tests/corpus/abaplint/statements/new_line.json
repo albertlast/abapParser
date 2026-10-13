@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "NEW-LINE.",
+  "expect": "match",
+  "type": "NewLine"
+ },
+ {
+  "abap": "NEW-LINE SCROLLING.",
+  "expect": "match",
+  "type": "NewLine"
+ },
+ {
+  "abap": "NEW-LINE NO-SCROLLING.",
+  "expect": "match",
+  "type": "NewLine"
+ },
+ {
+  "abap": "NEW-LINE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

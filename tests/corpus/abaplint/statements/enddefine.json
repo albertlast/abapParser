@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "END-OF-DEFINITION.",
+  "expect": "match",
+  "type": "EndOfDefinition"
+ },
+ {
+  "abap": "END-OF-DEFINITION.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "set user-command 'ASDF'.",
+  "expect": "match",
+  "type": "SetUserCommand"
+ },
+ {
+  "abap": "set user-command 'ASDF'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

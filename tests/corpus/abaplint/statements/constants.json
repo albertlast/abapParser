@@ -1,0 +1,77 @@
+[
+ {
+  "abap": "CONSTANTS c_cluster_type TYPE c VALUE 'C'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "constants lc_empty type string value is initial.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "constants c_oo_class(7)      VALUE 'foobar'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "constants /foo/bar type string value 'val'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS $blah TYPE syst-msgty VALUE 'I'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS lc_foo TYPE string VALUE `foo` & `bar`.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS id1 TYPE x LENGTH 2 VALUE '1122'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS id2 VALUE '1122' TYPE x LENGTH 2.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS id3 VALUE '1122' LENGTH 2 TYPE x.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS lc_price TYPE p DECIMALS 4 VALUE '0.01'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS lcv_foo TYPE string VALUE `a` & `b` & `c` & `d` & `e`.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS lcv_foo TYPE string VALUE `a` & `b`.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS lcv_foo TYPE string VALUE 'a' & 'b' & 'c' & 'd' & 'e'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS foo-bar TYPE c VALUE '1'.",
+  "expect": "match",
+  "type": "Constant"
+ },
+ {
+  "abap": "CONSTANTS foo TYPE c LENGTH 1 VALUE '1' %_PREDEFINED.",
+  "expect": "match",
+  "type": "Constant"
+ }
+]

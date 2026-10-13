@@ -1,0 +1,63 @@
+[
+ {
+  "abap": "PROVIDE FIELDS * \nFROM li_temp_join INTO ls_join_temp VALID l_flag BOUNDS datab AND datbi \nBETWEEN l_begda AND l_endda.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE FIELDS * \nFROM li_old INTO ls_old VALID flag1 BOUNDS date_from AND date_to \nFIELDS * \nFROM li_new INTO ls_new VALID flag2 BOUNDS date_from AND date_to \nBETWEEN p_start AND p_end.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "provide name from ztab1 name from ztab1 between name1 and name2.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE * FROM lt_bar BETWEEN foo AND bar.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE * FROM lt_bar BETWEEN foo-begda AND bar-endda.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE FIELDS sd FROM lt_sdfsd INTO ls_sdfsd VALID lv_flag BOUNDS begda AND endda BETWEEN <foo>-begda AND <bar>-endda.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE field1 field2 FROM sdf BETWEEN bonus AND pn-end.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE FIELDS sia_p      FROM lt_t7xa22 INTO ls_t7xa22 VALID lv_flag1 BOUNDS begda AND endda\nFIELDS contrib    FROM lt_t7xa23 INTO ls_t7xa23 VALID lv_flag2 BOUNDS begda AND endda\nFIELDS amt_perc\n       er_contrib FROM lt_t7xa24 INTO ls_t7xa24 VALID lv_flag3 BOUNDS begda AND endda\nFIELDS *          FROM lt_9745   INTO ls_9745   VALID lv_flag4 BOUNDS begda AND endda\nBETWEEN <p9745>-begda AND <p9745>-endda.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE zfoo FROM p0007\n     BETWEEN pn-begda AND pn-endda\n     WHERE p0007-zfoo = '1'.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "provide fields objps apact pldat\n            from   foo\n            into   bar\n            valid  val\n            bounds start and slut\n          where objps = l_seqnr and\n                apact = '011'\n          between l_begda and l_begda.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE\n    KVKZ1 RVKZ1 AVKZ1 RVNUM KVSFR KVGST\n    KVBKL KVFBT ZUSKA SONKV SONRV SONAV\n    SELKV SELRV MITNR MAXKV KVBAT RVBAT\n    PVKZ1 PVBKL PVFBT SONPV SELPV PVBAT\n    MAXPV SVA-006 SVA-007 SVA-008       FROM P0013\n\n    AVBAT SVA01 SVA02 SVA03 SVA04 SVA05\n    SVA06 SVA07 SVA08                   FROM P0013\n\n    STAT2                               FROM P0000_STAT2\n\n    JUPER                               FROM P0001\n\n    BETWEEN foo AND bar.",
+  "expect": "match",
+  "type": "Provide"
+ },
+ {
+  "abap": "PROVIDE FIELDS * \nFROM li_temp_join INTO ls_join_temp VALID l_flag BOUNDS datab AND datbi \nBETWEEN l_begda AND l_endda.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

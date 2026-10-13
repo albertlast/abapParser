@@ -1,0 +1,335 @@
+[
+ {
+  "abap": "ASSIGN COMPONENT ls_field-name OF STRUCTURE ig_file TO <lv_field>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN ('(SAPLSIFP)TTAB') TO <lg_any>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN cs_tstcp-param(sy-fdpos) TO <lg_f>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN cs_tstcp-param(sdf) TO <lg_f>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN cs_tstcp-param TO <lg_f>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN lo_obj->('HAS_ATTRIBUTES') TO <lv_has_attributes>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN *foobar TO <INITIAL>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN (classname)=>type TO <local_type>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign lt_alv->* to <f_alv_tab>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN <ls_aq_msg>-data TO <lv_data> CASTING TYPE (lv_tabname).",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN COMPONENT <ls_component>-name OF STRUCTURE <lg_data> TO <lv_data> CASTING TYPE HANDLE lo_datadescr.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN lv_x TO <lv_y> CASTING.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN foo-bar INCREMENT lv_count TO <fs> CASTING RANGE ls_obj.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN lt_word INCREMENT 1 TO <word> RANGE struc.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign text+i(1) to <x> type 'X'.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign textline+tmp(*) to <fs>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign falv->fcat[ fieldname = fieldname ] to field-symbol(<fcat>).",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN TABLE FIELD (bar) TO <foo>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign (class)=>(attr) to <f>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN COMPONENT col OF STRUCTURE <ls_data> TO <lv_field> CASTING DECIMALS lv_dec.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN COMPONENT col OF STRUCTURE <ls_data> TO <lv_field> CASTING DECIMALS <ls_curr>-currdec.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign data to <data> casting like bar.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN <ls_data> TO <ls_/foo/bar>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN COMPONENT lv_name OF STRUCTURE iv_input TO <target> CASTING TYPE HANDLE <foo>-type.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN <field_x> TO <field> TYPE <fs>-inttype DECIMALS <fs>-decimals.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN <lt_list>-field TO <ls_id> RANGE <ls_range>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN field TO <F> RANGE range-bar.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "assign lt_tab[ key name index 1 ] to field-symbol(<bar>).",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN var TO <fs> TYPE 'N'.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN TABLE FIELD foobar TO <fs>.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN <tab>[ ('VBELN') = <item>-vbeln ] TO FIELD-SYMBOL(<inv>).",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN ('sdfsdf') TO <fs> ELSE UNASSIGN.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN data->* TO <gt>[].",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN pack TO <p> DECIMALS foo-bar.",
+  "expect": "match",
+  "type": "Assign"
+ },
+ {
+  "abap": "ASSIGN entity->* TO FIELD-SYMBOL(<entity>).",
+  "expect": "match",
+  "type": "Assign",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ASSIGN it_cols_width[ KEY primary_key col = lv_col ] TO FIELD-SYMBOL(<ls_cols_width>).",
+  "expect": "match",
+  "type": "Assign",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ASSIGN lt_table[ table_line->guid = lv_guid ] TO <target>.",
+  "expect": "match",
+  "type": "Assign",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ASSIGN COMPONENT li_field->get_name( ) OF STRUCTURE ls_item TO <lv_field>.",
+  "expect": "match",
+  "type": "Assign",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ASSIGN struc-(comp) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-(comp)-field TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-(comp+off(len)) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(attr) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(attr)->* TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-(comp)->(attr)->* TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->('comp') TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(`comp`) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-('comp') TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(comp_name->*) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN itab[ 1 ]->(dyn_cmp) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN itab[ 1 ]->(dyn_cmp)->* TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(comp_name)-(comp2) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->( comp ) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->( comp) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN ref->(comp ) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-( comp ) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-( comp) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN struc-(comp ) TO <fs>.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ASSIGN lv INCREMENT 1 TO <fs>.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "ASSIGN (lv_sym) TO <fs>.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "ASSIGN class=>(lv_attr) TO <fs>.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "ASSIGN lv TO <fs> CASTING TYPE (lv_type).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "ASSIGN lv->(lv_comp) TO <fs>.",
+  "expect": "match",
+  "type": "Assign",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

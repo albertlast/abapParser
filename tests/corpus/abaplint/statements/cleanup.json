@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "CLEANUP INTO l_cx.",
+  "expect": "match",
+  "type": "Cleanup"
+ },
+ {
+  "abap": "CLEANUP.",
+  "expect": "match",
+  "type": "Cleanup"
+ }
+]

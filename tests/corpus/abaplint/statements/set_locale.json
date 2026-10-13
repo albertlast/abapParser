@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "SET LOCALE LANGUAGE lang COUNTRY cntry.",
+  "expect": "match",
+  "type": "SetLocale"
+ },
+ {
+  "abap": "SET LOCALE LANGUAGE lang.",
+  "expect": "match",
+  "type": "SetLocale"
+ },
+ {
+  "abap": "SET LOCALE LANGUAGE lv_lang COUNTRY lv_country MODIFIER lv_mod.",
+  "expect": "match",
+  "type": "SetLocale"
+ },
+ {
+  "abap": "SET LOCALE LANGUAGE lang COUNTRY cntry.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

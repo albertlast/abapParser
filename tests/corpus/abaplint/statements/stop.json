@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "STOP.",
+  "expect": "match",
+  "type": "Stop"
+ },
+ {
+  "abap": "STOP.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

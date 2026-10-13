@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "LOAD-OF-PROGRAM.",
+  "expect": "match",
+  "type": "LoadOfProgram"
+ },
+ {
+  "abap": "LOAD-OF-PROGRAM.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

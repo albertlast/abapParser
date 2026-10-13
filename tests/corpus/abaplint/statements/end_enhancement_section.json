@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "END-ENHANCEMENT-SECTION.",
+  "expect": "match",
+  "type": "EndEnhancementSection"
+ },
+ {
+  "abap": "END-ENHANCEMENT-SECTION.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,48 @@
+[
+ {
+  "abap": "READ LINE lv_line LINE VALUE INTO lv_text.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "read line sy-index field value lv_val into lv_target.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ LINE sy-index FIELD VALUE mark.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ LINE sy-index.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ LINE 2 INDEX 0.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "read line ls_header-linno of page ls_header-pagno index sy-lsind field value <lv_val>.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ LINE lv_line OF CURRENT PAGE.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ CURRENT LINE FIELD VALUE foo bar.",
+  "expect": "match",
+  "type": "ReadLine"
+ },
+ {
+  "abap": "READ LINE lv_line LINE VALUE INTO lv_text.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

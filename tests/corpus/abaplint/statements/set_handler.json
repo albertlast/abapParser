@@ -1,0 +1,48 @@
+[
+ {
+  "abap": "SET HANDLER me->on_event FOR mo_html_viewer.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "set handler handle_grid_drag for all instances activation ' '.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "set handler handler1 handler2 for all instances.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "SET HANDLER me->link_click FOR alv->get_event( ).",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "set handler foobar.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "SET HANDLER foobar ACTIVATION ' '.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "SET HANDLER lcl_alv=>on_link_click FOR lo_events.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "SET HANDLER dynpro-grid->click FOR foo-bar.",
+  "expect": "match",
+  "type": "SetHandler"
+ },
+ {
+  "abap": "SET HANDLER me->on_event FOR mo_html_viewer.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

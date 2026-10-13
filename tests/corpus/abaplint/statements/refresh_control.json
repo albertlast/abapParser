@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "REFRESH CONTROL 'TC' FROM SCREEN lv_dyn.",
+  "expect": "match",
+  "type": "RefreshControl"
+ },
+ {
+  "abap": "REFRESH CONTROL 'TC' FROM SCREEN lv_dyn.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

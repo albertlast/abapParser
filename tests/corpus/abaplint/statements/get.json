@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "GET foobar.",
+  "expect": "match",
+  "type": "Get"
+ },
+ {
+  "abap": "GET foobar LATE.",
+  "expect": "match",
+  "type": "Get"
+ },
+ {
+  "abap": "GET foobar FIELDS field1 field2.",
+  "expect": "match",
+  "type": "Get"
+ },
+ {
+  "abap": "GET foobar LATE FIELDS field.",
+  "expect": "match",
+  "type": "Get"
+ },
+ {
+  "abap": "GET foobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

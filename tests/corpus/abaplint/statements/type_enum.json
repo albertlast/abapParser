@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "TYPES foo VALUE IS INITIAL.",
+  "expect": "match",
+  "type": "TypeEnum"
+ },
+ {
+  "abap": "TYPES bar VALUE '1'.",
+  "expect": "match",
+  "type": "TypeEnum"
+ }
+]

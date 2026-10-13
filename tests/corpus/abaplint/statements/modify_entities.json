@@ -1,0 +1,153 @@
+[
+ {
+  "abap": "MODIFY ENTITIES OF zi_foobar\n  ENTITY ent\n  UPDATE SET FIELDS WITH VALUE #( ( foo = 'bar' ) )\n  FAILED DATA(failed)\n  REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF foo\n  ENTITY bar\n  CREATE FIELDS ( fielda fieldb ) WITH create\n  FAILED DATA(failed_modify)\n  REPORTED DATA(reported_modify).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF sdf\n  ENTITY ent\n    CREATE AUTO FILL CID FIELDS ( field1 field2 ) WITH create\n  MAPPED DATA(mapped)\n  REPORTED DATA(reported)\n  FAILED DATA(failed).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF bar\n    ENTITY ent\n    UPDATE FIELDS ( field )\n    WITH sdfsdf\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF sdf\n    ENTITY ent DELETE FROM bar\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF sdf IN LOCAL MODE\n    ENTITY ent\n    EXECUTE blah FROM val\n    RESULT DATA(result)\n    FAILED DATA(failed).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF /foo/bar IN LOCAL MODE\n    ENTITY ent\n    UPDATE SET FIELDS WITH VALUE #( FOR key IN lt_dat ( %key = key-%key\n                                                        aenam = lv_user\n                                                        aedat = lv_dt ) )\n    FAILED lt_failed.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF /foo/bar\n    ENTITY ent\n    CREATE SET FIELDS WITH CORRESPONDING #( tab EXCEPT foo bar )\n    REPORTED DATA(lt_dat)\n    MAPPED DATA(lt_map)\n    FAILED DATA(lt_failed).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF /DMO/FSA_R_RootTP IN LOCAL MODE ENTITY Root\n    EXECUTE calcTotalPieces FROM CORRESPONDING #( roots ).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITY ZDMO_R_RAPG_ProjectTP\n    EXECUTE Activate\n    FROM VALUE #( ( %key-RapboUUID = my_rapnodeuuid ) )\n    MAPPED DATA(mapped_active)\n    FAILED DATA(failed_active)\n    REPORTED DATA(reported_active).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF zfoobar IN LOCAL MODE\n    ENTITY Project\n      UPDATE FIELDS (\n                      boname\n                      ADTLink\n                      SAPObjectType\n                     ) WITH update_bo\n    ENTITY Node\n      UPDATE FIELDS (\n                      parententityname\n                      cdsiview\n                      SAPObjectType\n                      ) WITH update\n    REPORTED DATA(update_reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF /DMO/FSA_R_RootTP IN LOCAL MODE\n      ENTITY Root\n        CREATE\n          FROM lt_root_create\n        CREATE BY \\_Child\n          FROM lt_child_create\n        CREATE BY \\_Chart\n          AUTO FILL CID WITH lt_chart_create\n      ENTITY Child\n        CREATE BY \\_Grandchild\n          AUTO FILL CID WITH lt_grandchild_create\n      MAPPED mapped\n      REPORTED reported\n      FAILED failed.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY AUGMENTING ENTITIES OF ZACB_I_Label_S\n      ENTITY Label\n        CREATE BY \\_LabelText\n        FROM text_for_new_entity\n        RELATING TO entities_create BY relates_create.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY AUGMENTING ENTITIES OF ZACB_I_Label_S\n          ENTITY LabelText\n            UPDATE FROM text_update\n            RELATING TO entities_update BY relates_update.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entities of /foo/bar entity SubHe update from lt_hdr_read.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity in local mode /foo/bar\\\\SubHeader\n      execute create\n      from value #( ).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity /foo/bar\n      create from lt_create\n      failed data(ls_failed)\n      mapped data(ls_mapped)\n      reported data(ls_reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity /foo/bar\\\\boo update from lt_upd_week.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity /foo/bvar create from lt_create.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITY /foo/bar DELETE FROM tab\n      MAPPED DATA(mapped)\n      REPORTED DATA(reported)\n      FAILED DATA(failed).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITY /foo/bar\\\\Header\n                 CREATE\n                   FIELDS ( foo bar )\n                   WITH lt_summary_header\n                 CREATE BY \\_SummaryItems\n                   FIELDS ( foo bar )\n                   WITH lt_summary_detail\n                 MAPPED ls_summary_mapped\n                 FAILED ls_summary_failed\n                 REPORTED ls_summary_reported.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity in local mode /foo/bar\\\\moo\n     update\n     fields ( bar ) with lt\n     failed   ftab\n     reported rtab.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entities of /foo/bar in local mode\n        entity /foo/bar\n             create by \\_ref\n             fields ( field bar foo )\n               with tab\n        mapped data(lt_mapped)\n        failed data(lt_failed)\n        reported data(lt_reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity in local mode /foo/bar\\\\set\n          create by \\_sub\n          fields ( foo bar moo )\n          with lt\n        mapped   map\n        failed   fail\n        reported reported.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity in local mode /foo/bar\\\\set\n      create fields ( field1 field2 )\n      with tab\n      failed data(lt_failed).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "modify entity in local mode /foo/bar\\\\moo\n    create from lt_bar\n    create by \\_sdf from lt_oui\n    create by \\_sdf from lt_kklj\n    mapped   data(lt_mapped)\n    failed   data(lt_failed)\n    reported data(lt_reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITY  /foo/bar\n      UPDATE\n      SET FIELDS WITH lt_update\n      MAPPED DATA(mapped_resp)\n      FAILED DATA(failed_resp)\n      REPORTED DATA(reported_resp).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES PRIVILEGED OPERATIONS op_tab\n      MAPPED DATA(mapped)\n      FAILED DATA(failed)\n      REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES FORWARDING PRIVILEGED OPERATIONS op_tab\n      FAILED failed.",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
+  "abap": "MODIFY ENTITIES OF zi_foobar\n  ENTITY ent\n  UPDATE SET FIELDS WITH VALUE #( ( foo = 'bar' ) )\n  FAILED DATA(failed)\n  REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ModifyEntities",
+  "release": "OpenABAP"
+ }
+]

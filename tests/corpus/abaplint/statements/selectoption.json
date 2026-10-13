@@ -1,0 +1,148 @@
+[
+ {
+  "abap": "SELECT-OPTIONS foo FOR bar.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_trkorr FOR e070-trkorr.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_trkorr FOR e070-trkorr OBLIGATORY.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_moo FOR zfoo-bar MEMORY ID zfoo.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_moo FOR zfoo-bar NO-EXTENSION.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS F1 FOR foo-bar VISIBLE LENGTH 20 MODIF ID F1.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_matnr FOR mara-matnr MODIF ID sel.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_moo FOR zfoo-bar NO-EXTENSION NO INTERVALS.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_qnum FOR aqgqcat-qnum MATCHCODE OBJECT zquery.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_num FOR aqgqcat-num OBLIGATORY DEFAULT 'ASDF'.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_moo FOR zfoo-bar NO INTERVALS MEMORY ID zfoo.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_icon FOR icon-name DEFAULT 'foo' OPTION CP.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS foo FOR (foo=>bar).",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "select-options bar for foo no-display.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_foo FOR bar DEFAULT 'AA' TO 'ZZ'.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_bar FOR foo-bar NO-EXTENSION OBLIGATORY.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_att FOR _att NO INTERVALS LOWER CASE.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_id FOR /foo/bar-id NO INTERVALS.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS so_fr FOR from MODIF ID 123.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_startd FOR w_startd DEFAULT sy-datum TO sy-datum.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS sp$00004 FOR moo-boo MEMORY ID foo.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_name FOR field NO DATABASE SELECTION.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_field FOR table-field DEFAULT 'A' OPTION EQ SIGN E.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "select-options date for <fs_booking>-date.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_ghi FOR gs_dummy-ghi MODIF ID rt*.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS foo-bar FOR foobar-asdf.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS &matnr FOR mara-matnr.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS s_lifnr FOR g_lifnr MATCHCODE OBJECT foo-lifnr.",
+  "expect": "match",
+  "type": "SelectOption"
+ },
+ {
+  "abap": "SELECT-OPTIONS foo FOR bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

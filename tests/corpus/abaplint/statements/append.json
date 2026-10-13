@@ -1,0 +1,232 @@
+[
+ {
+  "abap": "APPEND lt_table.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "append 'sdf' to lt_foo.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND INITIAL LINE TO lt_lines ASSIGNING <ls_line>.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF lt_objects TO gt_programs.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND is_definition-definition TO ls_obj_old-wdyd-defin.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND <ls_component> TO ls_obj_old-wdyc-ccomp.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND <ls_node>-obj_name TO lt_findstrings.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF read_text_online( ) TO rt_repos.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND foo TO <fs>.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND read_controller( ls_controller_key ) TO rs_component-ctlr_metadata.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND INITIAL LINE TO lt_key_tab REFERENCE INTO key.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND <lv_code>+1 TO lt_commented.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND INITIAL LINE TO <ls_data>-sub ASSIGNING FIELD-SYMBOL(<ls_sub>).",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND '000000e8' && lv_sha1 && ' HEAD' && get_null( ) && lv_reply TO lt_reply.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND 'foo' && 'bar' TO lt_foo.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_commit->get_pretty( ) TO rt_commits.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND |foo| TO lt_foo.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND <ls_snode>-name+11 TO rt_types.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_commit->get_pretty( foo = bar ) TO rt_commits.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_commit->get_pretty( foo = bar moo = boo ) TO rt_commits.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_commit->get_pretty( 1 + 1 ) TO rt_commits.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF explode( ii_object = lo_parent iv_deepen = iv_deepen - 1 ) TO rt_objects.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_foo->call( )->chain( ) TO rt_commits.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND |foo| && |bar| TO mt_code.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND |MANDT = '{ sy-mandt }'| TO ls_config-where.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND lo_branch->get_data( )-sha1 TO lt_visit.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF foobar FROM 2 TO 3 TO result.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND INITIAL LINE TO lt_tab ASSIGNING <fs> CASTING.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "append it_foo assigning <ls_foo>.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND ls_field->node TO <ls_data>-fields SORTED BY table_line.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND CORRESPONDING #( BASE ( VALUE #( account = lv_account ) ) ls_ms04 ) TO lt_foo.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF tab TO index TO target.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND LINES OF tab FROM index TO target.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND VALUE #( %tky = travel-%tky ) TO reported-travel.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND VALUE #( hello = ls_item->%tky ) TO rt_result.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND VALUE #( field_name = 'STATUS') TO gt_list.",
+  "expect": "match",
+  "type": "Append"
+ },
+ {
+  "abap": "APPEND `x` && `y` TO mt_files.",
+  "expect": "match",
+  "type": "Append",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "APPEND VALUE #( key = is_key meta = it_meta ) TO mt_files.",
+  "expect": "match",
+  "type": "Append",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "APPEND INITIAL LINE TO <ls_data>-sub ASSIGNING FIELD-SYMBOL(<ls_sub>).",
+  "expect": "match",
+  "type": "Append",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "APPEND VALUE #( LET type = ztcl_alog_test_utl=>get_random_log_type( ) IN\ntext = ztcl_alog_test_utl=>get_random_log_text( )\ntype = type\ndescription = type->mv_description ) TO lt_test.",
+  "expect": "match",
+  "type": "Append",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "APPEND <ls_comp>-name TO mt_meta_fields.",
+  "expect": "match",
+  "type": "Append",
+  "release": "v702"
+ },
+ {
+  "abap": "APPEND cl_oo_classname_service=>get_ccmac_name( lv_class_name ) TO rt_includes.",
+  "expect": "match",
+  "type": "Append",
+  "release": "v702"
+ },
+ {
+  "abap": "APPEND |foo| && |bar| TO mt_code.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "APPEND |MANDT = '{ sy-mandt }'| TO ls_config-where.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "APPEND LINES OF tab1 FROM 1 TO 2.",
+  "expect": "unknown"
+ }
+]
