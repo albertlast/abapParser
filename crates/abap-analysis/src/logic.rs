@@ -406,6 +406,18 @@ impl<'w> Engine<'w> {
                 };
                 target.and_then(|t| self.find(t, "form", None, &c.name).map(|k| (t, k)))
             }
+            m::CallKind::Submit => {
+                let Some(t) = self.load(&SourceRef::program(&c.name), depth) else {
+                    return Vec::new();
+                };
+                return self.objects[t]
+                    .procs
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| matches!(p.procedure.block.kind.as_str(), "event" | "program"))
+                    .map(|(k, _)| (t, k))
+                    .collect();
+            }
             m::CallKind::Function => match self.find(o, "function_module", None, &c.name) {
                 Some(k) => Some((o, k)),
                 None => self
@@ -510,10 +522,75 @@ impl<'w> Engine<'w> {
         s
     }
 
+    /// A program run by SUBMIT: its own data ends with it, the tables it
+    /// reads and writes are what the caller sees. What written rows depend
+    /// on in its selection parameters comes from the values passed with
+    /// `WITH`.
+    fn apply_submit(&mut self, o: usize, k: usize, pending: &PendingCall, o2: usize, k2: usize) {
+        let s = self.summary(o2, k2);
+        let via = m::BlockRef {
+            kind: "program".to_string(),
+            name: pending.call.name.clone(),
+            class: None,
+        };
+        let caller = &mut self.objects[o].procs[k].procedure;
+        let Some(st) = find_step_mut(&mut caller.body, pending.step) else {
+            return;
+        };
+        let passed = submit_parameters(&pending.call.text);
+        let own_reads: Vec<String> = st
+            .reads
+            .iter()
+            .filter(|r| r.via.is_none())
+            .map(|r| r.name.clone())
+            .collect();
+        // the caller's data passed to a selection parameter of the program
+        let values = |parameter: &str| -> Vec<String> {
+            passed
+                .iter()
+                .filter(|(p, _)| p.is_empty() || p.eq_ignore_ascii_case(parameter))
+                .flat_map(|(_, operands)| operands.iter())
+                .filter(|o| own_reads.contains(o))
+                .cloned()
+                .collect()
+        };
+        for (t, deps) in &s.tables {
+            let depends = deps.as_ref().map(|d| {
+                let mut reads: Vec<String> = Vec::new();
+                for (name, scope) in &d.reads {
+                    if *scope != m::DataScope::Global {
+                        continue;
+                    }
+                    for v in values(name) {
+                        if !reads.contains(&v) {
+                            reads.push(v);
+                        }
+                    }
+                }
+                m::Dependency {
+                    reads,
+                    arguments: false,
+                    tables: d.tables.clone(),
+                }
+            });
+            let t = m::TableAccess {
+                via: Some(via.clone()),
+                depends,
+                ..t.clone()
+            };
+            if !st.tables.contains(&t) {
+                st.tables.push(t);
+            }
+        }
+    }
+
     /// Adds what the procedure `k2` of object `o2` reads and writes to the
     /// step of a call to it, and what the data passed to its parameters
     /// gets.
     fn apply(&mut self, o: usize, k: usize, pending: &PendingCall, o2: usize, k2: usize) {
+        if pending.call.kind == m::CallKind::Submit {
+            return self.apply_submit(o, k, pending, o2, k2);
+        }
         let (step, call, args) = (pending.step, &pending.call, pending.args.as_ref());
         let s = self.summary(o2, k2);
         let via = self.objects[o2].procs[k2].procedure.block.clone();
@@ -812,6 +889,62 @@ fn map_name(
 /// What callers see of a procedure: data outside of it that it reads from
 /// before the call or writes, with what the written values depend on, the
 /// parameters it writes, and the database tables it accesses.
+/// The selection parameters a SUBMIT fills and the operands of the values,
+/// lower case: `WITH p_id = lv_id` gives (`p_id`, [`lv_id`]); `WITH
+/// SELECTION-TABLE lt_sel` fills any parameter, the name is empty then.
+fn submit_parameters(text: &str) -> Vec<(String, Vec<String>)> {
+    const ENDS: &[&str] = &[
+        "WITH",
+        "AND",
+        "VIA",
+        "USING",
+        "TO",
+        "EXPORTING",
+        "LINE-SIZE",
+        "LINE-COUNT",
+        "KEEP",
+        "USER",
+        "SPOOL",
+        "IMMEDIATELY",
+        "WITHOUT",
+        "LIST",
+        "NEW",
+        "DATASET",
+    ];
+    let words: Vec<String> = text
+        .replace(['.', ',', '(', ')'], " ")
+        .split_whitespace()
+        .map(|w| w.trim_start_matches('@').to_ascii_lowercase())
+        .collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        if !words[i].eq_ignore_ascii_case("with") {
+            i += 1;
+            continue;
+        }
+        let Some(first) = words.get(i + 1) else { break };
+        let (name, mut j) = match first.as_str() {
+            "selection-table" | "free" => (String::new(), i + 2),
+            _ => (first.clone(), i + 2),
+        };
+        let mut operands = Vec::new();
+        while j < words.len() {
+            let w = &words[j];
+            // BETWEEN a AND b: the AND belongs to the clause
+            let between = w == "and" && words[..j].iter().rev().take(3).any(|x| x == "between");
+            if ENDS.iter().any(|e| e.eq_ignore_ascii_case(w)) && !between {
+                break;
+            }
+            operands.push(w.clone());
+            j += 1;
+        }
+        out.push((name, operands));
+        i = j;
+    }
+    out
+}
+
 fn summarize(p: &m::Procedure, bound: &Aliases) -> Summary {
     let own: HashSet<&str> = p
         .locals
@@ -893,23 +1026,24 @@ fn summarize(p: &m::Procedure, bound: &Aliases) -> Summary {
             }
         }
         match e.scope {
-            m::DataScope::Database => {
-                let mut operations: Vec<m::DbOperation> = Vec::new();
+            m::DataScope::Database | m::DataScope::External => {
+                let mut operations: Vec<(m::DbOperation, Option<m::Store>)> = Vec::new();
                 walk(&p.body, &mut |st| {
                     for t in &st.tables {
                         if t.name == e.name
                             && t.access == m::AccessKind::Write
-                            && !operations.contains(&t.operation)
+                            && !operations.contains(&(t.operation, t.store))
                         {
-                            operations.push(t.operation);
+                            operations.push((t.operation, t.store));
                         }
                     }
                 });
-                for operation in operations {
+                for (operation, store) in operations {
                     let t = m::TableAccess {
                         name: e.name.clone(),
                         access: m::AccessKind::Write,
                         operation,
+                        store,
                         via: None,
                         depends: None,
                     };
@@ -1116,8 +1250,30 @@ fn build_unit(
             }
         }
     }
-    // calls with their arguments; dynamic ones with the names they can have
+    // data kept outside the program: memory, parameters, files
     let constants = literal_constants(symbols);
+    for st in &file.statements {
+        let found = crate::stores::store_accesses(file, st, &constants);
+        if found.is_empty() {
+            continue;
+        }
+        let start = file.lexed.tokens[st.tokens[0]].start;
+        let at = m::Position {
+            row: start.row,
+            col: start.col,
+        };
+        let Some((k, id)) = locate(&procs, &at) else {
+            continue;
+        };
+        if let Some(s) = find_step_mut(&mut procs[k].procedure.body, id) {
+            for t in found {
+                if !s.tables.contains(&t) {
+                    s.tables.push(t);
+                }
+            }
+        }
+    }
+    // calls with their arguments; dynamic ones with the names they can have
     let mut seen: HashMap<(u32, String), usize> = HashMap::new();
     for c in calls {
         let Some((k, id)) = locate(&procs, &c.span.start) else {
@@ -1192,6 +1348,7 @@ fn table_accesses(a: &m::DbAccess) -> Vec<m::TableAccess> {
             name,
             access,
             operation: a.operation,
+            store: None,
             via: None,
             depends: None,
         };
@@ -2950,7 +3107,11 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
         }
         for t in &s.tables {
             if t.access == m::AccessKind::Write {
-                add(&t.name, m::DataScope::Database, s.id, t.via.as_ref());
+                let scope = match t.store {
+                    Some(_) => m::DataScope::External,
+                    None => m::DataScope::Database,
+                };
+                add(&t.name, scope, s.id, t.via.as_ref());
             }
         }
     });
@@ -3166,6 +3327,7 @@ ENDCLASS.
                 name: "VBAP".into(),
                 access: m::AccessKind::Read,
                 operation: m::DbOperation::Select,
+                store: None,
                 via: None,
                 depends: None,
             }]
@@ -3378,6 +3540,58 @@ ENDCLASS.",
         assert_eq!(
             effect(run, "io_file->mv_written").via[0].name,
             "lif_store~save"
+        );
+    }
+
+    #[test]
+    fn data_kept_outside_the_program() {
+        let l = logic(
+            "REPORT z.
+FORM put.
+  SELECT * FROM zsrc INTO TABLE @DATA(lt_rows).
+  EXPORT rows = lt_rows TO MEMORY ID 'ZROWS'.
+  SET PARAMETER ID 'ZID' FIELD lt_rows[ 1 ]-id.
+ENDFORM.
+FORM take.
+  DATA lt_rows TYPE STANDARD TABLE OF zsrc.
+  IMPORT rows = lt_rows FROM MEMORY ID 'ZROWS'.
+  INSERT ztgt FROM TABLE @lt_rows.
+  TRANSFER lt_rows[ 1 ]-id TO '/tmp/ids.txt'.
+ENDFORM.",
+        );
+        let put = procedure(&l, "put");
+        let e = effect(put, "memory:ZROWS");
+        assert_eq!(e.scope, m::DataScope::External);
+        assert_eq!(e.tables, ["ZSRC"]);
+        assert_eq!(effect(put, "parameter:ZID").tables, ["ZSRC"]);
+        let take = procedure(&l, "take");
+        assert_eq!(effect(take, "ZTGT").tables, ["memory:ZROWS"]);
+        assert_eq!(effect(take, "file:/tmp/ids.txt").tables, ["memory:ZROWS"]);
+        assert_eq!(
+            crate::text::logic(&l)
+                .lines()
+                .find(|l| l.contains("writes ZTGT")),
+            Some("  writes ZTGT (database table) at 10; from tables memory:ZROWS")
+        );
+    }
+
+    #[test]
+    fn submit_with_clauses() {
+        let p = submit_parameters(
+            "SUBMIT zpost WITH p_id = @lv_id WITH s_date BETWEEN lv_from AND lv_to \
+             WITH SELECTION-TABLE lt_sel VIA SELECTION-SCREEN AND RETURN.",
+        );
+        let got: Vec<(&str, Vec<&str>)> = p
+            .iter()
+            .map(|(n, o)| (n.as_str(), o.iter().map(String::as_str).collect()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("p_id", vec!["=", "lv_id"]),
+                ("s_date", vec!["between", "lv_from", "and", "lv_to"]),
+                ("", vec!["lt_sel"]),
+            ]
         );
     }
 

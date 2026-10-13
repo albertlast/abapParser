@@ -118,6 +118,14 @@ test("compact text", async () => {
   await assert.rejects(abap.objectTextAsync("graph", ["CLAS:X"], {}), /no source/);
 });
 
+test("cds", async () => {
+  const d = abap.cds("define view entity zi_c as select from t005 { key land1 as Country }");
+  assert.equal(d.kind, "view entity");
+  assert.deepEqual(d.elements[0].fields, ["T005.LAND1"]);
+  assert.deepEqual(await abap.cdsAsync("define view entity zi_c as select from t005 { key land1 as Country }"), d);
+  assert.match(abap.text("cds", "define view entity zi_c as select from t005 { key land1 as Country }"), /key Country = T005.LAND1/);
+});
+
 test("async variants give the same results", async () => {
   assert.deepEqual(await abap.symbolsAsync(SOURCE), abap.symbols(SOURCE));
   assert.deepEqual(await abap.logicAsync(SOURCE), abap.logic(SOURCE));

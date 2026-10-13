@@ -62,6 +62,11 @@ mod _native {
     }
 
     #[pyfunction]
+    fn cds_json(py: Python<'_>, source: &str) -> String {
+        py.detach(|| abap_analysis::json::cds(source))
+    }
+
+    #[pyfunction]
     fn text(py: Python<'_>, analysis: &str, source: &str) -> PyResult<String> {
         py.detach(|| abap_analysis::json::text(analysis, source))
             .map_err(pyo3::exceptions::PyValueError::new_err)

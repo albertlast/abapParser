@@ -1,7 +1,8 @@
 //! Source files on disk: abapGit layout (`zcl_x.clas.abap`,
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
 //! namespaces), or plain `name.abap` files taken as programs; dictionary
-//! types from `name.tabl.xml` and `name.dtel.xml`.
+//! types from `name.tabl.xml` and `name.dtel.xml`, CDS data definitions from
+//! `name.ddls.asddls`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -67,10 +68,11 @@ impl FsProvider {
                 .is_some_and(|n| n.starts_with('.') || n == "node_modules" || n == "target");
             if path.is_dir() && !hidden {
                 self.scan(&path)?;
-            } else if path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("abap") || e.eq_ignore_ascii_case("xml"))
-            {
+            } else if path.extension().is_some_and(|e| {
+                ["abap", "xml", "asddls"]
+                    .iter()
+                    .any(|x| e.eq_ignore_ascii_case(x))
+            }) {
                 self.add_file(&path);
             }
         }
@@ -204,6 +206,9 @@ fn local_name(name: &str) -> &str {
 /// The object of a file name, and for function modules their group.
 fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
     let lower = file.to_ascii_lowercase();
+    if let Some(name) = lower.strip_suffix(".ddls.asddls") {
+        return Some((SourceRef::data_definition(&decode(name)), None));
+    }
     if let Some(stem) = lower.strip_suffix(".xml") {
         return match stem.split('.').collect::<Vec<_>>().as_slice() {
             [name, "tabl"] => Some((SourceRef::table(&decode(name)), None)),
@@ -346,6 +351,7 @@ mod tests {
         assert_eq!(p("zs_x.tabl.xml"), Some(("TABL:ZS_X".into(), None)));
         assert_eq!(p("#abc#d.dtel.xml"), Some(("DTEL:/ABC/D".into(), None)));
         assert_eq!(p("zcl_a.clas.xml"), None);
+        assert_eq!(p("zi_x.ddls.asddls"), Some(("DDLS:ZI_X".into(), None)));
         assert_eq!(p("zcl_a.clas.xml"), None);
     }
 

@@ -15,6 +15,8 @@ single file:
   calls <file>                calls: methods, function modules, forms, programs
   logic <file>                per procedure: statements with conditions, data
                               read and written, control flow, effects
+  cds <file>                  CDS data definition: sources, joins, associations,
+                              parameters, the fields of each element
 
 across objects, sources from folders and/or an SAP system:
   graph <object>... [--depth N]   call graph from the given objects
@@ -24,7 +26,8 @@ across objects, sources from folders and/or an SAP system:
   fetch <object>                  print the source of an object
   objects are written KIND:NAME, e.g. CLAS:ZCL_ORDERS, PROG:ZREPORT, FUNC:Z_FM,
   INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations; dictionary types
-  TABL:BAPIRET2 (structures, tables) and DTEL:XUBNAME can be fetched
+  TABL:BAPIRET2 (structures, tables) and DTEL:XUBNAME, and CDS data
+  definitions DDLS:I_COUNTRY can be fetched
 
 source options:
   --src <dir>          folder with abapGit or .abap files, repeatable
@@ -46,7 +49,7 @@ testing:
                        from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
 
 output:
-  JSON by default; --text for symbols, db, calls, logic and graph gives a
+  JSON by default; --text for symbols, db, calls, logic, cds and graph gives a
   compact text: definitions written like ABAP, one line per call or access,
   effects with their statements and conditions, rows to find them
 
@@ -142,6 +145,7 @@ fn main() -> ExitCode {
                 "calls": abap_model::calls_schema(),
                 "call_graph": abap_model::call_graph_schema(),
                 "logic": abap_model::logic_schema(),
+                "cds": abap_model::cds_schema(),
             }));
             ExitCode::SUCCESS
         }
@@ -166,7 +170,7 @@ fn main() -> ExitCode {
                 }
             }
         }
-        "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" => {
+        "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" | "cds" => {
             file_command(command, &args)
         }
         _ => {
@@ -222,6 +226,8 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
         "db" if args.text => print!("{}", text::db_access(&abap_analysis::db_access(&source))),
         "calls" if args.text => print!("{}", text::calls(&abap_analysis::calls(&source))),
         "logic" if args.text => print!("{}", text::logic(&abap_analysis::logic(&source))),
+        "cds" if args.text => print!("{}", text::cds(&abap_analysis::cds(&source))),
+        "cds" => print_json(&abap_analysis::cds(&source)),
         "symbols" => print_json(&abap_analysis::symbols(&source)),
         "db" => print_json(&abap_analysis::db_access(&source)),
         "calls" => print_json(&abap_analysis::calls(&source)),
