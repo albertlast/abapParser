@@ -42,6 +42,13 @@ export function fetchSource(reference: string, options: SourceOptions): string |
  */
 export function logic(source: string): FileLogic;
 
+/**
+ * Logic of all sources of an object like "PROG:ZREPORT", with the global data
+ * of its includes; calls into other objects followed `depth` hops (default 1).
+ * Blocks while loading sources.
+ */
+export function logicObject(reference: string, options: SourceOptions, depth?: number): FileLogic;
+
 /** Statements of one ABAP source file, with kind, text and position. */
 export function statements(source: string): StatementInfo[];
 

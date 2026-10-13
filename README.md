@@ -80,6 +80,7 @@ Structures declared with `BEGIN OF ... END OF` carry their `components`.
 - joins with their ON conditions, and WHERE and HAVING comparisons
 - GROUP BY and ORDER BY
 - the INTO/APPENDING target, or the source and SET assignments of DML
+- the ABAP data the statement reads (`host_variables`): `@lv_x`, the operands of `@( ... )` and the host variables of the classic syntax
 - FOR ALL ENTRIES, UP TO, SINGLE, DISTINCT, set operations, the CLIENT, BYPASSING BUFFER and CONNECTION options, and dynamic parts
 - the processing block it is in: method and class, form, function module, module, event
 
@@ -179,9 +180,11 @@ In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `
 - **Steps:** the statements, nested along IF, CASE, LOOP, DO, WHILE and TRY. ELSEIF, ELSE, CATCH and CLEANUP follow their IF or TRY. The WHENs of a CASE are its children.
 - **Conditions:** parsed into a tree of AND, OR, NOT, comparisons, `IS INITIAL`/`BOUND`/`ASSIGNED`/`INSTANCE OF`, `IN` and `BETWEEN`. Operands are classified as literal (with its value), data, call, constructor or arithmetic. A WHEN becomes `operand = value OR ...`.
 - **Guards:** every condition that holds when a step runs, outermost first. ELSE and ELSEIF get the earlier conditions negated. Statements after `CHECK c` are guarded by `c`. Statements after `IF c. RETURN. ENDIF.` are guarded by `NOT c`.
-- **Reads and writes:** each data object a statement reads, writes or changes in place (`APPEND ... TO itab`), with its position and scope (local, parameter, attribute, other).
+- **Reads and writes:** each data object a statement reads, writes or changes in place (`APPEND ... TO itab`), with its position and scope: local, parameter, attribute, global (declared at program level, also in event blocks) or other.
+- **Database tables:** each step lists the tables it reads, and the table that INSERT, UPDATE, MODIFY, DELETE or MERGE writes. Open SQL and native SQL are both covered.
 - **Data flow:** each read lists the steps whose writes may provide its value, and whether the value may come from before the procedure. Computed by reaching definitions over the control flow graph, which is also part of the output.
-- **Effects:** every parameter, attribute or global the procedure writes, with the inputs the written values depend on, through assignments and through the conditions that decide them.
+- **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. The arguments of a call count as the inputs of its results.
+- **Effects:** every parameter, attribute, global or database table the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
 
 ```abap
 FORM price USING iv_qty TYPE i CHANGING cv_price TYPE p.
@@ -194,10 +197,31 @@ ENDFORM.
 
 For this form, the step `cv_price = cv_price * '0.9'` has the guards `iv_qty > 0` and `iv_qty >= 100`. Its read of `cv_price` comes from the entry. The effects are `cv_price` with the inputs `cv_price` and `iv_qty`.
 
+```abap
+METHOD total.    " IMPORTING iv_vbeln EXPORTING ev_total
+  SELECT SUM( netwr ) FROM vbap INTO @DATA(lv_sum) WHERE vbeln = @iv_vbeln.
+  ev_total = lv_sum.
+ENDMETHOD.
+METHOD run.
+  total( EXPORTING iv_vbeln = gv_vbeln IMPORTING ev_total = DATA(lv_total) ).
+  IF lv_total > 100.
+    write_log( |big| ).    " INSERT zlog ..., mv_count = mv_count + 1
+  ENDIF.
+ENDMETHOD.
+```
+
+`total` has the effect `ev_total` with the input `iv_vbeln` and the table `VBAP`. `run` has the effects `ZLOG` (scope database) and `mv_count`, both through `write_log`, and both depend on `VBAP` because the IF decides on the result of `total`.
+
+For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
+
+```sh
+abap logic FUGR:ZORDERS --src ./src --depth 2
+```
+
 Not covered yet:
 - Writes through field symbols and references are writes of the field symbol, not of what it points to.
-- A call is not followed into the called method; its arguments count as the inputs of its results.
-- Database tables are not inputs or outputs of the data flow; the database access API lists them.
+- Calls through an interface or a dynamic name are not followed, since the implementation is only known at runtime. A method redefined in a subclass is followed into the class the call names.
+- A call into another object counts all the tables it reads as inputs of everything that step writes.
 
 ## Layout
 
@@ -210,7 +234,7 @@ crates/abap-model     serializable output model and its JSON Schema
 crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
 crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
-crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|fetch <object>`, `abap mock-adt`, `abap schema`
+crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs)
 bindings/python       Python package (PyO3, maturin)
 tools/                corpus extraction, abaplint oracle, type generation, keyword documentation lookup
@@ -224,6 +248,7 @@ cargo run -p abap-cli -- symbols zcl_demo.clas.abap
 cargo run -p abap-cli -- db zcl_demo.clas.abap
 cargo run -p abap-cli -- calls zcl_demo.clas.abap
 cargo run -p abap-cli -- logic zcl_demo.clas.abap
+cargo run -p abap-cli -- logic PROG:ZREPORT --src ./src --depth 1
 cargo run -p abap-cli -- statements zprogram.prog.abap --json
 ```
 
@@ -241,6 +266,8 @@ for (const a of abap.dbAccess(source)) {
 for (const p of abap.logic(source).procedures) {
   console.log(p.block.name, p.effects.map((e) => `${e.name} <- ${e.inputs.join(", ")}`));
 }
+// a whole object with its includes, calls into other objects followed 1 hop
+const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
 ```
 
 Python (`cd bindings/python && maturin develop --release`):
@@ -254,6 +281,7 @@ for a in abap_parser.db_access(source):
     print(a["operation"], [t["name"] for t in a["tables"]])
 for p in abap_parser.logic(source)["procedures"]:
     print(p["block"]["name"], [(e["name"], e["inputs"]) for e in p["effects"]])
+lg = abap_parser.logic_object("PROG:ZREPORT", {"src": ["./src"]}, depth=1)
 ```
 
 Rust:

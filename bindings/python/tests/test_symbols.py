@@ -80,6 +80,28 @@ class SymbolsTest(unittest.TestCase):
         self.assertEqual(step["reads"][0]["scope"], "parameter")
         self.assertEqual([(e["name"], e["inputs"]) for e in proc["effects"]], [("x", ["p"])])
 
+    def test_logic_follows_calls(self):
+        lg = abap_parser.logic(
+            "FORM a.\n  PERFORM b.\nENDFORM.\nFORM b.\n  DELETE FROM zlog WHERE id = 1.\nENDFORM."
+        )
+        a = lg["procedures"][0]
+        self.assertEqual(
+            [(e["name"], e["scope"], [v["name"] for v in e["via"]]) for e in a["effects"]],
+            [("ZLOG", "database", ["b"])],
+        )
+
+    @unittest.skipUnless((CORPUS / "abap-sdk-for-azure" / "src").exists(), "corpus submodule missing")
+    def test_logic_object(self):
+        src = str(CORPUS / "abap-sdk-for-azure" / "src")
+        lg = abap_parser.logic_object("FUGR:ZREST", {"src": [src]})
+        self.assertEqual(lg["object"], "FUGR:ZREST")
+        form = next(p for p in lg["procedures"] if p["block"]["name"] == "set_log")
+        self.assertEqual(form["unit"], "PROG:LZRESTF01")
+        self.assertIn(("gwa_log", "global"), [(e["name"], e["scope"]) for e in form["effects"]])
+        fm = next(p for p in lg["procedures"] if p["block"]["name"] == "zsave_rest_log")
+        db = [e for e in fm["effects"] if e["scope"] == "database"]
+        self.assertTrue(db and all(e["via"] for e in db))
+
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):
         path = CORPUS / "abapgit" / "src" / "apack" / "zcl_abapgit_apack_migration.clas.abap"

@@ -140,11 +140,13 @@ export interface DataAccess {
   scope: DataScope;
   /** reads: statements whose writes may provide the value */
   sources?: number[];
+  /** accessed by the called procedure, not by the statement itself */
+  via?: BlockRef;
   /** writes: the whole data object is replaced, not just a component */
   whole?: boolean;
 }
 
-export type DataScope = "parameter" | "local" | "attribute" | "other";
+export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "other";
 
 /** One database access statement. */
 export interface DbAccess {
@@ -164,7 +166,7 @@ export interface DbAccess {
   for_all_entries?: string;
   group_by: DbColumn[];
   having: DbCondition[];
-  /** native SQL: variables read, `:name` written without the colon; ABAP host variables of EXEC SQL, parameters and table variables of AMDP */
+  /** ABAP data read by the statement, as written: in Open SQL `@lv_x` without the `@`, the operands of `@( ... )` and the host variables of the classic syntax; in native SQL `:name` without the colon, the ABAP host variables of EXEC SQL, parameters and table variables of AMDP */
   host_variables?: string[];
   /** SELECT ... ENDSELECT loop */
   is_loop: boolean;
@@ -303,7 +305,7 @@ export interface DialogModule {
 
 export type Direction = "importing" | "exporting" | "changing" | "returning" | "using" | "tables";
 
-/** A data object outside the procedure that it writes, with what the written values depend on. */
+/** A data object outside the procedure, or a database table, that it writes, with what the written values depend on. */
 export interface Effect {
   /** data read from before the procedure that the values depend on, through assignments and through the conditions deciding them */
   inputs: string[];
@@ -311,6 +313,10 @@ export interface Effect {
   scope: DataScope;
   /** the steps writing it */
   statements: number[];
+  /** database tables read that the values depend on, upper case */
+  tables?: string[];
+  /** the called procedures that write it, when not written directly */
+  via?: BlockRef[];
 }
 
 export interface Event {
@@ -333,8 +339,14 @@ export interface EventHandler {
   event: string;
 }
 
-/** Control flow, conditions and data flow of the procedures of a file. */
+/** Control flow, conditions and data flow of the procedures of a file, or of all sources of an object loaded through a workspace. */
 export interface FileLogic {
+  /** provider errors, e.g. authorization failures */
+  errors?: string[];
+  /** objects no provider had: includes, and called objects */
+  missing?: string[];
+  /** the object, like `PROG:ZREPORT`; for objects loaded through a workspace */
+  object?: string;
   procedures: Procedure[];
   schema_version: number;
 }
@@ -491,6 +503,8 @@ export interface Procedure {
   locals: string[];
   parameters: ProcedureParameter[];
   span: Span;
+  /** the source it is in, like `PROG:ZREPORT_F01`; for objects loaded through a workspace */
+  unit?: string;
 }
 
 export interface ProcedureParameter {
@@ -548,9 +562,22 @@ export interface Step {
   /** data read, changed operands included */
   reads?: DataAccess[];
   span: Span;
+  /** database tables read or written, also by called procedures */
+  tables?: TableAccess[];
   text: string;
   /** data written, changed operands included */
   writes?: DataAccess[];
+}
+
+/** A database table read or written by a statement. */
+export interface TableAccess {
+  /** `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE */
+  access: AccessKind;
+  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses */
+  name: string;
+  operation: DbOperation;
+  /** accessed by the called procedure, not by the statement itself */
+  via?: BlockRef;
 }
 
 export interface TableTyping {

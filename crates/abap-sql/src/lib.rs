@@ -42,7 +42,26 @@ pub fn parse_statement(file: &File, s: &Statement) -> Option<m::DbAccess> {
         tokens.pop();
     }
     tokens.retain(|t| t.kind != TokenKind::Pragma);
-    Some(parse(s.kind, &tokens))
+    let mut access = parse(s.kind, &tokens);
+    access.host_variables = host_variables(file, s);
+    Some(access)
+}
+
+/// ABAP data the statement reads, as written: `@lv_x`, the operands of
+/// `@( ... )`, and the unmarked host variables of the classic syntax.
+fn host_variables(file: &File, s: &Statement) -> Vec<String> {
+    let all = file.tokens();
+    let mut out: Vec<String> = Vec::new();
+    for r in abap_syntax::operands::operands(file, s).refs() {
+        if r.access != abap_syntax::expr::Access::Read {
+            continue;
+        }
+        let path = abap_syntax::join_tokens((r.start..=r.last).map(|i| &all[s.tokens[i]]));
+        if !out.iter().any(|v| v.eq_ignore_ascii_case(&path)) {
+            out.push(path);
+        }
+    }
+    out
 }
 
 /// Parses the tokens of a database statement, without terminator and pragmas.

@@ -15,6 +15,9 @@ single file:
 
 across objects, sources from folders and/or an SAP system:
   graph <object>... [--depth N]   call graph from the given objects
+  logic <object> [--depth N]      logic of all sources of an object, with the
+                                  global data of its includes; calls into
+                                  other objects followed N hops (default 1)
   fetch <object>                  print the source of an object
   objects are written KIND:NAME, e.g. CLAS:ZCL_ORDERS, PROG:ZREPORT, FUNC:Z_FM,
   INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations
@@ -127,6 +130,14 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "graph" | "fetch" => object_command(command, &args),
+        "logic"
+            if args
+                .positional
+                .get(1)
+                .is_some_and(|a| a.parse::<SourceRef>().is_ok()) =>
+        {
+            object_command(command, &args)
+        }
         "mock-adt" => mock_adt(&args),
         "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" => {
             file_command(command, &args)
@@ -269,12 +280,19 @@ fn object_command(command: &str, args: &Args) -> ExitCode {
         return status;
     }
     let workspace = abap_analysis::Workspace::new(provider);
-    let graph = workspace.call_graph(&refs, args.depth);
-    print_json(&graph);
-    if graph.errors.is_empty() {
+    let errors = if command == "logic" {
+        let logic = workspace.logic(&refs[0], args.depth);
+        print_json(&logic);
+        logic.errors
+    } else {
+        let graph = workspace.call_graph(&refs, args.depth);
+        print_json(&graph);
+        graph.errors
+    };
+    if errors.is_empty() {
         ExitCode::SUCCESS
     } else {
-        for e in &graph.errors {
+        for e in &errors {
             eprintln!("{e}");
         }
         ExitCode::FAILURE

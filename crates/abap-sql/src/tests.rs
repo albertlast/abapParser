@@ -272,3 +272,26 @@ fn abap_sql_hierarchy_source() {
     assert_eq!(tables(&a), [("zhier", m::DbTableRole::Main)]);
     assert_eq!(a.tables[0].alias.as_deref(), Some("h"));
 }
+
+#[test]
+fn open_sql_host_variables() {
+    let hv = |src: &str| db(src).host_variables;
+    assert_eq!(
+        hv("SELECT SINGLE matnr FROM mara INTO lv_matnr WHERE matnr = lv_input AND mtart IN s_mtart."),
+        ["lv_input", "s_mtart"]
+    );
+    assert_eq!(
+        hv("SELECT a FROM t INTO TABLE @DATA(r) WHERE b = @ls_key-b AND c = @( lv_c + 1 ) AND d = @ls_key-b."),
+        ["ls_key-b", "lv_c"]
+    );
+    assert_eq!(
+        hv("SELECT a FROM t FOR ALL ENTRIES IN @lt_keys WHERE b = @lt_keys-b INTO TABLE @lt_out."),
+        ["lt_keys", "lt_keys-b"]
+    );
+    assert_eq!(hv("INSERT zlog FROM TABLE @lt_log."), ["lt_log"]);
+    assert_eq!(
+        hv("UPDATE zlog SET done = @abap_true WHERE id = @lv_id."),
+        ["abap_true", "lv_id"]
+    );
+    assert!(hv("SELECT * FROM t001 INTO TABLE @DATA(lt).").is_empty());
+}

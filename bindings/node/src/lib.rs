@@ -34,6 +34,12 @@ pub fn logic_json(source: String) -> String {
     abap_analysis::json::logic(&source)
 }
 
+/// Blocking: loads sources from folders or the SAP system.
+#[napi]
+pub fn logic_object_json(reference: String, options: String, depth: u32) -> napi::Result<String> {
+    abap_analysis::json::logic_object(&reference, &options, depth).map_err(napi::Error::from_reason)
+}
+
 #[napi]
 pub fn statements_json(source: String) -> String {
     abap_analysis::json::statements(&source)

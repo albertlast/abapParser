@@ -46,6 +46,17 @@ mod _native {
     }
 
     #[pyfunction]
+    fn logic_object_json(
+        py: Python<'_>,
+        reference: &str,
+        options: &str,
+        depth: u32,
+    ) -> PyResult<String> {
+        py.detach(|| abap_analysis::json::logic_object(reference, options, depth))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+    }
+
+    #[pyfunction]
     fn statements_json(py: Python<'_>, source: &str) -> String {
         py.detach(|| abap_analysis::json::statements(source))
     }

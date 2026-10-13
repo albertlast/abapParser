@@ -1,18 +1,27 @@
 //! The logic of procedures: statements as a tree along the control
 //! structures, the conditions every statement runs under, a control flow
 //! graph, and the data flow from writes to reads (reaching definitions).
+//!
+//! Calls are followed: what a called procedure reads and writes outside of
+//! itself (attributes, global data, database tables) is added to the calling
+//! statement before the data flow of the caller is computed. For one file
+//! the procedures of that file are followed, through a [`Workspace`] also
+//! those of other objects.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use abap_model as m;
+use abap_source::SourceRef;
 use abap_syntax::expr::{Access, Cond, CondKind, DataRef, Expr, ExprKind, Head, Link};
 use abap_syntax::operands::operands;
 use abap_syntax::structure;
 use abap_syntax::{decl, join_tokens, File, Statement, StatementKind as K, Token};
 
-use crate::calls::span_of;
+use crate::calls::{span_of, type_info, CallExtractor, SymbolsResolver};
 use crate::context::statement_blocks;
+use crate::db::db_access_with;
+use crate::workspace::{Object, Workspace};
 
 /// The logic of the procedures of an ABAP source.
 pub fn logic(source: &str) -> m::FileLogic {
@@ -21,7 +30,518 @@ pub fn logic(source: &str) -> m::FileLogic {
 
 /// Like [`logic`], for a parsed file.
 pub fn logic_of(file: &File) -> m::FileLogic {
-    let symbols = crate::symbols_of(file);
+    let symbols = Arc::new(crate::symbols_of(file));
+    let resolver = SymbolsResolver {
+        symbols: &symbols,
+        fallback: None,
+    };
+    let calls = CallExtractor {
+        file,
+        symbols: &symbols,
+        resolver: &resolver,
+    }
+    .calls();
+    let attributes = |class: &str| class_attributes(&symbols, None, class);
+    let procs = build_unit(
+        file,
+        None,
+        &symbols,
+        &globals_of(&symbols),
+        &attributes,
+        calls,
+    );
+    let mut engine = Engine::new(None, 0);
+    engine.objects.push(ObjectLogic {
+        reference: None,
+        symbols: symbols.clone(),
+        procs,
+        depth: 0,
+    });
+    m::FileLogic {
+        schema_version: m::SCHEMA_VERSION,
+        object: None,
+        procedures: engine.finish(0),
+        missing: Vec::new(),
+        errors: Vec::new(),
+    }
+}
+
+impl Workspace {
+    /// The logic of all sources of an object: class parts, includes,
+    /// function modules. Data declared at program level in any of them, e.g.
+    /// in the TOP include, has the scope `global`. Calls into other objects
+    /// are followed up to `depth` hops, calls within the object always.
+    pub fn logic(&self, root: &SourceRef, depth: u32) -> m::FileLogic {
+        let mut engine = Engine::new(Some(self), depth);
+        let procedures = match engine.load(root, 0) {
+            Some(o) => engine.finish(o),
+            None => Vec::new(),
+        };
+        m::FileLogic {
+            schema_version: m::SCHEMA_VERSION,
+            object: Some(root.object().to_string()),
+            procedures,
+            missing: engine.missing.into_iter().collect(),
+            errors: self.errors(),
+        }
+    }
+}
+
+// ----- following calls -------------------------------------------------------
+
+/// What a procedure reads and writes outside of itself, as its callers see it.
+#[derive(Clone, Default)]
+struct Summary {
+    reads: Vec<(String, m::DataScope)>,
+    writes: Vec<(String, m::DataScope)>,
+    tables: Vec<m::TableAccess>,
+}
+
+/// A procedure with the calls of its steps, before and after the data flow.
+struct Proc {
+    procedure: m::Procedure,
+    /// calls with the step they are in, until they are followed
+    calls: Vec<(u32, m::Call)>,
+    summary: Option<Summary>,
+    /// being analyzed: a call back to it is recursion
+    running: bool,
+}
+
+struct ObjectLogic {
+    reference: Option<SourceRef>,
+    symbols: Arc<m::FileSymbols>,
+    procs: Vec<Proc>,
+    /// hops from the root object
+    depth: u32,
+}
+
+struct Engine<'w> {
+    workspace: Option<&'w Workspace>,
+    max_depth: u32,
+    objects: Vec<ObjectLogic>,
+    loaded: HashMap<SourceRef, Option<usize>>,
+    missing: BTreeSet<String>,
+}
+
+/// Whose attributes a called method works on.
+enum Receiver {
+    /// the caller's own object or class
+    Own,
+    /// a static method of another class, lower case
+    Class(String),
+    /// a method of another object, the reference as written in lower case
+    Object(String),
+    /// e.g. a new object or a method chain
+    Unknown,
+}
+
+impl<'w> Engine<'w> {
+    fn new(workspace: Option<&'w Workspace>, max_depth: u32) -> Self {
+        Engine {
+            workspace,
+            max_depth,
+            objects: Vec::new(),
+            loaded: HashMap::new(),
+            missing: BTreeSet::new(),
+        }
+    }
+
+    /// The procedures of an object, analyzed.
+    fn finish(&mut self, o: usize) -> Vec<m::Procedure> {
+        for k in 0..self.objects[o].procs.len() {
+            self.summary(o, k);
+        }
+        std::mem::take(&mut self.objects[o].procs)
+            .into_iter()
+            .map(|p| p.procedure)
+            .collect()
+    }
+
+    /// An object loaded through the workspace, `depth` hops from the root.
+    fn load(&mut self, r: &SourceRef, depth: u32) -> Option<usize> {
+        let r = r.object();
+        if let Some(o) = self.loaded.get(&r) {
+            return *o;
+        }
+        let ws = self.workspace?;
+        if depth > self.max_depth {
+            return None;
+        }
+        let Some(object) = ws.object(&r) else {
+            self.missing.insert(r.to_string());
+            self.loaded.insert(r, None);
+            return None;
+        };
+        self.missing
+            .extend(object.missing_includes.iter().map(|i| i.to_string()));
+        let (symbols, procs) = build_object(ws, &object);
+        self.objects.push(ObjectLogic {
+            reference: Some(r.clone()),
+            symbols,
+            procs,
+            depth,
+        });
+        let o = self.objects.len() - 1;
+        self.loaded.insert(r, Some(o));
+        Some(o)
+    }
+
+    fn find(&self, o: usize, kind: &str, class: Option<&str>, name: &str) -> Option<usize> {
+        self.objects[o].procs.iter().position(|p| {
+            let b = &p.procedure.block;
+            b.kind == kind
+                && b.name.eq_ignore_ascii_case(name)
+                && class.is_none_or(|c| {
+                    b.class
+                        .as_deref()
+                        .is_some_and(|x| x.eq_ignore_ascii_case(c))
+                })
+        })
+    }
+
+    /// Whether `program` is the object `o` itself.
+    fn is_program(&self, o: usize, program: &str) -> bool {
+        let object = &self.objects[o];
+        object
+            .reference
+            .as_ref()
+            .is_some_and(|r| r.name.eq_ignore_ascii_case(program))
+            || object
+                .symbols
+                .program
+                .as_ref()
+                .is_some_and(|p| p.name.eq_ignore_ascii_case(program))
+    }
+
+    /// The procedure a call runs, when it is in the sources.
+    fn callee(&mut self, o: usize, c: &m::Call) -> Option<(usize, usize)> {
+        if c.dynamic {
+            return None;
+        }
+        let depth = self.objects[o].depth + 1;
+        match c.kind {
+            m::CallKind::Form => {
+                let target = match c.program.as_deref() {
+                    Some(p) if !self.is_program(o, p) => {
+                        self.load(&SourceRef::program(p), depth)?
+                    }
+                    _ => o,
+                };
+                self.find(target, "form", None, &c.name)
+                    .map(|k| (target, k))
+            }
+            m::CallKind::Function => {
+                if let Some(k) = self.find(o, "function_module", None, &c.name) {
+                    return Some((o, k));
+                }
+                let target = self.load(&SourceRef::function_module(&c.name), depth)?;
+                self.find(target, "function_module", None, &c.name)
+                    .map(|k| (target, k))
+            }
+            m::CallKind::Method | m::CallKind::Constructor => {
+                let name = if c.kind == m::CallKind::Constructor {
+                    "constructor"
+                } else {
+                    c.name.as_str()
+                };
+                // the class, then its superclasses
+                let mut class = c.class.clone()?;
+                for _ in 0..10 {
+                    let holder = if type_info(&self.objects[o].symbols, &class).is_some() {
+                        o
+                    } else {
+                        let r = self.workspace?.type_object(&class)?.reference.clone();
+                        self.load(&r, depth)?
+                    };
+                    if let Some(k) = self.find(holder, "method", Some(&class), name) {
+                        return Some((holder, k));
+                    }
+                    class = type_info(&self.objects[holder].symbols, &class)?
+                        .superclass?
+                        .to_string();
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Analyzes a procedure after the procedures it calls.
+    fn summary(&mut self, o: usize, k: usize) -> Summary {
+        let p = &mut self.objects[o].procs[k];
+        if let Some(s) = &p.summary {
+            return s.clone();
+        }
+        if p.running {
+            return Summary::default();
+        }
+        p.running = true;
+        let calls = std::mem::take(&mut p.calls);
+        for (step, call) in &calls {
+            let Some((o2, k2)) = self.callee(o, call) else {
+                continue;
+            };
+            let s = self.summary(o2, k2);
+            let via = self.objects[o2].procs[k2].procedure.block.clone();
+            let other = (o2 != o)
+                .then(|| self.objects[o2].reference.as_ref())
+                .flatten()
+                .map(|r| r.name.to_ascii_lowercase());
+            let caller = &mut self.objects[o].procs[k].procedure;
+            let receiver = receiver(call, caller.block.class.as_deref(), o2 != o);
+            let Some(st) = find_step_mut(&mut caller.body, *step) else {
+                continue;
+            };
+            let at = m::Position {
+                row: call.span.start.row,
+                col: call.span.start.col,
+            };
+            for (list, accesses, access) in [
+                (&mut st.reads, &s.reads, m::AccessKind::Read),
+                (&mut st.writes, &s.writes, m::AccessKind::Write),
+            ] {
+                for (name, scope) in accesses {
+                    let Some(name) = map_name(name, *scope, &receiver, other.as_deref()) else {
+                        continue;
+                    };
+                    if list
+                        .iter()
+                        .any(|a| a.name == name && a.via.as_ref() == Some(&via))
+                    {
+                        continue;
+                    }
+                    list.push(m::DataAccess {
+                        path: name.clone(),
+                        name,
+                        access,
+                        scope: *scope,
+                        whole: false,
+                        declared: false,
+                        sources: Vec::new(),
+                        from_entry: false,
+                        via: Some(via.clone()),
+                        position: at,
+                    });
+                }
+            }
+            for t in &s.tables {
+                let t = m::TableAccess {
+                    via: Some(via.clone()),
+                    ..t.clone()
+                };
+                if !st.tables.contains(&t) {
+                    st.tables.push(t);
+                }
+            }
+        }
+        let p = &mut self.objects[o].procs[k];
+        data_flow(&mut p.procedure.body, &p.procedure.flow);
+        p.procedure.effects = effects(&p.procedure.body);
+        let s = summarize(&p.procedure);
+        p.summary = Some(s.clone());
+        p.running = false;
+        s
+    }
+}
+
+fn receiver(c: &m::Call, caller_class: Option<&str>, other_object: bool) -> Receiver {
+    if !matches!(c.kind, m::CallKind::Method | m::CallKind::Constructor) {
+        // forms and function modules of another program have no access to
+        // the attributes of the caller
+        return if other_object {
+            Receiver::Unknown
+        } else {
+            Receiver::Own
+        };
+    }
+    let r = c.receiver.as_deref().map(|r| r.trim().to_ascii_lowercase());
+    match r.as_deref() {
+        None if c.kind == m::CallKind::Constructor => Receiver::Unknown,
+        None | Some("me") | Some("super") => Receiver::Own,
+        Some(r) if c.is_static => {
+            if caller_class.is_some_and(|k| k.eq_ignore_ascii_case(r)) {
+                Receiver::Own
+            } else {
+                Receiver::Class(r.to_string())
+            }
+        }
+        Some(r) => {
+            let r = r.strip_prefix("me->").unwrap_or(r);
+            let simple = !r.is_empty()
+                && r.chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || "_-/<>=~".contains(ch));
+            if simple {
+                Receiver::Object(r.to_string())
+            } else {
+                Receiver::Unknown
+            }
+        }
+    }
+}
+
+/// The name in the caller of data a called procedure accesses.
+fn map_name(
+    name: &str,
+    scope: m::DataScope,
+    receiver: &Receiver,
+    other_object: Option<&str>,
+) -> Option<String> {
+    match scope {
+        m::DataScope::Global => Some(match other_object {
+            Some(object) if !name.starts_with('(') => format!("({object}){name}"),
+            _ => name.to_string(),
+        }),
+        m::DataScope::Other => Some(name.to_string()),
+        m::DataScope::Attribute if name.contains("=>") => Some(name.to_string()),
+        m::DataScope::Attribute => match receiver {
+            Receiver::Own => Some(name.to_string()),
+            Receiver::Class(c) => Some(format!("{c}=>{name}")),
+            Receiver::Object(r) => Some(format!("{r}->{name}")),
+            Receiver::Unknown => None,
+        },
+        _ => None,
+    }
+}
+
+/// What callers see of a procedure: data outside of it that it reads from
+/// before the call or writes, and the database tables it accesses.
+fn summarize(p: &m::Procedure) -> Summary {
+    let own: HashSet<&str> = p
+        .locals
+        .iter()
+        .map(String::as_str)
+        .chain(p.parameters.iter().map(|x| x.name.as_str()))
+        .collect();
+    let visible = |a: &m::DataAccess| match a.scope {
+        m::DataScope::Global => true,
+        m::DataScope::Other => a.name.contains("=>"),
+        // `lo->x` or `ls-ref->x` with a local or parameter `lo`, `ls` means
+        // nothing to callers
+        m::DataScope::Attribute => {
+            let root = a.name.split(['-', '=', '~']).next().unwrap_or_default();
+            a.name.contains("=>") || !own.contains(root)
+        }
+        _ => false,
+    };
+    let mut s = Summary::default();
+    walk(&p.body, &mut |st| {
+        for r in &st.reads {
+            if r.from_entry && visible(r) && !s.reads.iter().any(|(n, _)| *n == r.name) {
+                s.reads.push((r.name.clone(), r.scope));
+            }
+        }
+        for w in &st.writes {
+            if !w.declared && visible(w) && !s.writes.iter().any(|(n, _)| *n == w.name) {
+                s.writes.push((w.name.clone(), w.scope));
+            }
+        }
+        for t in &st.tables {
+            let t = m::TableAccess {
+                via: None,
+                ..t.clone()
+            };
+            if !s.tables.contains(&t) {
+                s.tables.push(t);
+            }
+        }
+    });
+    s
+}
+
+fn find_step_mut(steps: &mut [m::Step], id: u32) -> Option<&mut m::Step> {
+    for s in steps {
+        if s.id == id {
+            return Some(s);
+        }
+        if let Some(found) = find_step_mut(&mut s.children, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+// ----- building --------------------------------------------------------------
+
+/// Data declared at program level, lower case.
+fn globals_of(symbols: &m::FileSymbols) -> HashSet<String> {
+    use m::DeclarationKind as D;
+    symbols
+        .declarations
+        .iter()
+        .filter(|d| !matches!(d.kind, D::Type | D::Include | D::EnumValue))
+        .map(|d| d.name.to_ascii_lowercase())
+        .collect()
+}
+
+/// Attributes of a class and its superclasses, lower case; superclasses in
+/// other objects are looked up through the workspace.
+fn class_attributes(
+    symbols: &m::FileSymbols,
+    workspace: Option<&Workspace>,
+    class: &str,
+) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut class = class.to_string();
+    for _ in 0..10 {
+        let object;
+        let holder = if type_info(symbols, &class).is_some() {
+            symbols
+        } else {
+            match workspace.and_then(|w| w.type_object(&class)) {
+                Some(o) => {
+                    object = o;
+                    &object.symbols
+                }
+                None => break,
+            }
+        };
+        let Some(info) = type_info(holder, &class) else {
+            break;
+        };
+        out.extend(info.attributes.iter().map(|a| a.name.to_ascii_lowercase()));
+        match info.superclass {
+            Some(s) => class = s.to_string(),
+            None => break,
+        }
+    }
+    out
+}
+
+fn build_object(ws: &Workspace, object: &Object) -> (Arc<m::FileSymbols>, Vec<Proc>) {
+    let symbols = Arc::new(object.symbols.clone());
+    let globals = globals_of(&symbols);
+    let calls = ws.object_calls(object);
+    let attributes = |class: &str| class_attributes(&symbols, Some(ws), class);
+    let mut procs = Vec::new();
+    for u in &object.units {
+        let unit = u.reference.to_string();
+        let unit_calls = calls
+            .iter()
+            .filter(|c| c.unit.as_deref() == Some(unit.as_str()))
+            .cloned()
+            .collect();
+        procs.extend(build_unit(
+            &u.file,
+            Some(&unit),
+            &symbols,
+            &globals,
+            &attributes,
+            unit_calls,
+        ));
+    }
+    (symbols, procs)
+}
+
+/// The procedures of one source with their steps, conditions and control
+/// flow, the database tables of the steps and the calls to follow.
+fn build_unit(
+    file: &File,
+    unit: Option<&str>,
+    symbols: &m::FileSymbols,
+    globals: &HashSet<String>,
+    attributes: &dyn Fn(&str) -> HashSet<String>,
+    calls: Vec<m::Call>,
+) -> Vec<Proc> {
     // consecutive statements of the same processing block
     let mut groups: Vec<(m::BlockRef, Vec<usize>)> = Vec::new();
     for (i, b) in statement_blocks(file).into_iter().enumerate() {
@@ -31,14 +551,92 @@ pub fn logic_of(file: &File) -> m::FileLogic {
             _ => groups.push((b, vec![i])),
         }
     }
-    let procedures = groups
+    let mut procs: Vec<Proc> = groups
         .into_iter()
-        .filter_map(|(block, statements)| procedure(file, &symbols, block, &statements))
+        .filter_map(|(block, statements)| {
+            procedure(file, symbols, globals, attributes, block, &statements)
+        })
+        .map(|mut procedure| {
+            procedure.unit = unit.map(str::to_string);
+            Proc {
+                procedure,
+                calls: Vec::new(),
+                summary: None,
+                running: false,
+            }
+        })
         .collect();
-    m::FileLogic {
-        schema_version: m::SCHEMA_VERSION,
-        procedures,
+    for a in db_access_with(file, symbols) {
+        let Some((k, id)) = locate(&procs, &a.span.start) else {
+            continue;
+        };
+        if let Some(s) = find_step_mut(&mut procs[k].procedure.body, id) {
+            for t in table_accesses(&a) {
+                if !s.tables.contains(&t) {
+                    s.tables.push(t);
+                }
+            }
+        }
     }
+    for c in calls {
+        if let Some((k, id)) = locate(&procs, &c.span.start) {
+            procs[k].calls.push((id, c));
+        }
+    }
+    procs
+}
+
+/// The procedure and step a position is in: the last step starting before.
+fn locate(procs: &[Proc], pos: &m::Position) -> Option<(usize, u32)> {
+    let key = |p: &m::Position| (p.row, p.col);
+    let k = procs.iter().position(|p| {
+        let span = &p.procedure.span;
+        key(&span.start) <= key(pos) && key(pos) <= key(&span.end)
+    })?;
+    let mut best: Option<((u32, u32), u32)> = None;
+    walk(&procs[k].procedure.body, &mut |s| {
+        let start = key(&s.span.start);
+        if start <= key(pos) && best.is_none_or(|(b, _)| start >= b) {
+            best = Some((start, s.id));
+        }
+    });
+    best.map(|(_, id)| (k, id))
+}
+
+/// The tables of a database access: the changed table is written, the
+/// others are read.
+fn table_accesses(a: &m::DbAccess) -> Vec<m::TableAccess> {
+    use m::DbOperation as Op;
+    let changes = matches!(
+        a.operation,
+        Op::Insert | Op::Update | Op::Modify | Op::Delete | Op::Merge
+    );
+    let mut out: Vec<m::TableAccess> = Vec::new();
+    for t in &a.tables {
+        if matches!(t.role, m::DbTableRole::InternalTable | m::DbTableRole::Cte) {
+            continue;
+        }
+        let name = match &t.resolved {
+            Some(r) => r.to_ascii_uppercase(),
+            None if t.dynamic => format!("({})", t.name),
+            None => t.name.to_ascii_uppercase(),
+        };
+        let access = if changes && t.role == m::DbTableRole::Main {
+            m::AccessKind::Write
+        } else {
+            m::AccessKind::Read
+        };
+        let t = m::TableAccess {
+            name,
+            access,
+            operation: a.operation,
+            via: None,
+        };
+        if !out.contains(&t) {
+            out.push(t);
+        }
+    }
+    out
 }
 
 // ----- statement kinds -------------------------------------------------------
@@ -204,11 +802,19 @@ struct Ctx<'a> {
     locals: HashSet<String>,
     parameters: HashSet<String>,
     attributes: HashSet<String>,
+    globals: &'a HashSet<String>,
+    /// data declared in event blocks, dialog modules and at program level,
+    /// which is global data of the program
+    more_globals: HashSet<String>,
 }
 
+/// A procedure with its steps, guards and control flow; the data flow and
+/// the effects follow once its calls are followed.
 fn procedure(
     file: &File,
     symbols: &m::FileSymbols,
+    globals: &HashSet<String>,
+    attributes: &dyn Fn(&str) -> HashSet<String>,
     block: m::BlockRef,
     statements: &[usize],
 ) -> Option<m::Procedure> {
@@ -223,12 +829,17 @@ fn procedure(
         end: span_of(file, &file.statements[last]).end,
     };
 
+    // methods, forms and function modules have local data; what event
+    // blocks and dialog modules declare is global
+    let routine = matches!(block.kind.as_str(), "method" | "form" | "function_module");
     let parameters = parameters_of(symbols, &block);
     let mut ctx = Ctx {
         file,
         locals: HashSet::new(),
         parameters: parameters.iter().map(|p| p.name.clone()).collect(),
-        attributes: attributes_of(symbols, &block),
+        attributes: block.class.as_deref().map(attributes).unwrap_or_default(),
+        globals,
+        more_globals: HashSet::new(),
     };
     for i in statements {
         let s = &file.statements[*i];
@@ -237,13 +848,18 @@ fn procedure(
             K::Data | K::Static | K::Constant | K::FieldSymbol | K::Ranges | K::DataBegin
         ) {
             if let Some(v) = decl::variable(file, s) {
-                ctx.locals.insert(v.name.to_ascii_lowercase());
+                let name = v.name.to_ascii_lowercase();
+                if routine {
+                    ctx.locals.insert(name);
+                } else {
+                    ctx.more_globals.insert(name);
+                }
             }
         }
     }
 
     let mut body = tree(&ctx, statements);
-    // inline declarations are local data too
+    // inline declarations too
     let mut declared = BTreeSet::new();
     walk(&body, &mut |s| {
         for w in &s.writes {
@@ -252,7 +868,11 @@ fn procedure(
             }
         }
     });
-    ctx.locals.extend(declared);
+    if routine {
+        ctx.locals.extend(declared);
+    } else {
+        ctx.more_globals.extend(declared);
+    }
     walk_mut(&mut body, &mut |s| {
         for a in s.reads.iter_mut().chain(s.writes.iter_mut()) {
             a.scope = ctx.scope(&a.name, a.scope);
@@ -261,19 +881,18 @@ fn procedure(
     case_conditions(&mut body);
     guards(&mut body, &[]);
     let flow = flow(&body);
-    data_flow(&mut body, &flow);
-    let effects = effects(&body);
 
     let mut locals: Vec<String> = ctx.locals.into_iter().collect();
     locals.sort();
     Some(m::Procedure {
         block,
+        unit: None,
         span,
         parameters,
         locals,
         body,
         flow,
-        effects,
+        effects: Vec::new(),
     })
 }
 
@@ -285,6 +904,8 @@ impl Ctx<'_> {
             m::DataScope::Parameter
         } else if found == m::DataScope::Attribute || self.attributes.contains(name) {
             m::DataScope::Attribute
+        } else if self.globals.contains(name) || self.more_globals.contains(name) {
+            m::DataScope::Global
         } else {
             m::DataScope::Other
         }
@@ -330,19 +951,6 @@ fn parameters_of(symbols: &m::FileSymbols, block: &m::BlockRef) -> Vec<m::Proced
             name: p.name.trim_start_matches('!').to_ascii_lowercase(),
             direction: p.direction,
         })
-        .collect()
-}
-
-fn attributes_of(symbols: &m::FileSymbols, block: &m::BlockRef) -> HashSet<String> {
-    let Some(class) = block.class.as_deref() else {
-        return HashSet::new();
-    };
-    symbols
-        .classes
-        .iter()
-        .filter(|c| c.name.eq_ignore_ascii_case(class))
-        .flat_map(|c| &c.attributes)
-        .map(|a| a.name.to_ascii_lowercase())
         .collect()
 }
 
@@ -407,6 +1015,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 declared: true,
                 sources: Vec::new(),
                 from_entry: false,
+                via: None,
                 position: m::Position {
                     row: t.start.row,
                     col: t.start.col,
@@ -448,6 +1057,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
         guards: Vec::new(),
         reads,
         writes,
+        tables: Vec::new(),
         children: Vec::new(),
     }
 }
@@ -479,6 +1089,7 @@ fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
         declared: r.declared,
         sources: Vec::new(),
         from_entry: false,
+        via: None,
         position: m::Position {
             row: t.start.row,
             col: t.start.col,
@@ -1134,7 +1745,8 @@ fn data_flow(body: &mut [m::Step], edges: &[m::FlowEdge]) {
     });
 }
 
-/// Non-local data written, and the inputs their values depend on.
+/// Non-local data and database tables written, and the inputs and tables
+/// read that the written values depend on.
 fn effects(body: &[m::Step]) -> Vec<m::Effect> {
     let mut by_id: HashMap<u32, &m::Step> = HashMap::new();
     // WHEN steps depend on the operand of their CASE
@@ -1147,8 +1759,7 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
             }
         }
     });
-    let inputs_of = |start: u32| -> BTreeSet<String> {
-        let mut inputs = BTreeSet::new();
+    let inputs_of = |start: u32, inputs: &mut BTreeSet<String>, tables: &mut BTreeSet<String>| {
         let mut seen = HashSet::new();
         let mut todo = vec![start];
         while let Some(id) = todo.pop() {
@@ -1162,36 +1773,56 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
                 }
                 todo.extend(&r.sources);
             }
+            for t in &s.tables {
+                if t.access == m::AccessKind::Read {
+                    tables.insert(t.name.clone());
+                }
+            }
             // the conditions deciding whether the step runs
             todo.extend(s.guards.iter().map(|g| g.statement));
             todo.extend(case_of.get(&id));
         }
-        inputs
     };
 
     let mut out: BTreeMap<String, m::Effect> = BTreeMap::new();
+    let mut add = |name: &str, scope: m::DataScope, id: u32, via: Option<&m::BlockRef>| {
+        let e = out.entry(name.to_string()).or_insert_with(|| m::Effect {
+            name: name.to_string(),
+            scope,
+            statements: Vec::new(),
+            inputs: Vec::new(),
+            tables: Vec::new(),
+            via: Vec::new(),
+        });
+        if !e.statements.contains(&id) {
+            e.statements.push(id);
+        }
+        if let Some(v) = via {
+            if !e.via.contains(v) {
+                e.via.push(v.clone());
+            }
+        }
+    };
     walk(body, &mut |s| {
         for w in &s.writes {
-            if w.scope == m::DataScope::Local || w.declared {
-                continue;
+            if w.scope != m::DataScope::Local && !w.declared {
+                add(&w.name, w.scope, s.id, w.via.as_ref());
             }
-            let e = out.entry(w.name.clone()).or_insert_with(|| m::Effect {
-                name: w.name.clone(),
-                scope: w.scope,
-                statements: Vec::new(),
-                inputs: Vec::new(),
-            });
-            if !e.statements.contains(&s.id) {
-                e.statements.push(s.id);
+        }
+        for t in &s.tables {
+            if t.access == m::AccessKind::Write {
+                add(&t.name, m::DataScope::Database, s.id, t.via.as_ref());
             }
         }
     });
     for e in out.values_mut() {
         let mut inputs = BTreeSet::new();
+        let mut tables = BTreeSet::new();
         for s in &e.statements {
-            inputs.extend(inputs_of(*s));
+            inputs_of(*s, &mut inputs, &mut tables);
         }
         e.inputs = inputs.into_iter().collect();
+        e.tables = tables.into_iter().collect();
     }
     out.into_values().collect()
 }
@@ -1338,5 +1969,177 @@ ENDCLASS.
         assert_eq!(texts, [(false, "p > 0"), (true, "p = 1"), (true, "p = 2")]);
         assert_eq!(p.effects[0].name, "x");
         assert_eq!(p.effects[0].inputs, ["p"]);
+    }
+
+    fn effect<'a>(p: &'a m::Procedure, name: &str) -> &'a m::Effect {
+        p.effects
+            .iter()
+            .find(|e| e.name == name)
+            .unwrap_or_else(|| panic!("no effect {name} in {:#?}", p.effects))
+    }
+
+    fn procedure<'a>(l: &'a m::FileLogic, name: &str) -> &'a m::Procedure {
+        l.procedures
+            .iter()
+            .find(|p| p.block.name.eq_ignore_ascii_case(name))
+            .unwrap_or_else(|| panic!("no procedure {name}"))
+    }
+
+    const ORDERS: &str = r#"
+CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    METHODS total IMPORTING iv_vbeln TYPE vbeln EXPORTING ev_total TYPE netwr.
+    METHODS write_log IMPORTING iv_text TYPE string.
+    METHODS run.
+  PRIVATE SECTION.
+    DATA mv_count TYPE i.
+    DATA mo_log TYPE REF TO lcl.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD total.
+    SELECT SUM( netwr ) FROM vbap INTO @DATA(lv_sum) WHERE vbeln = @iv_vbeln.
+    ev_total = lv_sum.
+  ENDMETHOD.
+  METHOD write_log.
+    DATA ls_log TYPE zlog.
+    ls_log-text = iv_text.
+    INSERT zlog FROM @ls_log.
+    mv_count = mv_count + 1.
+  ENDMETHOD.
+  METHOD run.
+    total( EXPORTING iv_vbeln = '1' IMPORTING ev_total = DATA(lv_total) ).
+    IF lv_total > 100.
+      write_log( |big| ).
+    ENDIF.
+    mo_log->write_log( `x` ).
+  ENDMETHOD.
+ENDCLASS.
+"#;
+
+    #[test]
+    fn database_tables_in_effects() {
+        let l = logic(ORDERS);
+        let total = procedure(&l, "total");
+        let select = find(&total.body, "SELECT SUM");
+        assert_eq!(
+            select.tables,
+            [m::TableAccess {
+                name: "VBAP".into(),
+                access: m::AccessKind::Read,
+                operation: m::DbOperation::Select,
+                via: None,
+            }]
+        );
+        let e = effect(total, "ev_total");
+        assert_eq!(e.inputs, ["iv_vbeln"]);
+        assert_eq!(e.tables, ["VBAP"]);
+
+        let log = procedure(&l, "write_log");
+        let e = effect(log, "ZLOG");
+        assert_eq!(e.scope, m::DataScope::Database);
+        assert_eq!(e.inputs, ["iv_text"]);
+        assert!(e.via.is_empty());
+    }
+
+    #[test]
+    fn calls_are_followed() {
+        let l = logic(ORDERS);
+        let run = procedure(&l, "run");
+        // the table read by total decides whether log runs
+        let zlog = effect(run, "ZLOG");
+        assert_eq!(zlog.scope, m::DataScope::Database);
+        assert_eq!(zlog.tables, ["VBAP"]);
+        assert_eq!(zlog.via.len(), 1);
+        assert_eq!(zlog.via[0].name, "write_log");
+        let count = effect(run, "mv_count");
+        assert_eq!(count.scope, m::DataScope::Attribute);
+        assert_eq!(count.inputs, ["mv_count"]);
+        assert_eq!(count.tables, ["VBAP"]);
+        // the attribute of another object
+        let other = effect(run, "mo_log->mv_count");
+        assert_eq!(other.scope, m::DataScope::Attribute);
+        assert!(other.inputs.contains(&"mo_log".to_string()));
+        let call = find(&run.body, "write_log( |big| )");
+        assert!(call
+            .tables
+            .iter()
+            .any(|t| t.name == "ZLOG" && t.access == m::AccessKind::Write));
+        assert_eq!(
+            call.writes[0].via.as_ref().map(|b| b.name.as_str()),
+            Some("write_log")
+        );
+    }
+
+    #[test]
+    fn recursion_ends() {
+        let l = logic(
+            "FORM a USING p TYPE i.\n  gv = p.\n  PERFORM b USING p.\nENDFORM.\nFORM b USING p TYPE i.\n  PERFORM a USING p.\n  DELETE FROM zt WHERE id = p.\nENDFORM.",
+        );
+        let a = procedure(&l, "a");
+        let names: Vec<&str> = a.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["ZT", "gv"]);
+    }
+
+    #[test]
+    fn program_globals() {
+        let l = logic(
+            "REPORT z.\nDATA gv_total TYPE i.\nPARAMETERS p_n TYPE i.\nSTART-OF-SELECTION.\n  DATA lv_x TYPE i.\n  lv_x = p_n.\n  PERFORM add USING lv_x.\nFORM add USING p TYPE i.\n  gv_total = gv_total + p.\nENDFORM.",
+        );
+        let add = procedure(&l, "add");
+        let e = effect(add, "gv_total");
+        assert_eq!(e.scope, m::DataScope::Global);
+        assert_eq!(e.inputs, ["gv_total", "p"]);
+        let start = procedure(&l, "START-OF-SELECTION");
+        // data of event blocks is global
+        assert_eq!(effect(start, "lv_x").scope, m::DataScope::Global);
+        let e = effect(start, "gv_total");
+        assert_eq!(e.via[0].kind, "form");
+        assert_eq!(e.inputs, ["gv_total", "p_n"]);
+    }
+
+    #[test]
+    fn workspace_logic_across_includes_and_objects() {
+        use abap_source::{MemoryProvider, SourceRef};
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.\nINCLUDE zreport_top.\nINCLUDE zreport_f01.\nSTART-OF-SELECTION.\n  PERFORM count.\n  zcl_counter=>inc( ).",
+        );
+        p.insert(SourceRef::program("ZREPORT_TOP"), "DATA gv_count TYPE i.");
+        p.insert(
+            SourceRef::program("ZREPORT_F01"),
+            "FORM count.\n  gv_count = gv_count + 1.\n  CALL FUNCTION 'Z_SAVE' EXPORTING iv_n = gv_count.\nENDFORM.",
+        );
+        p.insert(
+            SourceRef::function_module("Z_SAVE"),
+            "FUNCTION z_save.\n*\"  IMPORTING\n*\"     VALUE(IV_N) TYPE  I\n  UPDATE ztotals SET n = @iv_n WHERE id = 1.\nENDFUNCTION.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_COUNTER"),
+            "CLASS zcl_counter DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    CLASS-METHODS inc.\n    CLASS-DATA gv_calls TYPE i.\nENDCLASS.\nCLASS zcl_counter IMPLEMENTATION.\n  METHOD inc.\n    gv_calls = gv_calls + 1.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 1);
+        assert_eq!(l.object.as_deref(), Some("PROG:ZREPORT"));
+        assert!(l.missing.is_empty(), "{:?}", l.missing);
+
+        // the global of the TOP include, used in another include
+        let count = procedure(&l, "count");
+        assert_eq!(count.unit.as_deref(), Some("PROG:ZREPORT_F01"));
+        assert_eq!(effect(count, "gv_count").scope, m::DataScope::Global);
+        let save = effect(count, "ZTOTALS");
+        assert_eq!(save.via[0].kind, "function_module");
+        assert_eq!(save.inputs, ["gv_count"]);
+
+        let start = procedure(&l, "START-OF-SELECTION");
+        let names: Vec<&str> = start.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["ZTOTALS", "gv_count", "zcl_counter=>gv_calls"]);
+        assert_eq!(effect(start, "ZTOTALS").via[0].name, "count");
+
+        // without following other objects
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 0);
+        let start = procedure(&l, "START-OF-SELECTION");
+        let names: Vec<&str> = start.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["gv_count"]);
     }
 }

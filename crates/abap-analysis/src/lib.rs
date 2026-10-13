@@ -94,6 +94,15 @@ pub mod json {
         serde_json::to_string(&super::logic(source)).expect("logic serializes")
     }
 
+    /// Logic of all sources of an object like `PROG:ZREPORT`, calls into
+    /// other objects followed `depth` hops; sources as described by a JSON
+    /// [`abap_source::ProviderOptions`] object.
+    pub fn logic_object(reference: &str, options: &str, depth: u32) -> Result<String, String> {
+        let r: abap_source::SourceRef = reference.parse()?;
+        let logic = workspace(options)?.logic(&r, depth);
+        Ok(serde_json::to_string(&logic).expect("logic serializes"))
+    }
+
     pub fn statements(source: &str) -> String {
         serde_json::to_string(&super::statements(source)).expect("statements serialize")
     }

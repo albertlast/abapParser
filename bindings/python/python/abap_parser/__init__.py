@@ -17,6 +17,7 @@ __all__ = [
     "call_graph",
     "fetch_source",
     "logic",
+    "logic_object",
     "statements",
     "version",
     "AdtOptions",
@@ -80,6 +81,16 @@ def logic(source: str) -> FileLogic:
     the control structures with their conditions and guards, data read and
     written with the statements providing each value, control flow and effects."""
     return json.loads(_native.logic_json(source))
+
+
+def logic_object(reference: str, options: SourceOptions, depth: int = 1) -> FileLogic:
+    """Logic of all sources of an object like "PROG:ZREPORT": class parts,
+    includes, function modules, with the global data of the program typed as
+    such. Calls are followed; what called procedures write, attributes, global
+    data and database tables, shows in the effects of the caller. Calls into
+    other objects are followed `depth` hops. Raises RuntimeError for invalid
+    options."""
+    return json.loads(_native.logic_object_json(reference, json.dumps(options), depth))
 
 
 def fetch_source(reference: str, options: SourceOptions) -> Optional[str]:

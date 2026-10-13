@@ -15,8 +15,14 @@ pub fn db_access(source: &str) -> Vec<m::DbAccess> {
 }
 
 pub fn db_access_of(file: &File) -> Vec<m::DbAccess> {
+    db_access_with(file, &crate::symbols_of(file))
+}
+
+/// Like [`db_access_of`], dynamic table names resolved with the constants
+/// of `symbols`, e.g. those of all parts of an object.
+pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::DbAccess> {
     let blocks = statement_blocks(file);
-    let constants = literal_constants(&crate::symbols_of(file));
+    let constants = literal_constants(symbols);
     let mut out = Vec::new();
     let mut i = 0;
     while i < file.statements.len() {

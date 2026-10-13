@@ -80,6 +80,27 @@ test("logic", () => {
   assert.deepEqual(proc.effects.map((e) => [e.name, e.inputs]), [["x", ["p"]]]);
 });
 
+test("logic follows calls", () => {
+  const l = abap.logic("FORM a.\n  PERFORM b.\nENDFORM.\nFORM b.\n  DELETE FROM zlog WHERE id = 1.\nENDFORM.");
+  const a = l.procedures[0];
+  assert.deepEqual(
+    a.effects.map((e) => [e.name, e.scope, (e.via ?? []).map((v) => v.name)]),
+    [["ZLOG", "database", ["b"]]],
+  );
+});
+
+test("logic of an object", {skip: !fs.existsSync(path.join(corpus, "abap-sdk-for-azure", "src"))}, () => {
+  const src = path.join(corpus, "abap-sdk-for-azure", "src");
+  const l = abap.logicObject("FUGR:ZREST", {src: [src]});
+  assert.equal(l.object, "FUGR:ZREST");
+  const form = l.procedures.find((p) => p.block.name === "set_log");
+  assert.equal(form.unit, "PROG:LZRESTF01");
+  assert.ok(form.effects.some((e) => e.name === "gwa_log" && e.scope === "global"));
+  const fm = l.procedures.find((p) => p.block.name === "zsave_rest_log");
+  const db = fm.effects.filter((e) => e.scope === "database");
+  assert.ok(db.length > 0 && db.every((e) => e.via?.length));
+});
+
 test("a real abapGit class", {skip: !fs.existsSync(path.join(corpus, "abapgit", "src"))}, () => {
   const file = path.join(corpus, "abapgit", "src", "apack", "zcl_abapgit_apack_migration.clas.abap");
   const s = abap.symbols(fs.readFileSync(file, "utf8"));

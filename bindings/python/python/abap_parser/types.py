@@ -13,7 +13,7 @@ CallKind = Literal["method", "constructor", "function", "form", "submit", "trans
 
 ConditionKind = Literal["or", "equiv", "and", "not", "compare", "is", "in", "between", "predicate", "catch"]
 
-DataScope = Literal["parameter", "local", "attribute", "other"]
+DataScope = Literal["parameter", "local", "attribute", "global", "database", "other"]
 
 DbOperation = Literal["insert", "update", "modify", "delete", "merge", "select", "native"]
 
@@ -158,6 +158,8 @@ class DataAccess(_DataAccessRequired, total=False):
     """reads: the value may come from before the procedure, e.g. from a parameter or attribute"""
     sources: List[int]
     """reads: statements whose writes may provide the value"""
+    via: BlockRef
+    """accessed by the called procedure, not by the statement itself"""
     whole: bool
     """writes: the whole data object is replaced, not just a component"""
 
@@ -201,7 +203,7 @@ class DbAccess(_DbAccessRequired, total=False):
     for_all_entries: str
     """internal table of FOR ALL ENTRIES IN"""
     host_variables: List[str]
-    """native SQL: variables read, `:name` written without the colon; ABAP host variables of EXEC SQL, parameters and table variables of AMDP"""
+    """ABAP data read by the statement, as written: in Open SQL `@lv_x` without the `@`, the operands of `@( ... )` and the host variables of the classic syntax; in native SQL `:name` without the colon, the ABAP host variables of EXEC SQL, parameters and table variables of AMDP"""
     native_sql: str
     """native SQL (HANA SQL or SQLScript): the statement as written"""
     source: DbSource
@@ -333,14 +335,21 @@ class DialogModule(_DialogModuleRequired, total=False):
     """`input` or `output`, absent for the dynpro flow logic call"""
 
 
-class Effect(TypedDict):
-    """A data object outside the procedure that it writes, with what the written values depend on."""
+class _EffectRequired(TypedDict):
     inputs: List[str]
     """data read from before the procedure that the values depend on, through assignments and through the conditions deciding them"""
     name: str
     scope: DataScope
     statements: List[int]
     """the steps writing it"""
+
+
+class Effect(_EffectRequired, total=False):
+    """A data object outside the procedure, or a database table, that it writes, with what the written values depend on."""
+    tables: List[str]
+    """database tables read that the values depend on, upper case"""
+    via: List[BlockRef]
+    """the called procedures that write it, when not written directly"""
 
 
 class Event(TypedDict):
@@ -361,10 +370,19 @@ class EventBlock(TypedDict):
 EventHandler = TypedDict("EventHandler", {"class": "str", "event": "str"})
 
 
-class FileLogic(TypedDict):
-    """Control flow, conditions and data flow of the procedures of a file."""
+class _FileLogicRequired(TypedDict):
     procedures: List[Procedure]
     schema_version: int
+
+
+class FileLogic(_FileLogicRequired, total=False):
+    """Control flow, conditions and data flow of the procedures of a file, or of all sources of an object loaded through a workspace."""
+    errors: List[str]
+    """provider errors, e.g. authorization failures"""
+    missing: List[str]
+    """objects no provider had: includes, and called objects"""
+    object: str
+    """the object, like `PROG:ZREPORT`; for objects loaded through a workspace"""
 
 
 class _FileSymbolsRequired(TypedDict):
@@ -519,8 +537,7 @@ class Position(TypedDict):
     row: int
 
 
-class Procedure(TypedDict):
-    """The logic of a method, form, function module, dialog module or event block, or of the statements of a program outside of them."""
+class _ProcedureRequired(TypedDict):
     block: BlockRef
     body: List[Step]
     effects: List[Effect]
@@ -529,6 +546,12 @@ class Procedure(TypedDict):
     """data declared in the procedure, lower case"""
     parameters: List[ProcedureParameter]
     span: Span
+
+
+class Procedure(_ProcedureRequired, total=False):
+    """The logic of a method, form, function module, dialog module or event block, or of the statements of a program outside of them."""
+    unit: str
+    """the source it is in, like `PROG:ZREPORT_F01`; for objects loaded through a workspace"""
 
 
 class ProcedureParameter(TypedDict):
@@ -590,8 +613,24 @@ class Step(_StepRequired, total=False):
     """all conditions that hold when the step runs, outermost first"""
     reads: List[DataAccess]
     """data read, changed operands included"""
+    tables: List[TableAccess]
+    """database tables read or written, also by called procedures"""
     writes: List[DataAccess]
     """data written, changed operands included"""
+
+
+class _TableAccessRequired(TypedDict):
+    access: AccessKind
+    """`read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE"""
+    name: str
+    """table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses"""
+    operation: DbOperation
+
+
+class TableAccess(_TableAccessRequired, total=False):
+    """A database table read or written by a statement."""
+    via: BlockRef
+    """accessed by the called procedure, not by the statement itself"""
 
 
 class _TableTypingRequired(TypedDict):

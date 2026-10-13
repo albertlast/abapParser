@@ -572,8 +572,10 @@ pub struct DbAccess {
     /// native SQL (HANA SQL or SQLScript): the statement as written
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_sql: Option<String>,
-    /// native SQL: variables read, `:name` written without the colon;
-    /// ABAP host variables of EXEC SQL, parameters and table variables of AMDP
+    /// ABAP data read by the statement, as written: in Open SQL `@lv_x`
+    /// without the `@`, the operands of `@( ... )` and the host variables of
+    /// the classic syntax; in native SQL `:name` without the colon, the ABAP
+    /// host variables of EXEC SQL, parameters and table variables of AMDP
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub host_variables: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -775,7 +777,14 @@ pub enum DataScope {
     Parameter,
     /// attribute of the class, also through `me->` or another object
     Attribute,
-    /// global data, constants of other classes, system fields, or not known
+    /// global data of the program: declared outside classes and routines,
+    /// in the same source or, for objects loaded through a workspace, in
+    /// another include such as the TOP include; written by a procedure of
+    /// another object it is named `(object)name`, e.g. `(zreport)gv_count`
+    Global,
+    /// a database table, view or CDS entity; names are upper case
+    Database,
+    /// constants of other classes, system fields, or not known
     Other,
 }
 
@@ -802,7 +811,25 @@ pub struct DataAccess {
     /// parameter or attribute
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub from_entry: bool,
+    /// accessed by the called procedure, not by the statement itself
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<BlockRef>,
     pub position: Position,
+}
+
+/// A database table read or written by a statement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TableAccess {
+    /// table, view or CDS entity, upper case; a dynamic name resolved from
+    /// a constant, or the operand as written in parentheses
+    pub name: String,
+    /// `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY,
+    /// DELETE and MERGE
+    pub access: AccessKind,
+    pub operation: DbOperation,
+    /// accessed by the called procedure, not by the statement itself
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<BlockRef>,
 }
 
 /// A condition that holds when a step runs.
@@ -837,6 +864,9 @@ pub struct Step {
     /// data written, changed operands included
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub writes: Vec<DataAccess>,
+    /// database tables read or written, also by called procedures
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub tables: Vec<TableAccess>,
     /// the statements of a block: the body of IF, ELSEIF, ELSE, LOOP, TRY,
     /// CATCH, WHEN ...; the steps of CASE are its WHENs. ELSEIF, ELSE, CATCH
     /// and CLEANUP follow their IF or TRY as siblings, end statements are
@@ -859,8 +889,8 @@ pub struct FlowEdge {
     pub label: Option<String>,
 }
 
-/// A data object outside the procedure that it writes, with what the
-/// written values depend on.
+/// A data object outside the procedure, or a database table, that it
+/// writes, with what the written values depend on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Effect {
     pub name: String,
@@ -870,6 +900,12 @@ pub struct Effect {
     /// data read from before the procedure that the values depend on,
     /// through assignments and through the conditions deciding them
     pub inputs: Vec<String>,
+    /// database tables read that the values depend on, upper case
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub tables: Vec<String>,
+    /// the called procedures that write it, when not written directly
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub via: Vec<BlockRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -884,6 +920,10 @@ pub struct ProcedureParameter {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Procedure {
     pub block: BlockRef,
+    /// the source it is in, like `PROG:ZREPORT_F01`; for objects loaded
+    /// through a workspace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
     pub span: Span,
     pub parameters: Vec<ProcedureParameter>,
     /// data declared in the procedure, lower case
@@ -893,11 +933,21 @@ pub struct Procedure {
     pub effects: Vec<Effect>,
 }
 
-/// Control flow, conditions and data flow of the procedures of a file.
+/// Control flow, conditions and data flow of the procedures of a file, or
+/// of all sources of an object loaded through a workspace.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FileLogic {
     pub schema_version: u32,
+    /// the object, like `PROG:ZREPORT`; for objects loaded through a workspace
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object: Option<String>,
     pub procedures: Vec<Procedure>,
+    /// objects no provider had: includes, and called objects
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub missing: Vec<String>,
+    /// provider errors, e.g. authorization failures
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub errors: Vec<String>,
 }
 
 /// JSON Schema of [`FileSymbols`].

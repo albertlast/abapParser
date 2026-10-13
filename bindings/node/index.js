@@ -65,6 +65,20 @@ function logic(source) {
 }
 
 /**
+ * Logic of all sources of an object: class parts, includes, function modules,
+ * with the global data of the program typed as such. Calls are followed: what
+ * called procedures write, attributes, global data and database tables, shows
+ * in the effects of the caller. Blocks while loading.
+ * @param {string} reference object like "PROG:ZREPORT", "CLAS:ZCL_ORDERS", "FUGR:ZGROUP"
+ * @param {import("./index").SourceOptions} options where the sources are
+ * @param {number} [depth=1] hops into other objects to follow
+ * @returns {import("./types").FileLogic}
+ */
+function logicObject(reference, options, depth = 1) {
+  return JSON.parse(native.logicObjectJson(reference, JSON.stringify(options), depth));
+}
+
+/**
  * Statements of one ABAP source file, with kind, text and position.
  * @param {string} source ABAP source code
  * @returns {import("./types").StatementInfo[]}
@@ -74,5 +88,6 @@ function statements(source) {
 }
 
 module.exports = {
-  symbols, dbAccess, calls, callGraph, fetchSource, logic, statements, version: native.version,
+  symbols, dbAccess, calls, callGraph, fetchSource, logic, logicObject, statements,
+  version: native.version,
 };
