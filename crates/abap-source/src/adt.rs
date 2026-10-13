@@ -48,6 +48,8 @@ pub struct AdtProvider {
     session: Mutex<Option<(String, String)>>,
     /// interface -> classes using it, from where-used lists
     usages: Mutex<HashMap<String, Vec<String>>>,
+    /// implementing classes per interface, upper case
+    implementers: Mutex<HashMap<String, Vec<String>>>,
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -109,6 +111,7 @@ impl AdtProvider {
             groups: Mutex::new(HashMap::new()),
             session: Mutex::new(None),
             usages: Mutex::new(HashMap::new()),
+            implementers: Mutex::new(HashMap::new()),
         }
     }
 
@@ -262,6 +265,41 @@ impl AdtProvider {
         let classes = classes_in_usages(&xml);
         self.usages.lock().unwrap().insert(key, classes.clone());
         Ok(classes)
+    }
+
+    /// Classes implementing an interface directly, from the class relations
+    /// through the data preview; `None` when the system has no data preview.
+    pub fn implementing_classes(&self, interface: &str) -> Result<Option<Vec<String>>> {
+        let key = interface.to_ascii_uppercase();
+        // the name goes into SQL: only what ABAP names consist of
+        if key.is_empty()
+            || !key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
+        {
+            return Ok(Some(Vec::new()));
+        }
+        let query = format!(
+            "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '1' AND version = '1'"
+        );
+        let xml = self.post(
+            "/sap/bc/adt/datapreview/freestyle?rowNumber=1000",
+            "text/plain",
+            "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml",
+            &query,
+        )?;
+        Ok(xml.map(|xml| {
+            let mut classes: Vec<String> = xml
+                .split("<dataPreview:data>")
+                .skip(1)
+                .filter_map(|d| d.split('<').next())
+                .map(|d| d.trim().to_ascii_uppercase())
+                .filter(|d| !d.is_empty())
+                .collect();
+            classes.sort();
+            classes.dedup();
+            classes
+        }))
     }
 
     fn source(&self, reference: &SourceRef, path: &str) -> Result<Option<Source>> {
@@ -425,10 +463,26 @@ impl SourceProvider for AdtProvider {
         }
     }
 
-    /// The where-used list of the interface: a superset of its
-    /// implementations, which callers check against the class sources.
+    /// The classes the class relations (SEOMETAREL) name, read through the
+    /// data preview; where that is not allowed, the where-used list of the
+    /// interface, a superset which callers check against the class sources.
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
-        self.interface_usages(interface)
+        let key = interface.to_ascii_uppercase();
+        if let Some(c) = self.implementers.lock().unwrap().get(&key) {
+            return Ok(c.clone());
+        }
+        let classes = match self.implementing_classes(&key) {
+            Ok(Some(classes)) => classes,
+            Ok(None) | Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => {
+                self.interface_usages(&key)?
+            }
+            Err(e) => return Err(e),
+        };
+        self.implementers
+            .lock()
+            .unwrap()
+            .insert(key, classes.clone());
+        Ok(classes)
     }
 
     fn describe(&self) -> String {
@@ -460,19 +514,23 @@ mod tests {
                 let mut request = String::new();
                 reader.read_line(&mut request).unwrap();
                 let mut auth = false;
+                let mut length = 0;
                 loop {
                     let mut line = String::new();
                     reader.read_line(&mut line).unwrap();
-                    if line
-                        .to_ascii_lowercase()
-                        .starts_with("authorization: basic ")
-                    {
+                    let lower = line.to_ascii_lowercase();
+                    if lower.starts_with("authorization: basic ") {
                         auth = true;
+                    }
+                    if let Some(n) = lower.strip_prefix("content-length:") {
+                        length = n.trim().parse().unwrap_or(0);
                     }
                     if line == "\r\n" || line.is_empty() {
                         break;
                     }
                 }
+                let mut body = vec![0; length];
+                std::io::Read::read_exact(&mut reader, &mut body).unwrap();
                 let path = request.split_whitespace().nth(1).unwrap_or("").to_string();
                 let _ = tx.send(path.clone());
                 let (status, body) = if !auth {
@@ -571,6 +629,31 @@ mod tests {
             .fetch(&SourceRef::class("ZCL_MISSING"))
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn implementations_from_the_class_relations() {
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            (
+                "/sap/bc/adt/datapreview/freestyle",
+                200,
+                "<dataPreview:tableData><dataPreview:dataSet><dataPreview:data>CL_IDENTITY</dataPreview:data><dataPreview:data>CL_OTHER</dataPreview:data></dataPreview:dataSet></dataPreview:tableData>",
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        assert_eq!(
+            adt.implementations("if_identity").unwrap(),
+            ["CL_IDENTITY", "CL_OTHER"]
+        );
+        // names that are no ABAP names are not put into SQL
+        assert!(adt.implementations("X' OR '1' = '1").unwrap().is_empty());
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert_eq!(
+            paths.iter().filter(|p| p.contains("freestyle")).count(),
+            1,
+            "{paths:?}"
+        );
     }
 
     #[test]

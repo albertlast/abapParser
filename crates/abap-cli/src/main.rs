@@ -1,5 +1,7 @@
 use std::process::ExitCode;
 
+mod mcp;
+
 use abap_analysis::abap_source::{AdtOptions, ProviderOptions, SourceRef};
 
 const USAGE: &str = "usage: abap <command> [arguments]
@@ -31,6 +33,10 @@ source options:
   --cache <dir>        cache folder for sources from the SAP system
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
+
+for language models:
+  mcp                  MCP server over stdio: the analyses as tools, sources
+                       from the source options
 
 testing:
   mock-adt --src <dir>... [--port N] [--client nnn]
@@ -140,6 +146,17 @@ fn main() -> ExitCode {
             object_command(command, &args)
         }
         "mock-adt" => mock_adt(&args),
+        "mcp" => {
+            let server = mcp::Server::new(args.options.build().map_err(|e| e.to_string()));
+            let stdin = std::io::stdin();
+            match server.run(stdin.lock(), std::io::stdout()) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" => {
             file_command(command, &args)
         }

@@ -230,8 +230,48 @@ abap logic FUGR:ZORDERS --src ./src --depth 2
 Not covered yet:
 - A method redefined in a subclass is followed into the class the call names, not into the redefinitions.
 - Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
-- Implementations of global interfaces come from the source folders, or from the where-used list of an SAP system through ADT. The ADT request follows the API the ABAP Development Tools use, and is tested against the mock server only, not yet against a live system.
+- Implementations of global interfaces come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview, or, where that is not allowed, from the where-used list. The where-used index of a system may be incomplete for SAP standard code.
 - A field symbol or reference stored in a structure, table or attribute is not followed.
+
+## Language models (MCP)
+
+`abap mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio. It gives language models the analyses as tools, with sources from the same options as the other commands: folders, an SAP system, a cache. Loaded objects are kept for the session.
+
+| Tool | Answers |
+|---|---|
+| `get_source` | source of an object with row numbers, optionally a row range |
+| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations |
+| `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
+| `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
+| `get_db_access` | Open SQL and native SQL statements: tables, fields, joins, conditions |
+| `find_implementations` | global classes implementing an interface |
+| `analyze_source` | the analyses of ABAP code given as text, without a system |
+
+Answers are cut at 80,000 characters with a hint to ask for less.
+
+With Claude Code:
+
+```sh
+claude mcp add abap -e ABAP_ADT_URL=https://sap:44300 -e ABAP_ADT_CLIENT=100 \
+  -e ABAP_ADT_USER=me -e ABAP_ADT_PASSWORD=... -- abap mcp --src ./src --cache ~/.cache/abap
+```
+
+Other clients take the same as JSON:
+
+```json
+{
+  "mcpServers": {
+    "abap": {
+      "command": "abap",
+      "args": ["mcp", "--src", "./src", "--cache", ".abap-cache"],
+      "env": {"ABAP_ADT_URL": "https://sap:44300", "ABAP_ADT_CLIENT": "100",
+              "ABAP_ADT_USER": "me", "ABAP_ADT_PASSWORD": "..."}
+    }
+  }
+}
+```
+
+The `abap` binary is in the archives of the GitHub releases.
 
 ## Layout
 
@@ -244,7 +284,7 @@ crates/abap-model     serializable output model and its JSON Schema
 crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
 crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
-crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mock-adt`, `abap schema`
+crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mcp`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs); npm/ builds the per-platform packages of a release
 bindings/python       Python package (PyO3, maturin)
 tools/                corpus extraction, abaplint oracle, type generation, release version,
