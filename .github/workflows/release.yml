@@ -22,10 +22,10 @@ jobs:
   version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       - name: The tag is the version of every package
         if: startsWith(github.ref, 'refs/tags/')
         run: node tools/version.mjs --check "$GITHUB_REF_NAME"
@@ -50,7 +50,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -58,10 +58,10 @@ jobs:
       - run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/${{ matrix.lib }} dist/abap_parser.${{ matrix.platform }}.node
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: matrix.test
         with:
-          node-version: 22
+          node-version: 24
           architecture: ${{ matrix.node-arch }}
       - name: The module loads and works
         if: matrix.test
@@ -69,7 +69,7 @@ jobs:
         run: |
           cp ../../dist/abap_parser.${{ matrix.platform }}.node abap_parser.node
           npm test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: node-${{ matrix.platform }}
           path: dist/*
@@ -82,12 +82,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: node-*
           merge-multiple: true
@@ -112,13 +112,15 @@ jobs:
       matrix:
         include:
           - {os: ubuntu-latest, target: x86_64, manylinux: auto}
-          - {os: ubuntu-latest, target: aarch64, manylinux: auto}
+          # native on an ARM runner: the cross compiler of the manylinux image cannot
+          # build ring
+          - {os: ubuntu-22.04-arm, target: aarch64, manylinux: auto}
           - {os: windows-latest, target: x64}
           - {os: macos-latest, target: x86_64}
           - {os: macos-latest, target: aarch64}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: bindings/python
@@ -126,7 +128,7 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: bindings/python/dist/*.whl
@@ -135,14 +137,14 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: bindings/python
           maturin-version: 1.15.0
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-sdist
           path: bindings/python/dist/*.tar.gz
@@ -155,7 +157,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: wheels-*
           merge-multiple: true
@@ -178,7 +180,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -196,7 +198,7 @@ jobs:
             cp "target/${{ matrix.target }}/release/abap" "dist/$name/"
             tar -czf "dist/$name.tar.gz" -C dist "$name"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.target }}
           path: |
@@ -210,8 +212,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: cli-*
           merge-multiple: true

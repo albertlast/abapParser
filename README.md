@@ -11,7 +11,7 @@ The goal is to answer structured questions about ABAP code, so tools don't have 
 Includes and referenced objects that are missing locally are fetched from the SAP system through the ADT REST API.
 
 ```sh
-npm install abap-parser     # Node.js 18+, prebuilt for Windows x64, macOS, Linux x64/arm64
+npm install abap-parser     # Node.js 24+, prebuilt for Windows x64, macOS, Linux x64/arm64
 pip install abap-parser           # Python 3.9+, wheels for the same platforms
 ```
 
