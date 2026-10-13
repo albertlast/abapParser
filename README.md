@@ -240,14 +240,14 @@ Not covered yet:
 | Tool | Answers |
 |---|---|
 | `get_source` | source of an object with row numbers, optionally a row range |
-| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations |
+| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP |
 | `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
 | `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
-| `get_db_access` | Open SQL and native SQL statements: tables, fields, joins, conditions |
+| `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
 | `find_implementations` | global classes implementing an interface |
 | `analyze_source` | the analyses of ABAP code given as text, without a system |
 
-Answers are cut at 80,000 characters with a hint to ask for less.
+Answers are in the compact text form unless `detail: "full"` asks for JSON, and are cut at 80,000 characters with a hint to ask for less.
 
 With Claude Code:
 
@@ -283,7 +283,8 @@ crates/abap-syntax    statements (splitting, chains, pragmas, macros, native SQL
 crates/abap-model     serializable output model and its JSON Schema
 crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
-crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
+crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph,
+                      compact text forms
 crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mcp`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs); npm/ builds the per-platform packages of a release
 bindings/python       Python package (PyO3, maturin)
@@ -301,6 +302,22 @@ cargo run -p abap-cli -- calls zcl_demo.clas.abap
 cargo run -p abap-cli -- logic zcl_demo.clas.abap
 cargo run -p abap-cli -- logic PROG:ZREPORT --src ./src --depth 1
 cargo run -p abap-cli -- statements zprogram.prog.abap --json
+cargo run -p abap-cli -- logic zcl_demo.clas.abap --text
+```
+
+### Compact text
+
+The JSON is the complete form. For language models, and for reading, `--text` and the `text` functions of the packages give a compact form: definitions written like ABAP, one line per call or database access, and per procedure its effects with the statements writing them and the conditions they run under. Rows tell where to find things. Over the corpus it is 6.7 times shorter than the JSON for symbols and 9.2 times for logic. The MCP server answers in it by default.
+
+```
+zcl_orders->save 21-27
+  parameters: importing iv_id, importing iv_status, exporting ev_count
+  reads tables: ZORDERS
+  writes ZORDERS (database table) at 24; from iv_id, iv_status
+  writes ev_count (parameter) at 25; from iv_id, sy
+  statements:
+       24 UPDATE zorders SET status = @iv_status WHERE id = @iv_id.  when iv_id > 0
+       25 ev_count = sy-dbcnt.  when iv_id > 0
 ```
 
 Node.js (`npm install abap-parser`, or from this repository `cd bindings/node && npm run build`):
@@ -321,6 +338,10 @@ for (const p of abap.logic(source).procedures) {
 const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
 // the same as a promise, without blocking the event loop
 const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {src: ["./src"]}, 2);
+// compact text, e.g. for a prompt: "symbols", "calls", "db" or "logic"
+const prompt = abap.text("logic", source);
+// of objects: "symbols", "logic" or "graph"
+const outline = abap.objectText("symbols", ["CLAS:ZCL_ORDERS"], {src: ["./src"]});
 ```
 
 Every function has an `…Async` variant. It runs on the libuv thread pool, so loading sources from an SAP system or analyzing large files does not block the event loop, and several calls run in parallel.
@@ -339,6 +360,9 @@ for p in abap_parser.logic(source)["procedures"]:
 lg = abap_parser.logic_object("PROG:ZREPORT", {"src": ["./src"]}, depth=1)
 # in asyncio code
 graph = await abap_parser.call_graph_async(["CLAS:ZCL_ORDERS"], {"src": ["./src"]}, 2)
+# compact text, e.g. for a prompt
+prompt = abap_parser.text("logic", source)
+outline = abap_parser.object_text("symbols", ["CLAS:ZCL_ORDERS"], {"src": ["./src"]})
 ```
 
 Every function has an `..._async` variant for asyncio, running in a worker thread. The native code releases the GIL.

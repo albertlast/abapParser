@@ -7,7 +7,7 @@
 use std::io::{BufRead, Write};
 
 use abap_analysis::abap_source::{ObjectKind, SourceRef};
-use abap_analysis::Workspace;
+use abap_analysis::{text, Workspace};
 use abap_model as m;
 use serde_json::{json, Value};
 
@@ -115,22 +115,41 @@ impl Server {
             "get_source" => self.source(args),
             "get_symbols" => {
                 let object = self.object(args)?;
-                Ok(compact(&object.symbols))
+                Ok(match Detail::of(args) {
+                    Detail::Full => compact(&object.symbols),
+                    Detail::Summary => cut_text(text::symbols(&object.symbols)),
+                })
             }
             "get_call_graph" => self.call_graph(args),
             "get_logic" => self.logic(args),
             "get_db_access" => {
                 let object = self.object(args)?;
-                let units: Vec<Value> = object
+                let units: Vec<(String, Vec<m::DbAccess>)> = object
                     .units
                     .iter()
-                    .filter_map(|u| {
-                        let accesses = abap_analysis::db_access_of(&u.file);
-                        (!accesses.is_empty())
-                            .then(|| json!({"unit": u.reference.to_string(), "accesses": accesses}))
+                    .map(|u| {
+                        (
+                            u.reference.to_string(),
+                            abap_analysis::db_access_of(&u.file),
+                        )
                     })
+                    .filter(|(_, a)| !a.is_empty())
                     .collect();
-                Ok(compact(&units))
+                if Detail::of(args) == Detail::Full {
+                    let units: Vec<Value> = units
+                        .iter()
+                        .map(|(u, a)| json!({"unit": u, "accesses": a}))
+                        .collect();
+                    return Ok(compact(&units));
+                }
+                let mut out = String::new();
+                for (unit, accesses) in &units {
+                    out.push_str(&format!("{unit}\n{}", text::db_access(accesses)));
+                }
+                if out.is_empty() {
+                    out.push_str("no database access");
+                }
+                Ok(cut_text(out))
             }
             "find_implementations" => {
                 let interface = string(args, "interface")?;
@@ -143,15 +162,18 @@ impl Server {
                     .get("analysis")
                     .and_then(Value::as_str)
                     .unwrap_or("symbols");
+                let full = Detail::of(args) == Detail::Full;
                 Ok(match analysis {
-                    "symbols" => compact(&abap_analysis::symbols(&source)),
-                    "calls" => compact(&abap_analysis::calls(&source)),
-                    "db" => compact(&abap_analysis::db_access(&source)),
+                    "symbols" if full => compact(&abap_analysis::symbols(&source)),
+                    "symbols" => cut_text(text::symbols(&abap_analysis::symbols(&source))),
+                    "calls" if full => compact(&abap_analysis::calls(&source)),
+                    "calls" => cut_text(text::calls(&abap_analysis::calls(&source))),
+                    "db" if full => compact(&abap_analysis::db_access(&source)),
+                    "db" => cut_text(text::db_access(&abap_analysis::db_access(&source))),
                     "logic" => {
                         let mut logic = abap_analysis::logic(&source);
-                        let detail = Detail::of(args);
                         filter_procedures(&mut logic, args);
-                        logic_answer(&logic, detail)
+                        logic_answer(&logic, Detail::of(args))
                     }
                     "statements" => compact(&abap_analysis::statements(&source)),
                     other => return Err(Failure::Tool(format!("unknown analysis {other}"))),
@@ -234,58 +256,10 @@ impl Server {
         if Detail::of(args) == Detail::Full {
             return Ok(compact(&graph));
         }
-        let mut out = String::new();
-        let mut unit = None;
-        for c in &graph.calls {
-            if c.unit != unit {
-                unit = c.unit.clone();
-                out.push_str(&format!("\n{}\n", unit.as_deref().unwrap_or("?")));
-            }
-            let from = c.from.as_ref().map(block).unwrap_or_default();
-            let target = match (&c.class, c.kind) {
-                (Some(class), _) => {
-                    format!("{class}{}{}", if c.is_static { "=>" } else { "->" }, c.name)
-                }
-                (None, m::CallKind::Form) => match &c.program {
-                    Some(p) => format!("{}({p})", c.name),
-                    None => c.name.clone(),
-                },
-                _ => c.name.clone(),
-            };
-            let mut flags = Vec::new();
-            if c.dynamic {
-                flags.push("dynamic");
-            }
-            if !c.resolved {
-                flags.push("unresolved");
-            }
-            out.push_str(&format!(
-                "  {:>5} {from}: {} {target}{}{}\n",
-                c.span.start.row,
-                kind(c.kind),
-                if c.options.is_empty() {
-                    String::new()
-                } else {
-                    format!(" [{}]", c.options.join(", "))
-                },
-                if flags.is_empty() {
-                    String::new()
-                } else {
-                    format!(" ({})", flags.join(", "))
-                },
-            ));
-        }
-        if !graph.missing.is_empty() {
-            out.push_str(&format!("\nmissing: {}\n", graph.missing.join(", ")));
-        }
-        if !graph.errors.is_empty() {
-            out.push_str(&format!("\nerrors: {}\n", graph.errors.join("; ")));
-        }
-        Ok(format!(
-            "{} calls in {} sources, depth {depth}; rows per source\n{out}",
-            graph.calls.len(),
-            graph.units.len()
-        ))
+        Ok(cut_text(format!(
+            "depth {depth}; {}",
+            text::call_graph(&graph)
+        )))
     }
 
     fn logic(&self, args: &Value) -> Result<String, Failure> {
@@ -345,117 +319,20 @@ fn filter_procedures(logic: &mut m::FileLogic, args: &Value) {
 }
 
 fn logic_answer(logic: &m::FileLogic, detail: Detail) -> String {
-    if detail == Detail::Full {
-        return compact(logic);
+    match detail {
+        Detail::Full => compact(logic),
+        Detail::Summary if logic.procedures.is_empty() => "no procedures".to_string(),
+        Detail::Summary => cut_text(text::logic(logic)),
     }
-    let procedures: Vec<Value> = logic.procedures.iter().map(procedure_summary).collect();
-    let mut answer = json!({
-        "object": logic.object,
-        "procedures": procedures,
-    });
-    if !logic.missing.is_empty() {
-        answer["missing"] = json!(logic.missing);
-    }
-    if !logic.errors.is_empty() {
-        answer["errors"] = json!(logic.errors);
-    }
-    compact(&answer)
-}
-
-/// What a procedure does: its parameters, and per effect the statements
-/// writing it with the conditions they run under.
-fn procedure_summary(p: &m::Procedure) -> Value {
-    let mut steps = Vec::new();
-    collect_steps(&p.body, &mut steps);
-    let effects: Vec<Value> = p
-        .effects
-        .iter()
-        .map(|e| {
-            let written: Vec<Value> = e
-                .statements
-                .iter()
-                .filter_map(|id| steps.iter().find(|s| s.id == *id))
-                .map(|s| {
-                    let mut w = json!({"row": s.span.start.row, "text": s.text});
-                    let guards: Vec<String> = s
-                        .guards
-                        .iter()
-                        .map(|g| {
-                            if g.negated {
-                                format!("NOT ( {} )", g.text)
-                            } else {
-                                g.text.clone()
-                            }
-                        })
-                        .collect();
-                    if !guards.is_empty() {
-                        w["when"] = json!(guards);
-                    }
-                    w
-                })
-                .collect();
-            let mut v = json!({
-                "name": e.name,
-                "scope": e.scope,
-                "written_by": written,
-            });
-            if !e.inputs.is_empty() {
-                v["inputs"] = json!(e.inputs);
-            }
-            if !e.tables.is_empty() {
-                v["tables"] = json!(e.tables);
-            }
-            if !e.via.is_empty() {
-                v["via"] = json!(e.via.iter().map(block).collect::<Vec<_>>());
-            }
-            v
-        })
-        .collect();
-    let mut tables: Vec<String> = Vec::new();
-    for s in &steps {
-        for t in &s.tables {
-            let entry = format!("{} {:?}", t.name, t.access).to_ascii_lowercase();
-            if !tables.contains(&entry) {
-                tables.push(entry);
-            }
-        }
-    }
-    let mut v = json!({
-        "procedure": block(&p.block),
-        "rows": [p.span.start.row, p.span.end.row],
-        "parameters": p.parameters.iter().map(|x| format!("{:?} {}", x.direction, x.name).to_ascii_lowercase()).collect::<Vec<_>>(),
-        "effects": effects,
-    });
-    if let Some(u) = &p.unit {
-        v["unit"] = json!(u);
-    }
-    if !tables.is_empty() {
-        v["tables"] = json!(tables);
-    }
-    v
-}
-
-fn collect_steps<'a>(steps: &'a [m::Step], out: &mut Vec<&'a m::Step>) {
-    for s in steps {
-        out.push(s);
-        collect_steps(&s.children, out);
-    }
-}
-
-fn block(b: &m::BlockRef) -> String {
-    match &b.class {
-        Some(c) => format!("{c}->{}", b.name),
-        None => format!("{} {}", b.kind, b.name),
-    }
-}
-
-fn kind(k: m::CallKind) -> String {
-    format!("{k:?}").to_ascii_lowercase()
 }
 
 /// Compact JSON, cut at [`MAX_ANSWER`].
 fn compact(value: &impl serde::Serialize) -> String {
-    let text = serde_json::to_string(value).expect("serializes");
+    cut_text(serde_json::to_string(value).expect("serializes"))
+}
+
+/// The text, cut at [`MAX_ANSWER`] with a hint how to ask for less.
+fn cut_text(text: String) -> String {
     if text.len() <= MAX_ANSWER {
         return text;
     }
@@ -498,7 +375,7 @@ fn tools() -> Value {
     let detail = json!({
         "type": "string",
         "enum": ["summary", "full"],
-        "description": "summary (default) or the full model as JSON",
+        "description": "summary (default): compact text, definitions written like ABAP, one line per call or access, rows to read with get_source; full: the complete model as JSON",
     });
     let depth = json!({
         "type": "integer",
@@ -526,8 +403,8 @@ fn tools() -> Value {
         {
             "name": "get_symbols",
             "title": "Structure of an object",
-            "description": "Classes, interfaces, methods with signatures, attributes, types, forms, function modules and declarations of all sources of an object.",
-            "inputSchema": {"type": "object", "properties": {"object": object}, "required": ["object"]},
+            "description": "Classes, interfaces, methods with signatures, attributes, types, forms, function modules and declarations of all sources of an object, written like their ABAP definitions with rows.",
+            "inputSchema": {"type": "object", "properties": {"object": object, "detail": detail}, "required": ["object"]},
             "annotations": read_only,
         },
         {
@@ -569,8 +446,8 @@ fn tools() -> Value {
         {
             "name": "get_db_access",
             "title": "Database access",
-            "description": "Open SQL and native SQL statements of an object: operation, tables, fields, joins, WHERE conditions, target variables.",
-            "inputSchema": {"type": "object", "properties": {"object": object}, "required": ["object"]},
+            "description": "Open SQL and native SQL statements of an object, one line each: row, procedure, operation, tables, statement. detail=full adds fields, joins, conditions and targets as JSON.",
+            "inputSchema": {"type": "object", "properties": {"object": object, "detail": detail}, "required": ["object"]},
             "annotations": read_only,
         },
         {
@@ -711,16 +588,33 @@ ENDCLASS.",
             "get_logic",
             json!({"object": "CLAS:ZCL_ORDERS", "procedure": "zcl_orders->save"}),
         );
+        assert!(
+            text.starts_with("zcl_orders->save 6-11 in CLAS:ZCL_ORDERS\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "  writes ZORDERS (database table) at 8; from iv_id\n  statements:\n        8 UPDATE zorders SET status = 'S' WHERE id = iv_id.  when iv_id > 0\n"
+            ),
+            "{text}"
+        );
+        let (text, _) = call(
+            &s,
+            "get_logic",
+            json!({"object": "CLAS:ZCL_ORDERS", "detail": "full"}),
+        );
         let v: Value = serde_json::from_str(&text).unwrap();
-        let p = &v["procedures"][0];
-        assert_eq!(p["procedure"], "zcl_orders->save");
-        assert_eq!(p["effects"][0]["name"], "ZORDERS");
-        assert_eq!(p["effects"][0]["written_by"][0]["row"], 8);
-        assert_eq!(p["effects"][0]["written_by"][0]["when"][0], "iv_id > 0");
+        assert_eq!(v["procedures"][0]["block"]["name"], "save");
+
+        let (text, _) = call(&s, "get_symbols", json!({"object": "CLAS:ZCL_ORDERS"}));
+        assert!(
+            text.contains("    METHODS save IMPORTING iv_id TYPE i.  \" 3\n"),
+            "{text}"
+        );
 
         let (text, _) = call(&s, "get_db_access", json!({"object": "CLAS:ZCL_ORDERS"}));
         assert!(
-            text.contains("zorders") || text.contains("ZORDERS"),
+            text.contains("CLAS:ZCL_ORDERS\n      8 zcl_orders->save: update zorders | UPDATE"),
             "{text}"
         );
 
@@ -734,7 +628,7 @@ ENDCLASS.",
             json!({"source": "FORM f.\n  CALL FUNCTION 'X'.\nENDFORM.", "analysis": "calls"}),
         );
         assert!(!err);
-        assert!(text.contains("\"name\":\"X\""), "{text}");
+        assert_eq!(text, "      2 form f: function X (unresolved)\n");
     }
 
     #[test]

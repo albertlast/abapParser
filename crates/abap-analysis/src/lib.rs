@@ -15,6 +15,7 @@ pub use context::statement_blocks;
 pub use db::{db_access, db_access_of};
 pub use logic::{logic, logic_of};
 pub use symbols::{symbols, symbols_of};
+pub mod text;
 pub use workspace::{merge_symbols, Object, Unit, Workspace};
 
 use abap_model as m;
@@ -107,5 +108,52 @@ pub mod json {
 
     pub fn statements(source: &str) -> String {
         serde_json::to_string(&super::statements(source)).expect("statements serialize")
+    }
+
+    /// Compact text of one source, see [`crate::text`]: `symbols`, `calls`,
+    /// `db` or `logic`.
+    pub fn text(analysis: &str, source: &str) -> Result<String, String> {
+        use crate::text;
+        Ok(match analysis {
+            "symbols" => text::symbols(&super::symbols(source)),
+            "calls" => text::calls(&super::calls(source)),
+            "db" => text::db_access(&super::db_access(source)),
+            "logic" => text::logic(&super::logic(source)),
+            other => {
+                return Err(format!(
+                    "unknown analysis {other:?}, expected symbols, calls, db or logic"
+                ))
+            }
+        })
+    }
+
+    /// Compact text of objects like `CLAS:ZCL_X`, sources as described by a
+    /// JSON [`abap_source::ProviderOptions`] object: `symbols` of all
+    /// sources of the first object, its `logic` with calls followed `depth`
+    /// hops, or the call `graph` from all of them.
+    pub fn object_text(
+        analysis: &str,
+        objects: &[String],
+        options: &str,
+        depth: u32,
+    ) -> Result<String, String> {
+        use crate::text;
+        let objects = objects
+            .iter()
+            .map(|r| r.parse::<abap_source::SourceRef>())
+            .collect::<Result<Vec<_>, _>>()?;
+        let first = objects.first().ok_or("no object given")?;
+        let workspace = workspace(options)?;
+        match analysis {
+            "symbols" => workspace
+                .object(first)
+                .map(|o| text::symbols(&o.symbols))
+                .ok_or_else(|| format!("{first} not found")),
+            "logic" => Ok(text::logic(&workspace.logic(first, depth))),
+            "graph" => Ok(text::call_graph(&workspace.call_graph(&objects, depth))),
+            other => Err(format!(
+                "unknown analysis {other:?}, expected symbols, logic or graph"
+            )),
+        }
     }
 }

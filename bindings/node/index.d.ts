@@ -52,6 +52,26 @@ export function logicObject(reference: string, options: SourceOptions, depth?: n
 /** Statements of one ABAP source file, with kind, text and position. */
 export function statements(source: string): StatementInfo[];
 
+/**
+ * Compact text of one ABAP source file, e.g. for a language model: "symbols"
+ * (definitions written like ABAP), "calls" and "db" (one line each), "logic"
+ * (per procedure its effects with the statements and conditions). Rows tell
+ * where to find things.
+ */
+export function text(analysis: "symbols" | "calls" | "db" | "logic", source: string): string;
+
+/**
+ * Compact text of objects like "CLAS:ZCL_ORDERS": "symbols" of all sources of
+ * the first object, its "logic" with calls followed `depth` hops (default 1),
+ * or the call "graph" from all of them. Blocks while loading sources.
+ */
+export function objectText(
+  analysis: "symbols" | "logic" | "graph",
+  objects: string[],
+  options: SourceOptions,
+  depth?: number,
+): string;
+
 /** Version of the native module. */
 export function version(): string;
 
@@ -67,3 +87,10 @@ export function fetchSourceAsync(reference: string, options: SourceOptions): Pro
 export function logicAsync(source: string): Promise<FileLogic>;
 export function logicObjectAsync(reference: string, options: SourceOptions, depth?: number): Promise<FileLogic>;
 export function statementsAsync(source: string): Promise<StatementInfo[]>;
+export function textAsync(analysis: "symbols" | "calls" | "db" | "logic", source: string): Promise<string>;
+export function objectTextAsync(
+  analysis: "symbols" | "logic" | "graph",
+  objects: string[],
+  options: SourceOptions,
+  depth?: number,
+): Promise<string>;

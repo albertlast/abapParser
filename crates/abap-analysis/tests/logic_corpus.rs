@@ -1,14 +1,15 @@
 //! Logic of whole objects over every corpus of tests/corpus/corpora.txt,
 //! through the folder provider: includes, class parts and called objects
 //! loaded through the workspace. Reports how many effects come through
-//! calls, how many write database tables and how much data is global.
+//! calls, how many write database tables and how much data is global, and
+//! how much shorter the text forms are than the JSON.
 //!
 //! Run with `cargo test --release -p abap-analysis --test logic_corpus -- --nocapture`.
 
 use std::path::Path;
 
 use abap_analysis::abap_source::{FsProvider, ObjectKind};
-use abap_analysis::Workspace;
+use abap_analysis::{text, Workspace};
 use abap_model as m;
 
 fn walk<'a>(steps: &'a [m::Step], f: &mut impl FnMut(&'a m::Step)) {
@@ -25,6 +26,8 @@ fn corpus_object_logic() {
     let (mut procedures, mut effects, mut via, mut database, mut globals, mut tables) =
         (0, 0, 0, 0, 0, 0);
     let (mut inputs, mut through) = (0, 0);
+    // characters of symbols and logic as JSON and as text
+    let (mut json, mut texts) = ([0usize; 2], [0usize; 2]);
     let mut slowest = (std::time::Duration::ZERO, String::new());
     let started = std::time::Instant::now();
     for dir in list
@@ -57,6 +60,12 @@ fn corpus_object_logic() {
                 slowest = (elapsed, r.to_string());
             }
             assert!(l.errors.is_empty(), "{r}: {:?}", l.errors);
+            if let Some(o) = workspace.object(r) {
+                json[0] += serde_json::to_string(&o.symbols).unwrap().len();
+                texts[0] += text::symbols(&o.symbols).len();
+            }
+            json[1] += serde_json::to_string(&l).unwrap().len();
+            texts[1] += text::logic(&l).len();
             procedures += l.procedures.len();
             for p in &l.procedures {
                 effects += p.effects.len();
@@ -90,6 +99,11 @@ fn corpus_object_logic() {
         started.elapsed(),
         slowest.0,
         slowest.1
+    );
+    println!(
+        "text forms: symbols {:.1}x, logic {:.1}x shorter than the JSON",
+        json[0] as f64 / texts[0].max(1) as f64,
+        json[1] as f64 / texts[1].max(1) as f64
     );
     assert!(procedures > 0);
 }

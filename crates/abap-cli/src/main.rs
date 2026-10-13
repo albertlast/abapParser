@@ -3,6 +3,7 @@ use std::process::ExitCode;
 mod mcp;
 
 use abap_analysis::abap_source::{AdtOptions, ProviderOptions, SourceRef};
+use abap_analysis::text;
 
 const USAGE: &str = "usage: abap <command> [arguments]
 
@@ -44,12 +45,18 @@ testing:
                        tests of loading sources; port 50000 by default, logon
                        from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
 
+output:
+  JSON by default; --text for symbols, db, calls, logic and graph gives a
+  compact text: definitions written like ABAP, one line per call or access,
+  effects with their statements and conditions, rows to find them
+
 other:
   schema               JSON Schemas of all outputs";
 
 struct Args {
     positional: Vec<String>,
     json: bool,
+    text: bool,
     depth: u32,
     port: u16,
     client: Option<String>,
@@ -60,6 +67,7 @@ fn parse_args() -> Result<Args, String> {
     let mut a = Args {
         positional: Vec::new(),
         json: false,
+        text: false,
         depth: 1,
         port: 50000,
         client: None,
@@ -74,6 +82,7 @@ fn parse_args() -> Result<Args, String> {
         let mut value = |name: &str| it.next().ok_or_else(|| format!("{name} needs a value"));
         match arg.as_str() {
             "--json" => a.json = true,
+            "--text" => a.text = true,
             "--insecure" => insecure = true,
             "--src" => a.options.src.push(value("--src")?),
             "--cache" => a.options.cache = Some(value("--cache")?),
@@ -209,6 +218,10 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
                 }
             }
         }
+        "symbols" if args.text => print!("{}", text::symbols(&abap_analysis::symbols(&source))),
+        "db" if args.text => print!("{}", text::db_access(&abap_analysis::db_access(&source))),
+        "calls" if args.text => print!("{}", text::calls(&abap_analysis::calls(&source))),
+        "logic" if args.text => print!("{}", text::logic(&abap_analysis::logic(&source))),
         "symbols" => print_json(&abap_analysis::symbols(&source)),
         "db" => print_json(&abap_analysis::db_access(&source)),
         "calls" => print_json(&abap_analysis::calls(&source)),
@@ -300,11 +313,19 @@ fn object_command(command: &str, args: &Args) -> ExitCode {
     let workspace = abap_analysis::Workspace::new(provider);
     let errors = if command == "logic" {
         let logic = workspace.logic(&refs[0], args.depth);
-        print_json(&logic);
+        if args.text {
+            print!("{}", text::logic(&logic));
+        } else {
+            print_json(&logic);
+        }
         logic.errors
     } else {
         let graph = workspace.call_graph(&refs, args.depth);
-        print_json(&graph);
+        if args.text {
+            print!("{}", text::call_graph(&graph));
+        } else {
+            print_json(&graph);
+        }
         graph.errors
     };
     if errors.is_empty() {

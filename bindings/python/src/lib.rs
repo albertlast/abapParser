@@ -62,6 +62,24 @@ mod _native {
     }
 
     #[pyfunction]
+    fn text(py: Python<'_>, analysis: &str, source: &str) -> PyResult<String> {
+        py.detach(|| abap_analysis::json::text(analysis, source))
+            .map_err(pyo3::exceptions::PyValueError::new_err)
+    }
+
+    #[pyfunction]
+    fn object_text(
+        py: Python<'_>,
+        analysis: &str,
+        objects: Vec<String>,
+        options: &str,
+        depth: u32,
+    ) -> PyResult<String> {
+        py.detach(|| abap_analysis::json::object_text(analysis, &objects, options, depth))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+    }
+
+    #[pyfunction]
     fn version() -> &'static str {
         env!("CARGO_PKG_VERSION")
     }

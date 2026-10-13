@@ -117,6 +117,24 @@ def statements(source: str) -> List[StatementInfo]:
     return json.loads(_native.statements_json(source))
 
 
+def text(analysis: str, source: str) -> str:
+    """Compact text of one ABAP source file, e.g. for a language model:
+    "symbols" (definitions written like ABAP), "calls" and "db" (one line
+    each), "logic" (per procedure its effects with the statements and
+    conditions). Rows tell where to find things. Raises ValueError for an
+    unknown analysis."""
+    return _native.text(analysis, source)
+
+
+def object_text(analysis: str, objects: List[str], options: SourceOptions, depth: int = 1) -> str:
+    """Compact text of objects like "CLAS:ZCL_ORDERS", sources loaded from
+    folders and/or an SAP system: "symbols" of all sources of the first
+    object, its "logic" with calls followed `depth` hops, or the call "graph"
+    from all of them. Raises RuntimeError for invalid options or a missing
+    object."""
+    return _native.object_text(analysis, list(objects), json.dumps(options), depth)
+
+
 def version() -> str:
     """Version of the native module."""
     return _native.version()
@@ -160,3 +178,13 @@ async def logic_object_async(reference: str, options: SourceOptions, depth: int 
 async def statements_async(source: str) -> List[StatementInfo]:
     """:func:`statements` in a worker thread."""
     return await asyncio.to_thread(statements, source)
+
+
+async def text_async(analysis: str, source: str) -> str:
+    """:func:`text` in a worker thread."""
+    return await asyncio.to_thread(text, analysis, source)
+
+
+async def object_text_async(analysis: str, objects: List[str], options: SourceOptions, depth: int = 1) -> str:
+    """:func:`object_text` in a worker thread."""
+    return await asyncio.to_thread(object_text, analysis, objects, options, depth)

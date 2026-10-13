@@ -102,6 +102,16 @@ class SymbolsTest(unittest.TestCase):
         db = [e for e in fm["effects"] if e["scope"] == "database"]
         self.assertTrue(db and all(e["via"] for e in db))
 
+    def test_text(self):
+        t = abap_parser.text("symbols", SOURCE)
+        self.assertTrue(t.startswith('CLASS zcl_demo DEFINITION PUBLIC FINAL.  " 2-7\n'), t)
+        self.assertIn('    METHODS run IMPORTING iv_id TYPE i RETURNING VALUE(rv_ok) TYPE abap_bool.  " 4\n', t)
+        self.assertIn("  writes rv_ok (parameter) at 10", abap_parser.text("logic", SOURCE))
+        with self.assertRaises(ValueError):
+            abap_parser.text("nope", SOURCE)
+        with self.assertRaises(RuntimeError):
+            abap_parser.object_text("graph", ["CLAS:X"], {})
+
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):
         path = CORPUS / "abapgit" / "src" / "apack" / "zcl_abapgit_apack_migration.clas.abap"
@@ -119,6 +129,7 @@ class AsyncTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await abap_parser.symbols_async(SOURCE), abap_parser.symbols(SOURCE))
         self.assertEqual(await abap_parser.logic_async(SOURCE), abap_parser.logic(SOURCE))
         self.assertEqual(await abap_parser.statements_async(SOURCE), abap_parser.statements(SOURCE))
+        self.assertEqual(await abap_parser.text_async("logic", SOURCE), abap_parser.text("logic", SOURCE))
         with self.assertRaises(RuntimeError):
             await abap_parser.call_graph_async(["CLAS:X"], {})
 

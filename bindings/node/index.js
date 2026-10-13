@@ -115,6 +115,34 @@ function statements(source) {
   return JSON.parse(native.statementsJson(source));
 }
 
+/**
+ * Compact text of one ABAP source file, e.g. for a language model:
+ * "symbols" (definitions written like ABAP), "calls" and "db" (one line each),
+ * "logic" (per procedure its effects with the statements and conditions).
+ * Rows tell where to find things.
+ * @param {"symbols" | "calls" | "db" | "logic"} analysis
+ * @param {string} source ABAP source code
+ * @returns {string}
+ */
+function text(analysis, source) {
+  return native.text(analysis, source);
+}
+
+/**
+ * Compact text of objects, sources loaded from folders and/or an SAP system:
+ * "symbols" of all sources of the first object, its "logic" with calls
+ * followed `depth` hops, or the call "graph" from all of them. Blocks while
+ * loading; see objectTextAsync.
+ * @param {"symbols" | "logic" | "graph"} analysis
+ * @param {string[]} objects objects like "CLAS:ZCL_ORDERS"
+ * @param {import("./index").SourceOptions} options where the sources are
+ * @param {number} [depth=1] hops into other objects to follow
+ * @returns {string}
+ */
+function objectText(analysis, objects, options, depth = 1) {
+  return native.objectText(analysis, objects, JSON.stringify(options), depth);
+}
+
 // The same on the libuv thread pool: promises, the event loop keeps running.
 
 const parsed = (promise) => promise.then((json) => JSON.parse(json));
@@ -151,9 +179,21 @@ const fetchSourceAsync = (reference, options) =>
 const logicObjectAsync = (reference, options, depth = 1) =>
   parsed(native.logicObjectJsonAsync(reference, JSON.stringify(options), depth));
 
+/** @param {string} analysis @param {string} source @returns {Promise<string>} */
+const textAsync = (analysis, source) => native.textAsync(analysis, source);
+
+/**
+ * @param {string} analysis @param {string[]} objects
+ * @param {import("./index").SourceOptions} options @param {number} [depth=1]
+ * @returns {Promise<string>}
+ */
+const objectTextAsync = (analysis, objects, options, depth = 1) =>
+  native.objectTextAsync(analysis, objects, JSON.stringify(options), depth);
+
 module.exports = {
   symbols, dbAccess, calls, callGraph, fetchSource, logic, logicObject, statements,
+  text, objectText,
   symbolsAsync, dbAccessAsync, callsAsync, callGraphAsync, fetchSourceAsync, logicAsync,
-  logicObjectAsync, statementsAsync,
+  logicObjectAsync, statementsAsync, textAsync, objectTextAsync,
   version: native.version,
 };
