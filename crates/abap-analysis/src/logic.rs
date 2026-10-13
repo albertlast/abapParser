@@ -74,6 +74,8 @@ impl Workspace {
     /// in the TOP include, has the scope `global`. Calls into other objects
     /// are followed up to `depth` hops, calls within the object always.
     pub fn logic(&self, root: &SourceRef, depth: u32) -> m::FileLogic {
+        // the engine loads callees one by one: load them before, several at once
+        self.preload(std::slice::from_ref(root), depth);
         let mut engine = Engine::new(Some(self), depth);
         let procedures = match engine.load(root, 0) {
             Some(o) => engine.finish(o),
@@ -93,7 +95,7 @@ impl Workspace {
 
 /// Calls through an interface are followed into at most this many
 /// implementations; with more, which one runs says too little.
-const MAX_IMPLEMENTATIONS: usize = 10;
+pub(crate) const MAX_IMPLEMENTATIONS: usize = 10;
 
 /// Subclasses looked at for redefinitions of a called method; with more,
 /// a class is too general to tell which redefinition runs.

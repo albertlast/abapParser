@@ -173,9 +173,9 @@ Each call has its processing block, receiver, target class, options like `DESTIN
 |---|---|
 | folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml`; BAdIs from `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml`; enhancement code from `.enho.<hash>.abap` |
 | SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
-| cache | sources fetched from the SAP system, one folder per system and client |
+| cache | sources fetched from the SAP system, one folder per system and client, and under `lookups/` the answers about them: enhancements, implementations, subclasses, BAdIs. Delete the folder to see changes made in the system since |
 
-Folders are asked first, then the SAP system. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
+Folders are asked first, then the SAP system. Up to 8 objects, class parts or includes are loaded at once; an SAP system answers each request on its own, so most of the time is waiting. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
 
 ```sh
 abap graph CLAS:ZCL_ORDERS --src ./src --depth 2
@@ -208,7 +208,7 @@ A `CALL BADI` gets the BAdI in `badi` and its interface in `class`. The call gra
 
 Enhancement implementations add code to programs, function modules and classes without changing them: at an `ENHANCEMENT-POINT`, in place of an `ENHANCEMENT-SECTION`, or implicitly at the begin or end of a form, function module, method or include. When an object is loaded, this code is put where it runs, so calls, database access and logic see it like code of the object; `INCLUDE`s in it are loaded too. It goes on the line of its position, written on one line without comments, so the rows of the rest of the source stay the same. The call graph lists each enhancement implementation applied as a unit `ENHO:<name>` with where its code came from.
 
-An SAP system names the enhancements of a program in its index of enhancement includes (ENHINCINX, through the data preview); their code comes from ADT. Implementations switched off by the switch framework are left out, except at static points, which hold declarations. Folders give the `.enho.<hash>.abap` files abapGit writes for each position. Not handled: enhancements of function module parameters, and class enhancements (pre-, post- and overwrite methods, added attributes).
+An SAP system names the enhancements of a program in its index of enhancement includes (ENHINCINX, through the data preview); their code comes from ADT. That is one more query per object loaded, about 0.1 s; with `--cache` it is asked once, and also "none" is kept. Implementations switched off by the switch framework are left out, except at static points, which hold declarations. Folders give the `.enho.<hash>.abap` files abapGit writes for each position. Not handled: enhancements of function module parameters, and class enhancements (pre-, post- and overwrite methods, added attributes).
 
 ### Testing without an SAP system
 
