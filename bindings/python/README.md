@@ -1,6 +1,6 @@
 # abap-parser
 
-Parses ABAP code and tells what it does: classes, methods, forms and declarations; which database tables a statement reads or writes; which methods, function modules and forms it calls; and the logic of each procedure, from conditions and data flow to what it writes in the end. Sources come from a folder (abapGit layout or plain `.abap` files) or from an SAP system through the ADT REST API.
+Parses ABAP code and tells what it does: classes, methods, forms and declarations; which database tables a statement reads or writes; which methods, function modules and forms it calls; and the logic of each procedure, from conditions and data flow to what it writes in the end, also through SUBMIT, ABAP memory and files. CDS views tell their data sources and the fields of each element. Sources come from a folder (abapGit layout or plain `.abap` files) or from an SAP system through the ADT REST API, SAP standard code and dictionary types included.
 
 ```sh
 pip install abap-parser
@@ -31,6 +31,8 @@ logic = await abap_parser.logic_object_async("PROG:ZREPORT", options)
 # compact text, e.g. for a language model
 prompt = abap_parser.text("logic", source)
 outline = await abap_parser.object_text_async("symbols", ["CLAS:ZCL_ORDERS"], options)
+# a CDS view: sources, joins, associations, the fields of each element
+view = abap_parser.cds(open("zi_orders.ddls.asddls", encoding="utf-8").read())
 ```
 
 Every function has an `..._async` variant for asyncio; the native code releases the GIL. The results are dictionaries typed by the TypedDicts in `abap_parser.types`. `text` and `object_text` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.

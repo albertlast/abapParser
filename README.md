@@ -1,14 +1,15 @@
 # abapPaser
 
-An ABAP parser and analysis library written in Rust, with bindings for Node.js and Python.
-The goal is to answer structured questions about ABAP code, so tools don't have to half-parse it ad hoc or pass it to an LLM:
+An ABAP parser and analysis library written in Rust, with bindings for Node.js and Python, a command line tool and an MCP server for language models.
+The goal is to answer structured questions about ABAP code, so tools don't have to half-parse it ad hoc, and language models get facts instead of guessing from raw code:
 
 - **Structure and symbols**: classes, methods, forms, function modules, signatures, data and types
-- **Database access**: which tables and fields are read or written
-- **Call graph**: CALL FUNCTION, method calls, PERFORM, INCLUDE, SUBMIT
-- **Logic**: conditions, assignments, data flow
+- **Database access**: which tables and fields are read or written, Open SQL and native SQL
+- **Call graph**: CALL FUNCTION, method calls, PERFORM, INCLUDE, SUBMIT, across objects
+- **Logic**: conditions, assignments, data flow, and what each procedure writes from which inputs and tables, followed through calls, SUBMIT, ABAP memory and files
+- **CDS views**: data sources, joins, associations, and the fields each element is made of
 
-Includes and referenced objects that are missing locally are fetched from the SAP system through the ADT REST API.
+Includes, referenced objects, dictionary types and SAP standard code that are missing locally are fetched from the SAP system through the ADT REST API. Results come as JSON or as a compact text for language models.
 
 ```sh
 npm install abap-parser     # Node.js 24+, prebuilt for Windows x64, macOS, Linux x64/arm64
@@ -28,7 +29,10 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 | 5. Source providers (abapGit folders, ADT) + call graph | done |
 | 6. Expressions, control flow, data flow → logic API | done |
 | 6b. Native SQL (HANA SQL, SQLScript) for EXEC SQL and AMDP | done |
-| 7. Optional HANA metadata via rust-hdbconnect | next |
+| 7. Dictionary types (structures, data elements) | done, through ADT instead of a HANA connection |
+| 8. Tested against a real SAP system (ABAP Cloud Developer Trial 2025) | done |
+| 9. MCP server and compact text for language models | done |
+| 10. CDS data definitions | done |
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
@@ -42,11 +46,15 @@ The corpus is 1,897 files from eleven open source projects (MIT/Apache-2.0), see
 
 - **Database access:** for 1,431 of the corpus's 1,432 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
 
-- **Call graph:** each corpus is loaded through the folder provider. 97.1% of 58,178 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
+- **Call graph:** each corpus is loaded through the folder provider. 97.2% of 58,178 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
 
 - **Data references:** abaplint's syntax check resolves every variable a statement reads or writes. In the 1,432 files whose objects pass that check (155k references), we find 99.85% of abaplint's references, and 94.8% of ours are also abaplint's. Most of the rest are names abaplint cannot resolve, like constants from SAP includes missing in the corpus. abaplint's conventions are translated before comparing, see `crates/abap-syntax/tests/refs_diff.rs`. For example, in `lo->attr = x` abaplint writes `lo`, while we read `lo` and write `attr`.
 
 - **Native SQL:** abaplint does not parse HANA SQL, so AMDP methods are checked against their own declarations instead. ABAP requires every table, view and AMDP method that an AMDP body uses to be listed after `USING`. In all 33 AMDP methods of the corpus, the tables and AMDP calls the parser finds are exactly the 35 entries of their `USING` lists.
+
+- **CDS:** all 47 data definitions of the corpus are read with their kind and name; 312 of 342 view elements get the fields they are made of, the other 30 are constants. 60 standard views of the ABAP trial were checked as well.
+
+Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
 Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Rejecting invalid syntax in general needs grammars for the remaining statements.
 
@@ -142,7 +150,7 @@ VIEW I_Country (SQL view IFICOUNTRY) 'Country/Region'  " 25-41
     _Text = association
 ```
 
-Data definitions are objects `DDLS:NAME`: from abapGit `.ddls.asddls` files or from an SAP system. A SELECT from a CDS view names the view as its table; `cds` of the view tells where its data comes from.
+Data definitions are objects `DDLS:NAME`: from abapGit `.ddls.asddls` files or from an SAP system. A SELECT from a CDS view names the view as its table; `cds` of the view tells where its data comes from. A SELECT from the SQL view name of a classic view (`IFICOUNTRY` for `I_Country`) is not mapped back to its data definition.
 
 ```sh
 abap cds zi_country.ddls.asddls --text
@@ -360,7 +368,7 @@ for (const p of abap.logic(source).procedures) {
 const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
 // the same as a promise, without blocking the event loop
 const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {src: ["./src"]}, 2);
-// compact text, e.g. for a prompt: "symbols", "calls", "db" or "logic"
+// compact text, e.g. for a prompt: "symbols", "calls", "db", "logic" or "cds"
 const prompt = abap.text("logic", source);
 // a CDS view: sources, associations, the fields of each element
 const view = abap.cds(ddlSource);
@@ -414,14 +422,26 @@ node tools/gen-types.mjs                          # after changing crates/abap-m
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation
 ```
 
+### Testing against an SAP system
+
+The [ABAP Cloud Developer Trial](https://hub.docker.com/r/sapse/abap-cloud-developer-trial) runs in Docker (16 GB of memory for Docker, about 170 GB of disk). Starting it means accepting the SAP developer license:
+
+```sh
+docker run --stop-timeout 3600 -d --name a4h -h vhcala4hci -p 3200:3200 -p 3300:3300 -p 8443:8443 \
+  -p 30213:30213 -p 50000:50000 -p 50001:50001 sapse/abap-cloud-developer-trial:2025 \
+  -skip-limits-check -agree-to-sap-license
+```
+
+ADT is then at `http://localhost:50000`, client 001, user `DEVELOPER` with the password given on the image's page. Put them into `ABAP_ADT_URL`, `ABAP_ADT_CLIENT`, `ABAP_ADT_USER` and `ABAP_ADT_PASSWORD`, for example in a `.env` file, which git ignores. Sources fetched from the system belong into a cache under `tools/.cache/`, also ignored: SAP's code must not be committed. Stop the container with `docker stop -t 7200 a4h`, so the database has time to write its data.
+
 ### Releasing
 
 The version is kept in the Cargo workspace; `bindings/node/package.json` follows it and the Python package reads it through maturin.
 
 ```sh
-node tools/version.mjs 0.2.0          # set it in Cargo.toml, Cargo.lock, package.json
-# add a "## 0.2.0" section to CHANGELOG.md, commit, then
-git tag v0.2.0 && git push origin v0.2.0
+node tools/version.mjs 0.3.0          # set it in Cargo.toml, Cargo.lock, package.json
+# add a "## 0.3.0" section to CHANGELOG.md, commit, then
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:

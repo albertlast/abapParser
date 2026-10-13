@@ -1,6 +1,6 @@
 # abap-parser
 
-Parses ABAP code and tells what it does: classes, methods, forms and declarations; which database tables a statement reads or writes; which methods, function modules and forms it calls; and the logic of each procedure, from conditions and data flow to what it writes in the end. Sources come from a folder (abapGit layout or plain `.abap` files) or from an SAP system through the ADT REST API.
+Parses ABAP code and tells what it does: classes, methods, forms and declarations; which database tables a statement reads or writes; which methods, function modules and forms it calls; and the logic of each procedure, from conditions and data flow to what it writes in the end, also through SUBMIT, ABAP memory and files. CDS views tell their data sources and the fields of each element. Sources come from a folder (abapGit layout or plain `.abap` files) or from an SAP system through the ADT REST API, SAP standard code and dictionary types included.
 
 ```sh
 npm install abap-parser
@@ -33,6 +33,8 @@ const logic = await abap.logicObjectAsync("PROG:ZREPORT", options);
 // compact text, e.g. for a language model
 const prompt = abap.text("logic", source);
 const outline = await abap.objectTextAsync("symbols", ["CLAS:ZCL_ORDERS"], options);
+// a CDS view: sources, joins, associations, the fields of each element
+const view = abap.cds(fs.readFileSync("zi_orders.ddls.asddls", "utf8"));
 ```
 
 Every function has an `…Async` variant returning a promise; it runs on the libuv thread pool. The result types are in `types.d.ts`. `text` and `objectText` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.
