@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "CONSTANTS END OF foo.",
+  "expect": "match",
+  "type": "ConstantEnd"
+ },
+ {
+  "abap": "CONSTANTS END OF foo-bar.",
+  "expect": "match",
+  "type": "ConstantEnd"
+ }
+]

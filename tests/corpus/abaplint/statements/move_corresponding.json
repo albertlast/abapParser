@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "MOVE-CORRESPONDING EXACT <res> TO ls_line.",
+  "expect": "match",
+  "type": "MoveCorresponding"
+ },
+ {
+  "abap": "move-corresponding ls_usbapilink to lr_usbapilink_cd->*.",
+  "expect": "match",
+  "type": "MoveCorresponding"
+ },
+ {
+  "abap": "MOVE-CORRESPONDING bar TO bar KEEPING TARGET LINES.",
+  "expect": "match",
+  "type": "MoveCorresponding"
+ },
+ {
+  "abap": "MOVE-CORRESPONDING lt_foo[] TO lt_bar[].",
+  "expect": "match",
+  "type": "MoveCorresponding"
+ },
+ {
+  "abap": "MOVE-CORRESPONDING gt_input TO gt_output EXPANDING NESTED TABLES KEEPING TARGET LINES.",
+  "expect": "match",
+  "type": "MoveCorresponding",
+  "minRelease": "v740sp05"
+ }
+]

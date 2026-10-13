@@ -1,0 +1,124 @@
+[
+ {
+  "abap": "CLASS lcl_xml DEFINITION ABSTRACT.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS zcl_foo DEFINITION ABSTRACT FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_dang DEFINITION FOR TESTING RISK LEVEL CRITICAL DURATION LONG FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_zlib DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_test DEFINITION FOR TESTING DURATION SHORT RISK LEVEL HARMLESS FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_test DEFINITION FOR TESTING DURATION MEDIUM RISK LEVEL HARMLESS FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_test DEFINITION FOR TESTING DURATION SHORT INHERITING FROM zcl_foo RISK LEVEL HARMLESS FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS lcl_xml_input DEFINITION FINAL INHERITING FROM lcl_xml CREATE PUBLIC.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS lcl_dot_abapgit DEFINITION CREATE PRIVATE FINAL FRIENDS ltcl_dot_abapgit.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS zcl_aoc_unit_test DEFINITION PUBLIC CREATE PUBLIC FOR TESTING.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS lcl_repo_srv DEFINITION FINAL CREATE PRIVATE FRIENDS lcl_app.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS lcl_object_tabl DEFINITION INHERITING FROM lcl_objects_super FINAL.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS ltcl_bobf DEFINITION FINAL FOR TESTING INHERITING FROM zcl_sdf DURATION MEDIUM RISK LEVEL DANGEROUS.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "class ZCL_c1 definition public create public global friends ZCL_c2 ZCL_c3.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "class zcl_foo definition public inheriting from zcl_super final create private global friends zcl_factory.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "class ZCL_SHARED_MEMORY_ROOT definition public final create public shared memory enabled.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS cl_foo DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF blah.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS /foo/bar DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF /foo/bar.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS cl_event_handler DEFINITION PUBLIC FOR EVENTS OF root_entity.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS cl_event_handler DEFINITION PUBLIC ABSTRACT FOR EVENTS OF root_entity.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS cl_event_handler DEFINITION PUBLIC ABSTRACT FINAL FOR EVENTS OF root_entity.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS /foo/cl_event_handler DEFINITION PUBLIC FINAL FOR EVENTS OF /foo/root_entity.",
+  "expect": "match",
+  "type": "ClassDefinition"
+ },
+ {
+  "abap": "CLASS cl_foo DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF blah.",
+  "expect": "match",
+  "type": "ClassDefinition",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "CLASS cl_event_handler DEFINITION PUBLIC FOR EVENTS OF root_entity.",
+  "expect": "match",
+  "type": "ClassDefinition",
+  "minRelease": "v758"
+ }
+]

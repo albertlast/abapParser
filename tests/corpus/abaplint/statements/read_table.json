@@ -1,0 +1,234 @@
+[
+ {
+  "abap": "READ TABLE tt_fields ASSIGNING <ls_fbranch> WITH KEY tabname = 'TEXTL'.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_lengths INDEX lines( lt_lengths ) INTO lv_length.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_obj FROM lv_super TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_table WITH KEY foo-bar BINARY SEARCH.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE gt_stack ASSIGNING <ls_stack> INDEX 1.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE mt_map WITH TABLE KEY old = iv_id INTO ls_map.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE mt_assets TRANSPORTING NO FIELDS WITH KEY table_line = <ls_asset>-url.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE gt_objtype_map INTO ls_objtype_map WITH TABLE KEY obj_typ = is_item-obj_type.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE st_syntax ASSIGNING <ls_syntax> WITH KEY rulename = lv_rulename BINARY SEARCH.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE mt_stage WITH KEY file-path = iv_path file-filename = iv_filename ASSIGNING <ls_stage>.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_foo INTO ls_foo INDEX sy-tfill TRANSPORTING row.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_not_existing WITH KEY agr_name BINARY SEARCH TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_table ASSIGNING <ls_foo> CASTING INDEX lv_index.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE rt_data ASSIGNING FIELD-SYMBOL(<ls_data>) WITH KEY test = <ls_result>-test date = lv_date.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE it_filter WITH KEY obj_name = sdf TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_cross WITH KEY name = lv_name BINARY SEARCH TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_data WITH TABLE KEY k_fg COMPONENTS foo = bar TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lo_obj->methods WITH KEY name = ls_meta-meta-hand visi = cl_abap=>public TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE entities REFERENCE INTO node WITH KEY name = iv_name.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_table WITH KEY field = lv_value TRANSPORTING NO FIELDS BINARY SEARCH.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_data WITH KEY <fs>.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE itab FROM line INTO line COMPARING col2.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab WITH KEY <ls_foo>-name BINARY SEARCH TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab WITH KEY = foo-bar.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE <tab> WITH KEY (gc_field) = lv_field TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE <tab> TRANSPORTING NO FIELDS WITH KEY (lv_key) COMPONENTS (lv_comp) = <lv_field>.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE data TRANSPORTING NO FIELDS WITH KEY line(6) = 'foo'.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "read table tab assigning <fs> binary search with key node->from = lv_from_.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE tab FROM ls_val USING KEY primary_key TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE <tab> FROM <line> USING KEY (key) TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE tab ASSIGNING <wa> with key path = iv_path.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab INTO ls_tab INDEX sy-tabix + 1 USING KEY name.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab INTO ls_tab INDEX lv_tabix COMPARING id.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab INDEX l_index ASSIGNING <foo$bar>.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab\n  WITH KEY field1 = ls_foo-field1\n  field2 = ls_foo-field2\n  INTO ls_target\n  COMPARING foo moo\n  TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE lt_tab FROM lv_line INTO lv_target COMPARING fields-field.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "read table <table> from <from> into <into> transporting (name).",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "read table <table> index lv_line into <target> comparing (name) transporting (name).",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE res INDEX sy-tabix COMPARING ranc name(4).",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE sdf WITH TABLE KEY division = fields-material/foo/bar INTO ls_res.",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE tab INDEX int COMPARING (var1) (var2) (var3).",
+  "expect": "match",
+  "type": "ReadTable"
+ },
+ {
+  "abap": "READ TABLE mo_repo->get_files_local( ) INTO ls_local_file WITH KEY file = is_file.",
+  "expect": "match",
+  "type": "ReadTable",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "READ TABLE lt_tags TRANSPORTING NO FIELDS WITH TABLE KEY name_key\n            COMPONENTS name = zcl_abapgit_git_tag=>add_tag_prefix( lv_new_tag_name ).",
+  "expect": "match",
+  "type": "ReadTable",
+  "release": "v702"
+ },
+ {
+  "abap": "READ TABLE lt_lcs WITH KEY key = lines( lt_lcs ) - 1 INTO temp15.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "READ TABLE lt_objects INTO ls_object USING KEY sha WITH KEY sha1 = ls_remote-remote_sha1.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "READ TABLE lt_tab USING KEY (lv_key) INTO lv.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

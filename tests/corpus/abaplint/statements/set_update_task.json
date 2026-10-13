@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SET UPDATE TASK LOCAL.",
+  "expect": "match",
+  "type": "SetUpdateTask"
+ },
+ {
+  "abap": "SET UPDATE TASK LOCAL.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

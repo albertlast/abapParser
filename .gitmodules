@@ -1,0 +1,43 @@
+[submodule "tests/corpus/abapgit"]
+	path = tests/corpus/abapgit
+	url = https://github.com/abapGit/abapGit.git
+	shallow = true
+[submodule "tests/corpus/abap-cheat-sheets"]
+	path = tests/corpus/abap-cheat-sheets
+	url = https://github.com/SAP-samples/abap-cheat-sheets.git
+	shallow = true
+[submodule "tests/corpus/abap2xlsx"]
+	path = tests/corpus/abap2xlsx
+	url = https://github.com/abap2xlsx/abap2xlsx.git
+	shallow = true
+[submodule "tests/corpus/code-pal-for-abap"]
+	path = tests/corpus/code-pal-for-abap
+	url = https://github.com/SAP/code-pal-for-abap.git
+	shallow = true
+[submodule "tests/corpus/abapOpenChecks"]
+	path = tests/corpus/abapOpenChecks
+	url = https://github.com/larshp/abapOpenChecks.git
+	shallow = true
+[submodule "tests/corpus/abap-sdk-for-azure"]
+	path = tests/corpus/abap-sdk-for-azure
+	url = https://github.com/microsoft/ABAP-SDK-for-Azure.git
+	shallow = true
+[submodule "tests/corpus/abap_fm_json"]
+	path = tests/corpus/abap_fm_json
+	url = https://github.com/cesar-sap/abap_fm_json.git
+	shallow = true
+[submodule "tests/corpus/abap2UI5"]
+	path = tests/corpus/abap2UI5
+	url = https://github.com/abap2UI5/abap2UI5.git
+	shallow = true
+[submodule "tests/corpus/ajson"]
+	path = tests/corpus/ajson
+	url = https://github.com/sbcgua/ajson.git
+	shallow = true
+[submodule "tests/corpus/abap-logger"]
+	path = tests/corpus/abap-logger
+	url = https://github.com/ABAP-Logger/ABAP-Logger.git
+	shallow = true
+[submodule "tests/corpus/spma-2025-08"]
+	path = tests/corpus/spma-2025-08
+	url = https://github.com/keremkoseoglu/spma-2025-08

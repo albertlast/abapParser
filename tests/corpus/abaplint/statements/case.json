@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "CASE foobar.",
+  "expect": "match",
+  "type": "Case"
+ }
+]

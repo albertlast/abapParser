@@ -1,0 +1,213 @@
+[
+ {
+  "abap": "DELETE FROM (c_tabname) WHERE type = iv_type AND value = iv_value.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM (iv_table_name) WHERE (iv_where_on_keys).",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM vclmf WHERE vclname = lv_vclname.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM ZFOOBAR CLIENT SPECIFIED WHERE MANDT = SY-MANDT.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE zfoo FROM TABLE mt_delete.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE (c_tabname) FROM <wa>.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "delete zfoo client specified from table lt_tab.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM zfoo WHERE timestamp < l_timestampl AND state IN (c_value1, c_value2).",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM zfoo WHERE bar LIKE 'FOO'.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "delete from zfoo where id is not null.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM /foo/bar CONNECTION (con) WHERE id = lv_id.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM /foo/bar CONNECTION my_con WHERE id = lv_id.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM /foo/bar CONNECTION 'R/3*MYCON' WHERE id = lv_id.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "delete table connection (lc_db) from table itab.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM ztable USING CLIENT @ls_data-mandt.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE ztable FROM TABLE lt_bar[].",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE STXL CLIENT SPECIFIED.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE zfoo FROM @ls_wa.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE (mv_tab) FROM @ls_wa.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE zfoo CLIENT SPECIFIED FROM @ls_wa.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE zfoo CLIENT SPECIFIED FROM TABLE @lt_wa.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv UP TO 10 ROWS.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha UP TO 10 ROWS.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY c1.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY c1 DESCENDING.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY PRIMARY KEY UP TO 10 ROWS.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY c1 UP TO 100 ROWS OFFSET 5.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY c1, c2 DESCENDING.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv UP TO @lv_n ROWS OFFSET @lv_off.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv OFFSET @lv_off UP TO 10 ROWS.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE zalpha FROM @wa INDICATORS NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE zalpha FROM TABLE @itab INDICATORS NULL BITFIELD %zind.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE zalpha FROM @wa MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE zalpha FROM TABLE @itab MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "DeleteDatabase"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv ORDER BY c1 UP TO 10 ROWS OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM zalpha WHERE c1 = @lv OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "DeleteDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "DELETE FROM ZFOOBAR CLIENT SPECIFIED WHERE MANDT = SY-MANDT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "DELETE FROM zfoo WHERE id = lv_id.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

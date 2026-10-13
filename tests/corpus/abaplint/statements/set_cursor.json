@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "SET CURSOR FIELD 'ASDF'.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "SET CURSOR FIELD 'ASDF' LINE 1.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "set cursor lv_col lv_row.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "SET CURSOR FIELD name OFFSET pos.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "SET CURSOR FIELD name LINE line OFFSET pos.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "set cursor line lv_line offset lv_offset.",
+  "expect": "match",
+  "type": "SetCursor"
+ },
+ {
+  "abap": "SET CURSOR FIELD 'ASDF'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

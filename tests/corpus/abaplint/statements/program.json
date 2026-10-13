@@ -1,0 +1,53 @@
+[
+ {
+  "abap": "PROGRAM zfoobar.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zfoobar MESSAGE-ID 01 LINE-SIZE 132.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zfoobar MESSAGE-ID 01 NO STANDARD PAGE HEADING LINE-SIZE 132.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zbar LINE-COUNT 70.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM NO STANDARD PAGE HEADING.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM SAPMYMOO MESSAGE-ID Y>.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zfoo MESSAGE-ID Y<.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zfoo NO STANDARD PAGE HEADING LINE-SIZE 80 LINE-COUNT 65(0) MESSAGE-ID Y<.",
+  "expect": "match",
+  "type": "Program"
+ },
+ {
+  "abap": "PROGRAM zfoobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

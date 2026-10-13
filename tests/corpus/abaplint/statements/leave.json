@@ -1,0 +1,73 @@
+[
+ {
+  "abap": "LEAVE TO SCREEN 1001.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO SCREEN '1234'.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE SCREEN.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE LIST-PROCESSING.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO CURRENT TRANSACTION.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO TRANSACTION 'ZHELLO'.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO LIST-PROCESSING.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE PROGRAM.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO TRANSACTION lv_tcode AND SKIP FIRST SCREEN.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "leave list-processing and return to screen 0.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO CURRENT TRANSACTION AND SKIP FIRST SCREEN.",
+  "expect": "match",
+  "type": "Leave"
+ },
+ {
+  "abap": "LEAVE TO SCREEN 1001.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "print-control index-line lv_line.",
+  "expect": "match",
+  "type": "PrintControl"
+ },
+ {
+  "abap": "print-control function 'ASDF'.",
+  "expect": "match",
+  "type": "PrintControl"
+ },
+ {
+  "abap": "PRINT-CONTROL LINE 1 POSITION 1 SIZE siz.",
+  "expect": "match",
+  "type": "PrintControl"
+ },
+ {
+  "abap": "PRINT-CONTROL CPI 1 LPI 1 FONT 1.",
+  "expect": "match",
+  "type": "PrintControl"
+ },
+ {
+  "abap": "print-control index-line lv_line.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

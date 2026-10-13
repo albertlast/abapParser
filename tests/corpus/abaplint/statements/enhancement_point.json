@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "ENHANCEMENT-POINT point SPOTS spot.",
+  "expect": "match",
+  "type": "EnhancementPoint"
+ },
+ {
+  "abap": "ENHANCEMENT-POINT point SPOTS spot STATIC.",
+  "expect": "match",
+  "type": "EnhancementPoint"
+ },
+ {
+  "abap": "ENHANCEMENT-POINT foo-bar SPOTS spot.",
+  "expect": "match",
+  "type": "EnhancementPoint"
+ },
+ {
+  "abap": "ENHANCEMENT-POINT point SPOTS spot INCLUDE BOUND.",
+  "expect": "match",
+  "type": "EnhancementPoint"
+ },
+ {
+  "abap": "ENHANCEMENT-POINT point SPOTS spot.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

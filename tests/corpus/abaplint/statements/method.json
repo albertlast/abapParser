@@ -1,0 +1,89 @@
+[
+ {
+  "abap": "METHOD zfoobar.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD foobar by kernel module foobar fail.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD foobar by kernel module foobar ignore.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD foobar by kernel module foo bar ignore.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD if_foo~write BY KERNEL MODULE foobar.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD foobar BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD blah BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD blah BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING zfoo zbar.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD sdfs BY DATABASE GRAPH WORKSPACE FOR HDB LANGUAGE SQL USING zsdfsd zsdf.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD sdfd BY DATABASE PROCEDURE FOR HDB LANGUAGE GRAPH OPTIONS READ-ONLY USING zcl_bar=>bar.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD /ui2/bar.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT OPTIONS SUPPRESS SYNTAX ERRORS.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY SUPPRESS SYNTAX ERRORS.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS DETERMINISTIC.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY DETERMINISTIC USING zfoo.",
+  "expect": "match",
+  "type": "MethodImplementation"
+ },
+ {
+  "abap": "METHOD foo BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "METHOD foo BY KERNEL MODULE bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

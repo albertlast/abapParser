@@ -1,0 +1,139 @@
+[
+ {
+  "abap": "CREATE DATA et_table LIKE io_grid->mt_outtab.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "create data wa like line of <f_excel_tab>.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_tab_ref TYPE STANDARD TABLE OF (pv_tabname).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data LIKE STANDARD TABLE OF <fs_comp>.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_format TYPE STANDARD TABLE OF (<ls_foo>-tabname) WITH DEFAULT KEY.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_area TYPE REF TO zcl_area.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA wo_data   TYPE HANDLE lo_table.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA result TYPE n LENGTH lv_length.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA result TYPE p LENGTH lv_length DECIMALS lv_decimals.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA dref.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA result LIKE TABLE OF <ls>.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA result TYPE TABLE OF (ls_foo-bar).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE LINE OF (type_ddic).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data LIKE HASHED TABLE OF <lv_buf> WITH UNIQUE KEY (lv_key).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA result TYPE STANDARD TABLE OF (foo) WITH NON-UNIQUE KEY (bar).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "create data foo-bar area handle lv_hdl like lv_bar.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lv_ref AREA HANDLE lr_instance LIKE lt_foo.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE STANDARD TABLE OF (name) WITH NON-UNIQUE DEFAULT KEY.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data LIKE STANDARD TABLE OF <l_data> INITIAL SIZE l_size.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE HASHED TABLE OF (mv_tabname) WITH UNIQUE KEY (lt_key).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "create data lt_ref type sorted table of (iv_tabname) with unique key foo bar.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA ref TYPE STANDARD TABLE OF (table) WITH KEY (key).",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA rr_data TYPE TABLE OF REF TO data.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE STANDARD TABLE OF (foo-bar) WITH EMPTY KEY.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA casting_table TYPE STANDARD TABLE OF (table_name) WITH EMPTY KEY.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA casting_table TYPE STANDARD TABLE OF (table_name) WITH EMPTY KEY.",
+  "expect": "match",
+  "type": "CreateData",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "CREATE DATA lr_ref TYPE REF TO data.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

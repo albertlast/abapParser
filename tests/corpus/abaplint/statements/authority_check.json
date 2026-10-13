@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "AUTHORITY-CHECK OBJECT 'ZFOOBAR' ID 'ACTVT' FIELD '06'.",
+  "expect": "match",
+  "type": "AuthorityCheck"
+ },
+ {
+  "abap": "AUTHORITY-CHECK OBJECT 'S_TCODE' FOR USER iv_user ID 'TCD' FIELD 'ZFOO'.",
+  "expect": "match",
+  "type": "AuthorityCheck"
+ },
+ {
+  "abap": "AUTHORITY-CHECK OBJECT 'S_USER_SAS' ID 'ACTVT' FIELD i_act ID 'SUBSYSTEM' DUMMY.",
+  "expect": "match",
+  "type": "AuthorityCheck"
+ },
+ {
+  "abap": "AUTHORITY-CHECK OBJECT 'ZFOOBAR' ID 'FOO' FIELD 'BAR' ID 'ACTVT' FIELD '06'.",
+  "expect": "match",
+  "type": "AuthorityCheck"
+ },
+ {
+  "abap": "AUTHORITY-CHECK OBJECT 'ZFOOBAR' ID 'ACTVT' FIELD '06'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

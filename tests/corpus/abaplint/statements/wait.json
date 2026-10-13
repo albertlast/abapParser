@@ -1,0 +1,49 @@
+[
+ {
+  "abap": "WAIT UP TO 1 SECONDS.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "WAIT UNTIL foo >= bar.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "WAIT UNTIL foo >= bar UP TO 1 SECONDS.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "WAIT FOR MESSAGING CHANNELS UNTIL foobar = abap_true UP TO 10 SECONDS.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "WAIT FOR ASYNCHRONOUS TASKS UNTIL mv_tasks_running < mv_max_tasks.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "wait for asynchronous tasks messaging channels push channels until foo = bar up to 2 seconds.",
+  "expect": "match",
+  "type": "Wait"
+ },
+ {
+  "abap": "WAIT FOR PUSH CHANNELS UNTIL ms_message IS NOT INITIAL UP TO iv_timeout SECONDS.",
+  "expect": "match",
+  "type": "Wait",
+  "minRelease": "v750"
+ },
+ {
+  "abap": "WAIT FOR PUSH CHANNELS UNTIL ms_message IS NOT INITIAL UP TO iv_timeout SECONDS.",
+  "expect": "match",
+  "type": "Wait",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "WAIT FOR PUSH CHANNELS UNTIL ms_message IS NOT INITIAL UP TO iv_timeout SECONDS.",
+  "expect": "unknown",
+  "release": "v702"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "DETAIL.",
+  "expect": "match",
+  "type": "Detail"
+ },
+ {
+  "abap": "DETAIL.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

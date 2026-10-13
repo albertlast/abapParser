@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "abap-parser"
+# from the Cargo workspace, see tools/version.mjs
+dynamic = ["version"]
+description = "ABAP parser: symbols, database access, calls and logic of ABAP code, sources from folders or an SAP system"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["abap", "sap", "parser", "abapgit", "adt"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/albertlast/abapPaser"
+Repository = "https://github.com/albertlast/abapPaser"
+
+[tool.maturin]
+module-name = "abap_parser._native"
+python-source = "python"
+features = ["pyo3/extension-module"]
+exclude = ["**/__pycache__/**", "**/*.pdb", "**/*.pyd", "**/*.so"]

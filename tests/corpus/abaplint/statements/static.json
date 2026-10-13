@@ -1,0 +1,68 @@
+[
+ {
+  "abap": "STATICS foo TYPE c.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS st_obj_serializer_map TYPE SORTED TABLE OF ty_obj_serializer_map WITH UNIQUE KEY item.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "statics tx_title(40) type c.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "statics l_heading.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS sv_first TYPE abap_bool VALUE abap_true.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS asdf/foo/bar TYPE i.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS stat(255).",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS lv_stat1 TYPE c LENGTH 1.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS foo TYPE p DECIMALS 2.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS lv_stat2 LENGTH 1 TYPE c.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS foo-bar TYPE i.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS t_set(100) OCCURS 0 WITH HEADER LINE.",
+  "expect": "match",
+  "type": "Static"
+ },
+ {
+  "abap": "STATICS lv_count TYPE i.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

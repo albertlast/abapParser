@@ -1,0 +1,39 @@
+[
+ {
+  "abap": "GET BADI lo_foobar.",
+  "expect": "match",
+  "type": "GetBadi"
+ },
+ {
+  "abap": "GET BADI lo_foobar FILTERS foo = bar.",
+  "expect": "match",
+  "type": "GetBadi"
+ },
+ {
+  "abap": "GET BADI l_badi CONTEXT me.",
+  "expect": "match",
+  "type": "GetBadi"
+ },
+ {
+  "abap": "GET BADI r_badi TYPE (iv_name).",
+  "expect": "match",
+  "type": "GetBadi"
+ },
+ {
+  "abap": "GET BADI lo_badi TYPE (iv_badi_name) FILTERS foo = bar.",
+  "expect": "match",
+  "type": "GetBadi"
+ },
+ {
+  "abap": "GET BADI lo_foobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "GET BADI lo_foobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

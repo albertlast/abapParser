@@ -1,0 +1,16 @@
+[package]
+name = "abap-source"
+description = "Source providers for ABAP objects: abapGit folders, disk cache, SAP ADT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+ureq = { version = "=3.4.2", optional = true, default-features = false, features = ["rustls", "platform-verifier", "gzip"] }
+base64 = { version = "0.22", optional = true }
+
+[features]
+default = ["adt"]
+adt = ["dep:ureq", "dep:base64"]

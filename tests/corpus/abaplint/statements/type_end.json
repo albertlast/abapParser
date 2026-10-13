@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "TYPES END OF gty_icon.",
+  "expect": "match",
+  "type": "TypeEnd"
+ },
+ {
+  "abap": "TYPES END OF /foo/bar.",
+  "expect": "match",
+  "type": "TypeEnd"
+ }
+]

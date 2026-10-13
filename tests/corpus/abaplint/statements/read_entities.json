@@ -1,0 +1,103 @@
+[
+ {
+  "abap": "READ ENTITIES OF zi_foo IN LOCAL MODE\n    ENTITY ent\n    FIELDS ( field ) WITH CORRESPONDING #( keys )\n    RESULT DATA(res).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF sdf IN LOCAL MODE\n    ENTITY reqe\n      FIELDS ( foo bar )\n      WITH CORRESPONDING #( keys )\n    RESULT DATA(res)\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF sdf IN LOCAL MODE\n      ENTITY ent BY \\_acc\n        FIELDS ( field )\n        WITH CORRESPONDING #( keys )\n    RESULT DATA(tr)\n    LINK DATA(link)\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /foo/bar IN LOCAL MODE\n     ENTITY ent\n     FIELDS ( aedat )\n     WITH CORRESPONDING #( keys )\n     RESULT DATA(lt_dat)\n     FAILED DATA(lt_failed).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /foo/bar IN LOCAL MODE\n    ENTITY ent\n    FROM VALUE #(\n      FOR <key> IN keys (\n        %key = <key>\n        control = VALUE #( sdf = if_abap_behv=>mk-on ) ) )\n      RESULT DATA(lt_tab).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /foo/bar\n    ENTITY ent\n    FIELDS ( field )\n    WITH CORRESPONDING #( tab )\n    RESULT DATA(lt_dat)\n    FAILED DATA(lt_failed).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /foo/bar\n    ENTITY ent\n    ALL FIELDS WITH VALUE #( ( sdf = '123' ) )\n    RESULT DATA(lt_tab)\n    FAILED DATA(lt_failed)\n    REPORTED DATA(lt_reported).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF ZDMO_R_RAPG_ProjectTP\n    IN LOCAL MODE ENTITY Node BY \\_Project\n    FROM CORRESPONDING #( rapbo_nodes )\n    LINK DATA(rapbo_nodes_links).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /DMO/FSA_R_RootTP\n      ENTITY Root\n        FIELDS ( StringProperty ) WITH CORRESPONDING #( keys )\n        RESULT DATA(roots)\n      ENTITY Root BY \\_Child\n        ALL FIELDS WITH CORRESPONDING #( keys )\n        RESULT DATA(children)\n      FAILED DATA(read_failed).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF /foo/i_bar IN LOCAL MODE\n     ENTITY /foo/i_bar\n     FIELDS ( field1 field2 )\n     WITH CORRESPONDING #( keys )\n     RESULT DATA(tab).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITY /foo/bar\\\\moo FROM VALUE #( )\n    RESULT DATA(lt_ratio_result).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITY IN LOCAL MODE /foo/bar\\\\TRange\n       ALL FIELDS\n       WITH CORRESPONDING #( keys )\n       RESULT DATA(lt_records).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITY /foo/bar\n          FIELDS ( moo ) WITH lt_struct\n          RESULT DATA(lt_result)\n          FAILED DATA(lt_failed).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITY IN LOCAL MODE /foo/bar\\\\sfsdf\n     ALL FIELDS\n     WITH VALUE #( )\n     RESULT    DATA(lt_assign)\n     FAILED    failed\n     REPORTED  reported.",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "read entity in local mode /foo/bar\\\\moo\n        by \\_foosub\n           fields ( foo bar )\n           with value #( )\n           result    data(result).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "read entities of /foo/bar\n      entity ename\n      all fields with tabbb\n      result lt_res\n      reported data(lt_reported)\n      failed data(lt_failed).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "read entity in local mode /foo/bar\\\\sub\n                all fields with value #( ) result data(lt_assumption)\n      by \\_bus all fields with value #( ) result data(lt_bus)\n      by \\_car all fields with value #( ) result data(lt_car).",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "read entities of /foo/bar in local mode\n      entity theName\n             all fields\n               with value #( )\n             result data(lt_res1)\n\n       by \\_bar\n        fields ( field1 field2 )\n            with value #( )\n        result data(lt_res2)\n\n       failed failed\n       reported reported.",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF i_journalentrytp\n     ENTITY JournalEntry\n     EXECUTE Validate\n     FROM lt_param\n     RESULT lt_val_res\n     FAILED ls_val_failed\n     REPORTED ls_val_reported.",
+  "expect": "match",
+  "type": "ReadEntities"
+ },
+ {
+  "abap": "READ ENTITIES OF zi_foo IN LOCAL MODE\n    ENTITY ent\n    FIELDS ( field ) WITH CORRESPONDING #( keys )\n    RESULT DATA(res).",
+  "expect": "match",
+  "type": "ReadEntities",
+  "release": "OpenABAP"
+ }
+]

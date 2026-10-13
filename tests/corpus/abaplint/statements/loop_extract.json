@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "LOOP.",
+  "expect": "match",
+  "type": "LoopExtract"
+ }
+]

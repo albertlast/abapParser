@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "STATICS END OF foo.",
+  "expect": "match",
+  "type": "StaticEnd"
+ }
+]

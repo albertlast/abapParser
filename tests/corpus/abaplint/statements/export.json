@@ -1,0 +1,180 @@
+[
+ {
+  "abap": "EXPORT foo TO MEMORY ID 'MOO'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT list = it_list TO DATA BUFFER lv_xstring COMPRESSION ON.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT mv_errty = mv_errty TO DATA BUFFER p_attributes.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT (lt_export) TO DATA BUFFER lv_attributes.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT lt_table1 lt_table2 TO MEMORY ID L_MEMID.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "export lt_dump to database LTCX(LT) id ls_key.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT p1 = is_option TO DATABASE indx(xl) FROM ws_indx ID ws_indx-srtfd.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT tab = tab TO DATABASE foo(tx) ID bar FROM moo.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT foo = lt_foo TO DATABASE indx(rt) FROM indx_wa CLIENT sy-mandt ID lv_id.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT foo = <bar> TO INTERNAL TABLE tab.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT tab = lt_tab TO SHARED MEMORY bar(aa) ID lv_id.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT size = l_size TO DATA BUFFER ls_foo-data COMPRESSION OFF.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT data_tab FROM it_data TO DATABASE foobar(fo) FROM gs_field ID key USING var.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT lv_flag FROM lv_flag TO SHARED BUFFER indx(ar) ID 'BLAH'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT itab = l_log_itab TO DATABASE foobar(aa) ID l_key FROM l_wa code page hint l_settings-field.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT tclass = lv_foo lv_bar TO MEMORY ID 'ID'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT foo-bar moo-boo TO MEMORY ID 'ABCD'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT field = field TO SHARED BUFFER INDX(AB) ID 'FOO' FROM var.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT data = lt_data TO DATABASE indx(zr) FROM lv_indx CLIENT lv_clnt ID lc_id.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT basics FROM h_basics\n    addons FROM <h_addons>\n    version FROM h_version\n    TO DATABASE rfdt(kk) ID h_runkey.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT $hcat1 TO MEMORY ID sy-uname.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT <tab> FROM <tab> TO DATABASE bar(as) FROM fr ID id.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT gi_inptab[] TO MEMORY ID sy-repid.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT foo TO MEMORY.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "export *zfoobar-field to memory.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT 'BAR' TO MEMORY ID 'FOO'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT moo1 FROM lv_moo1 TO DATABASE indx(~a) ID lv_id.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT ok-code = ok-code TO MEMORY ID 'OK-CODE'.",
+  "expect": "match",
+  "type": "Export"
+ },
+ {
+  "abap": "EXPORT foo TO MEMORY ID 'MOO'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "EXPORT data = lt_data TO DATABASE indx(zr) FROM lv_indx ID lc_id.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "EXPORT foo TO SHARED BUFFER indx(AB) ID 'FOO' FROM var.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "EXPORT foo TO SHARED MEMORY indx(AB) ID 'FOO' FROM var.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "EXPORT foo TO DATA BUFFER lv_buf.",
+  "expect": "match",
+  "type": "Export",
+  "release": "Newest",
+  "lang": "KeyUser"
+ },
+ {
+  "abap": "EXPORT foo TO INTERNAL TABLE lt_tab.",
+  "expect": "match",
+  "type": "Export",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDMODULE.",
+  "expect": "match",
+  "type": "EndModule"
+ },
+ {
+  "abap": "ENDMODULE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

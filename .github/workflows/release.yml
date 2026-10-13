@@ -1,0 +1,223 @@
+# Builds and publishes a release when a tag like v0.2.0 is pushed:
+# - npm: abap-parser and one package per platform with its prebuilt
+#   native module (trusted publishing, configured for each of the packages)
+# - PyPI: abap-parser wheels and source distribution (trusted publishing,
+#   environment "pypi")
+# - GitHub release with the abap command line tool per platform
+#
+# Started by hand (workflow_dispatch) it builds and tests everything and
+# keeps the results as workflow artifacts, without publishing.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The tag is the version of every package
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node tools/version.mjs --check "$GITHUB_REF_NAME"
+
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  node:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: win32-x64-msvc, os: windows-latest, target: x86_64-pc-windows-msvc, lib: abap_node.dll, test: true}
+          # tested with an x64 Node.js running under Rosetta
+          - {platform: darwin-x64, os: macos-latest, target: x86_64-apple-darwin, lib: libabap_node.dylib, test: true, node-arch: x64}
+          - {platform: darwin-arm64, os: macos-latest, target: aarch64-apple-darwin, lib: libabap_node.dylib, test: true}
+          - {platform: linux-x64-gnu, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, lib: libabap_node.so, test: true}
+          - {platform: linux-arm64-gnu, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, lib: libabap_node.so, test: true}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release -p abap-node --target ${{ matrix.target }}
+      - run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.lib }} dist/abap_parser.${{ matrix.platform }}.node
+      - uses: actions/setup-node@v4
+        if: matrix.test
+        with:
+          node-version: 22
+          architecture: ${{ matrix.node-arch }}
+      - name: The module loads and works
+        if: matrix.test
+        working-directory: bindings/node
+        run: |
+          cp ../../dist/abap_parser.${{ matrix.platform }}.node abap_parser.node
+          npm test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node-${{ matrix.platform }}
+          path: dist/*
+
+  npm:
+    needs: [node, test]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: node-*
+          merge-multiple: true
+          path: artifacts
+      - run: node bindings/node/npm/packages.mjs artifacts npm-out
+      # trusted publishing: npm checks the workflow through OIDC, no token;
+      # it needs npm 11.5.1 or later and adds provenance by itself
+      - run: npm install -g npm@11
+      - name: Publish the platform packages, then the main package
+        run: |
+          for dir in npm-out/*/; do
+            if [ "$dir" != "npm-out/core/" ]; then
+              (cd "$dir" && npm publish --access public)
+            fi
+          done
+          cd npm-out/core && npm publish --access public
+
+  wheels:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, target: x86_64, manylinux: auto}
+          - {os: ubuntu-latest, target: aarch64, manylinux: auto}
+          - {os: windows-latest, target: x64}
+          - {os: macos-latest, target: x86_64}
+          - {os: macos-latest, target: aarch64}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          maturin-version: 1.15.0
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: bindings/python/dist/*.whl
+
+  sdist:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          maturin-version: 1.15.0
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: bindings/python/dist/*.tar.gz
+
+  pypi:
+    needs: [wheels, sdist, test]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  cli:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, target: x86_64-pc-windows-msvc}
+          - {os: macos-latest, target: x86_64-apple-darwin}
+          - {os: macos-latest, target: aarch64-apple-darwin}
+          - {os: ubuntu-22.04, target: x86_64-unknown-linux-gnu}
+          - {os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release -p abap-cli --target ${{ matrix.target }}
+      - name: Archive
+        run: |
+          version=$(node tools/version.mjs)
+          name="abap-${version}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp LICENSE README.md "dist/$name/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/abap.exe" "dist/$name/"
+            (cd dist && 7z a "$name.zip" "$name" > /dev/null)
+          else
+            cp "target/${{ matrix.target }}/release/abap" "dist/$name/"
+            tar -czf "dist/$name.tar.gz" -C dist "$name"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+
+  github-release:
+    needs: [cli, npm, pypi]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          merge-multiple: true
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/version.mjs --notes "$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md

@@ -1,0 +1,27 @@
+[
+ {
+  "abap": "WHILE strlen( rv_bits ) < iv_length.",
+  "expect": "match",
+  "type": "While"
+ },
+ {
+  "abap": "WHILE NOT lv_hex IS INITIAL.",
+  "expect": "match",
+  "type": "While"
+ },
+ {
+  "abap": "WHILE lv_int < 10 VARY lv_vary FROM field1 NEXT field2.",
+  "expect": "match",
+  "type": "While"
+ },
+ {
+  "abap": "WHILE <foo-bar> IS INITIAL.",
+  "expect": "match",
+  "type": "While"
+ },
+ {
+  "abap": "WHILE sy-index <= 10\n      VARY foo FROM moo NEXT boo\n      VARY bar FROM baa NEXT caa.",
+  "expect": "match",
+  "type": "While"
+ }
+]

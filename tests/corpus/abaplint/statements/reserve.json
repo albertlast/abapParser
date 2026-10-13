@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "RESERVE 10 LINES.",
+  "expect": "match",
+  "type": "Reserve"
+ },
+ {
+  "abap": "RESERVE 10 LINES.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

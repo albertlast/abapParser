@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "PROCESS AFTER INPUT.",
+  "expect": "match",
+  "type": "ProcessAfterInput"
+ },
+ {
+  "abap": "PROCESS AFTER INPUT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

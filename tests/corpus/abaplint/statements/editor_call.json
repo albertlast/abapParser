@@ -1,0 +1,27 @@
+[
+ {
+  "abap": "EDITOR-CALL FOR lv_source DISPLAY-MODE TITLE lv_title.",
+  "expect": "match",
+  "type": "EditorCall"
+ },
+ {
+  "abap": "EDITOR-CALL FOR REPORT 'ZFOO'.",
+  "expect": "match",
+  "type": "EditorCall"
+ },
+ {
+  "abap": "EDITOR-CALL FOR lt_text TITLE lv_title DISPLAY-MODE.",
+  "expect": "match",
+  "type": "EditorCall"
+ },
+ {
+  "abap": "EDITOR-CALL FOR lt_tab TITLE |Display| DISPLAY-MODE.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "EDITOR-CALL FOR lv_source DISPLAY-MODE TITLE lv_title.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

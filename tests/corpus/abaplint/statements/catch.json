@@ -1,0 +1,22 @@
+[
+ {
+  "abap": "catch cx_foo.",
+  "expect": "match",
+  "type": "Catch"
+ },
+ {
+  "abap": "CATCH cx_pak_invalid_data cx_pak_invalid_state.",
+  "expect": "match",
+  "type": "Catch"
+ },
+ {
+  "abap": "CATCH /foo/cx_bar INTO lr_/foo/cx_bar.",
+  "expect": "match",
+  "type": "Catch"
+ },
+ {
+  "abap": "CATCH BEFORE UNWIND zcx_static_exception.",
+  "expect": "match",
+  "type": "Catch"
+ }
+]

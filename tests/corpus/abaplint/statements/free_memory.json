@@ -1,0 +1,29 @@
+[
+ {
+  "abap": "free memory id ls_structure.",
+  "expect": "match",
+  "type": "FreeMemory"
+ },
+ {
+  "abap": "free memory id 'ALV_SUBMIT_TO_SPOOL'.",
+  "expect": "match",
+  "type": "FreeMemory"
+ },
+ {
+  "abap": "free memory.",
+  "expect": "match",
+  "type": "FreeMemory"
+ },
+ {
+  "abap": "free memory id ls_structure.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "free memory id ls_structure.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

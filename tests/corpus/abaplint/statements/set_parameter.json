@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SET PARAMETER ID 'GR8' FIELD gv_memid_gr8.",
+  "expect": "match",
+  "type": "SetParameter"
+ },
+ {
+  "abap": "SET PARAMETER ID 'GR8' FIELD gv_memid_gr8.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "LOG-POINT ID foobar SUBKEY subkey.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID __foobar__ SUBKEY subkey.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID foobar.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID foobar SUBKEY 'sub' FIELDS 'foobar'.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID foobar SUBKEY 'sub' FIELDS 'foo' 'bar'.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID /foo/bar FIELDS sy-uname.",
+  "expect": "match",
+  "type": "LogPoint"
+ },
+ {
+  "abap": "LOG-POINT ID foobar SUBKEY subkey.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

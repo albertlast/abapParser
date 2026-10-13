@@ -1,0 +1,136 @@
+[
+ {
+  "abap": "DELETE mt_stack INDEX lv_index.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "delete ztable from sy-index where bname = <foobar>-bname.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_lengths FROM lv_nlen + 1.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM rt_tadir COMPARING object obj_name.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM mt_data USING KEY primary_key.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_local WHERE item = <ls_item>-item.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM lt_table.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE TABLE mt_list FROM io_repo.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE TABLE lt_not WITH TABLE KEY name = lv_name.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_dists TO lv_nlen.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM <lt_data> COMPARING (lv_name).",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM <lt_data> COMPARING (foo) (bar).",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM lt_tab COMPARING foo-moo boo-loo.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_data USING KEY key_name WHERE bar = i_bar.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE TABLE lt_tab WITH TABLE KEY key_sort COMPONENTS key = ls_node-key.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_tab INDEX lv_tabix USING KEY ay.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ct_data USING KEY (mv_key) WHERE (lv_where).",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_edges WHERE to-obj_name = <ls_node>-obj_name.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE lt_foo WHERE table_line+30 = 'CCAU'.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE <fs> WHERE (l_where).",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM li_tab COMPARING field+4(8).",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM lt_chck USING KEY s00 COMPARING ALL FIELDS.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE ADJACENT DUPLICATES FROM tab COMPARING table_line->mv_string.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE TABLE tab FROM io->mv_id USING KEY id.",
+  "expect": "match",
+  "type": "DeleteInternal"
+ },
+ {
+  "abap": "DELETE TABLE mt_edges WHERE from = lv_vertex.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "DELETE TABLE ignore FROM lv_name to 10.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "DELETE lt_tab WHERE (lv_cond).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

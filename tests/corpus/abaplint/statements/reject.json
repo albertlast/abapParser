@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "REJECT.",
+  "expect": "match",
+  "type": "Reject"
+ },
+ {
+  "abap": "REJECT 'BKPF'.",
+  "expect": "match",
+  "type": "Reject"
+ },
+ {
+  "abap": "REJECT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

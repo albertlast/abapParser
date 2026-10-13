@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "DELETE FROM MEMORY ID 'foobar'.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM SHARED MEMORY indx(ab) ID 'MOO'.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM SHARED MEMORY indx(aa) CLIENT '100' ID 'foobar'.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM SHARED BUFFER indx(ZZ) ID 'FOO'.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM SHARED BUFFER indx(00) ID gc_foo.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM SHARED BUFFER moos(%L) ID ID.",
+  "expect": "match",
+  "type": "DeleteMemory"
+ },
+ {
+  "abap": "DELETE FROM MEMORY ID 'foobar'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,63 @@
+[
+ {
+  "abap": "COMMUNICATION INIT ID c DESTINATION dest.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION ALLOCATE ID c.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION SEND ID c BUFFER connect.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION DEALLOCATE ID c.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION SEND ID c BUFFER <output> LENGTH slenx.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION RECEIVE ID c BUFFER input DATAINFO dinf STATUSINFO sinf RECEIVED rlen.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION ACCEPT ID c.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION RECEIVE ID id BUFFER buffer LENGTH length DATAINFO datainfo STATUSINFO statusinfo RECEIVED received.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION DEALLOCATE ID id RETURNCODE rc.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION ALLOCATE ID id RETURNCODE rc.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION SEND ID id LENGTH len BUFFER <b> RETURNCODE rc.",
+  "expect": "match",
+  "type": "Communication"
+ },
+ {
+  "abap": "COMMUNICATION INIT ID c DESTINATION dest.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

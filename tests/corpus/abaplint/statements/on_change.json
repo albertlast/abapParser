@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "ON CHANGE OF structure-field.",
+  "expect": "match",
+  "type": "OnChange"
+ },
+ {
+  "abap": "ON CHANGE OF gt_tab-field1 OR gt_tab-field2.",
+  "expect": "match",
+  "type": "OnChange"
+ },
+ {
+  "abap": "ON CHANGE OF structure-field.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

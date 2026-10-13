@@ -1,0 +1,67 @@
+[
+ {
+  "abap": "SHIFT ls_param-field.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_range LEFT BY sy-fdpos PLACES.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_qty RIGHT.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_bits LEFT CIRCULAR BY iv_places PLACES.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_content BY 1022 PLACES LEFT IN BYTE MODE.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT l_xstr LEFT DELETING LEADING cl_abap_char_utilities=>byte_order_mark_utf8 IN BYTE MODE.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_syindex RIGHT DELETING TRAILING space.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_cols BY 1 PLACES LEFT.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_temp UP TO '/' LEFT.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT classname LEFT UP TO '='.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT bytes BY places PLACES RIGHT IN BYTE MODE.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT r_json RIGHT CIRCULAR.",
+  "expect": "match",
+  "type": "Shift"
+ },
+ {
+  "abap": "SHIFT lv_field UP TO '-'.",
+  "expect": "match",
+  "type": "Shift"
+ }
+]

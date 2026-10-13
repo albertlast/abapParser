@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "GET PF-STATUS lv_stat.",
+  "expect": "match",
+  "type": "GetPFStatus"
+ },
+ {
+  "abap": "GET PF-STATUS vv_stat PROGRAM lv_prog EXCLUDING lt_fcode.",
+  "expect": "match",
+  "type": "GetPFStatus"
+ },
+ {
+  "abap": "GET PF-STATUS DATA(gui_status) PROGRAM gui_status_prog.",
+  "expect": "match",
+  "type": "GetPFStatus"
+ },
+ {
+  "abap": "GET PF-STATUS lv_stat.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

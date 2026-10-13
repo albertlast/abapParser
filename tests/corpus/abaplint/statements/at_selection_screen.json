@@ -1,0 +1,78 @@
+[
+ {
+  "abap": "AT SELECTION-SCREEN.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN OUTPUT.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON EXIT-COMMAND.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_foo-low.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "at selection-screen on radiobutton group grp1.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON p_trkorr.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_path.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON BLOCK part1.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON HELP-REQUEST FOR field.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON HELP-REQUEST FOR foo-low.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON END OF foo.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON foo-bar.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON BLOCK 1.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN ON BLOCK block-mail.",
+  "expect": "match",
+  "type": "AtSelectionScreen"
+ },
+ {
+  "abap": "AT SELECTION-SCREEN.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

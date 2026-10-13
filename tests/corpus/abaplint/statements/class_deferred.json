@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "CLASS lcl_gui DEFINITION DEFERRED.",
+  "expect": "match",
+  "type": "ClassDeferred"
+ },
+ {
+  "abap": "CLASS zcl_foo DEFINITION DEFERRED PUBLIC.",
+  "expect": "match",
+  "type": "ClassDeferred"
+ },
+ {
+  "abap": "CLASS LCL_/foo/bar DEFINITION DEFERRED.",
+  "expect": "match",
+  "type": "ClassDeferred"
+ },
+ {
+  "abap": "CLASS lcl_foo DEFINITION DEFERRED.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

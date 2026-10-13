@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "INFOTYPES 1000.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "INFOTYPES 0001 NAME p0001.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "INFOTYPES 0001 OCCURS 2.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "INFOTYPES 2001 mode n.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "infotypes 0000 valid from sy-datum to sy-datum.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "infotypes 0003 name old-p0003 occurs 1 mode n.",
+  "expect": "match",
+  "type": "Infotypes"
+ },
+ {
+  "abap": "INFOTYPES 1000.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

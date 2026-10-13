@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDCHAIN.",
+  "expect": "match",
+  "type": "EndChain"
+ },
+ {
+  "abap": "ENDCHAIN.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

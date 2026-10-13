@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "DELETE DATASET l_psepath.",
+  "expect": "match",
+  "type": "DeleteDataset"
+ },
+ {
+  "abap": "DELETE DATASET l_psepath.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

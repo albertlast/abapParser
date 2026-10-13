@@ -1,0 +1,1021 @@
+[
+ {
+  "abap": "TYPES ty_type TYPE c LENGTH 6.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES dummy.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo_tt TYPE STANDARD TABLE OF lcl_repo=>ty_repo WITH DEFAULT KEY.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo_tt TYPE STANDARD TABLE OF lcl_repo=>ty_repo-key WITH DEFAULT KEY.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo_tt TYPE STANDARD TABLE OF ty_repo-key WITH DEFAULT KEY.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "types tt_table TYPE TABLE OF ty_field WITH NON-UNIQUE SORTED KEY bar COMPONENTS foo bar.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES /foo/ TYPE i.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES /foo/bar TYPE i.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES bar TYPE p LENGTH 5 DECIMALS 2.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES moo TYPE p DECIMALS 2 LENGTH 5.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_bar TYPE STANDARD TABLE OF /foo/bar INITIAL SIZE 0 WITH DEFAULT KEY.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES name TYPE STANDARD TABLE OF something WITH NON-UNIQUE KEY !name.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_objects TYPE RANGE OF trobjtype INITIAL SIZE 1.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_overwrite_tt TYPE STANDARD TABLE OF ty_overwrite\n  WITH DEFAULT KEY\n  WITH UNIQUE HASHED KEY object_type_and_name COMPONENTS obj_type obj_name.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES tty_log_out TYPE STANDARD TABLE OF ty_log_out WITH NON-UNIQUE DEFAULT KEY.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES foo TYPE moo BOXED.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_streenode_2 LIKE streenode OCCURS 10.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES foobar\n    TYPE SORTED TABLE OF ty_moo\n    WITH NON-UNIQUE KEY name\n    WITH UNIQUE SORTED KEY key_alias COMPONENTS alias\n    INITIAL SIZE 2.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo TYPE TABLE FOR CREATE EntityItem.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo TYPE TABLE FOR FAILED EntityItem.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo TYPE TABLE FOR ACTION IMPORT EntityItem~add.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty_foo TYPE TABLE FOR ACTION IMPORT EntityItem~add.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty1 TYPE STANDARD TABLE OF i WITH EMPTY KEY WITHOUT FURTHER SECONDARY KEYS.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES ty2 TYPE STANDARD TABLE OF i WITH EMPTY KEY WITH FURTHER SECONDARY KEYS.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "types ty TYPE STRUCTURE FOR HIERARCHY /foo/bar.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES t_prot TYPE s_prot OCCURS fix_row.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES line# TYPE i.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES li#ne TYPE i.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES tt_failed_root TYPE TABLE FOR FAILED EARLY /dmo/fsa_r_roottp\\\\root.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES tt_reported_root TYPE TABLE FOR REPORTED EARLY /dmo/fsa_r_roottp\\\\root.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES t_failed TYPE RESPONSE FOR FAILED EARLY ZDMO_R_RAPG_ProjectTP.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES t_mapped TYPE RESPONSE FOR MAPPED EARLY ZDMO_R_RAPG_ProjectTP.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES t_reported TYPE RESPONSE FOR REPORTED EARLY ZDMO_R_RAPG_ProjectTP.  ",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES /foo/bar/foo/bar TYPE c.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "types ty_s_sbu_upd_ind type /foo/bar with indicators upddd type abap_bool.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES indicatortype TYPE ty WITH INDICATORS ind.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "TYPES tt_many_keys TYPE SORTED TABLE OF ty_s\n    WITH UNIQUE KEY k1 k2 k3 k4 k5\n    WITH NON-UNIQUE SORTED KEY sk01 COMPONENTS f01\n    WITH NON-UNIQUE SORTED KEY sk02 COMPONENTS f02\n    WITH NON-UNIQUE SORTED KEY sk03 COMPONENTS f03\n    WITH NON-UNIQUE SORTED KEY sk04 COMPONENTS f04\n    WITH NON-UNIQUE SORTED KEY sk05 COMPONENTS f05\n    WITH NON-UNIQUE SORTED KEY sk06 COMPONENTS f06\n    WITH NON-UNIQUE SORTED KEY sk07 COMPONENTS f07\n    WITH NON-UNIQUE SORTED KEY sk08 COMPONENTS f08\n    WITH NON-UNIQUE SORTED KEY sk09 COMPONENTS f09\n    WITH NON-UNIQUE SORTED KEY sk10 COMPONENTS f10\n    WITH NON-UNIQUE SORTED KEY sk11 COMPONENTS f11\n    WITH NON-UNIQUE SORTED KEY sk12 COMPONENTS f12\n    WITH NON-UNIQUE SORTED KEY sk13 COMPONENTS f13\n    WITH NON-UNIQUE SORTED KEY sk14 COMPONENTS f14\n    WITH NON-UNIQUE SORTED KEY sk15 COMPONENTS f15\n    WITH NON-UNIQUE SORTED KEY sk16 COMPONENTS f16.",
+  "expect": "match",
+  "type": "Type"
+ },
+ {
+  "abap": "types tt_foo TYPE STANDARD TABLE OF ty_foo WITH EMPTY KEY.",
+  "expect": "match",
+  "type": "Type",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "TYPES ty_itab TYPE STANDARD TABLE string.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "TYPES moo TYPE SORTED TABLE OF foo_bar WITH NON-UNIQUE KEY and with.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "TYPES something TYPE STANDARD TABLE OF  WITH DEFAULT KEY.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "TYPES !ty_moo TYPE string.",
+  "expect": "match",
+  "type": "Type",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "TYPES !ty_moo TYPE string.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v740sp02"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR ACTION IMPORT zentity~zaction.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR ACTION RESULT zentity~zaction.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FUNCTION IMPORT zentity~zfn.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FUNCTION RESULT zentity~zfn.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR ACTION IMPORT zentity~zaction.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR ACTION RESULT zentity~zaction.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FUNCTION IMPORT zentity~zfn.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FUNCTION RESULT zentity~zfn.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR KEY OF zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR KEY OF zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR DETERMINATION zentity~zdet.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR VALIDATION zentity~zval.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR DETERMINATION zentity~zdet.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR VALIDATION zentity~zval.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR FAILED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR FAILED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR MAPPED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR MAPPED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR REPORTED zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR REPORTED LATE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR LOCK zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR LOCK zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR FAILED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR MAPPED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE RESPONSE FOR REPORTED EARLY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v778"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v778"
+ },
+ {
+  "abap": "TYPES t TYPE REQUEST FOR CHANGE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v778"
+ },
+ {
+  "abap": "TYPES t TYPE REQUEST FOR DELETE zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v778"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR ACTION REQUEST zentity~zaction.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v779"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR FUNCTION REQUEST zentity~zfn.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v779"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR PERMISSIONS KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR PERMISSIONS KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR PERMISSIONS REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR PERMISSIONS RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE FEATURES KEY zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR INSTANCE FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR GLOBAL AUTHORIZATION REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR GLOBAL AUTHORIZATION RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR GLOBAL FEATURES REQUEST zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR GLOBAL FEATURES RESULT zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ CHANGES zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v915"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR READ CHANGES zentity.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v915"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ LINK zentity\\zassoc.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR READ LINK zentity\\zassoc.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR EVENT zentity~zevent.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v787"
+ },
+ {
+  "abap": "TYPES t TYPE STRUCTURE FOR EVENT zentity~zevent.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v787"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR CREATE zentity.",
+  "expect": "unknown",
+  "release": "v769"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR DELETE zentity.",
+  "expect": "unknown",
+  "release": "v769"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR UPDATE zentity.",
+  "expect": "unknown",
+  "release": "v769"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ IMPORT zentity.",
+  "expect": "unknown",
+  "release": "v769"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ RESULT zentity.",
+  "expect": "unknown",
+  "release": "v769"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ LINK zentity\\zassoc.",
+  "expect": "unknown",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR ACTION IMPORT zentity~zaction.",
+  "expect": "unknown",
+  "release": "v772"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR ACTION RESULT zentity~zaction.",
+  "expect": "unknown",
+  "release": "v772"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FUNCTION IMPORT zentity~zfn.",
+  "expect": "unknown",
+  "release": "v772"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FUNCTION RESULT zentity~zfn.",
+  "expect": "unknown",
+  "release": "v772"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED LATE zentity.",
+  "expect": "unknown",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED LATE zentity.",
+  "expect": "unknown",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED LATE zentity.",
+  "expect": "unknown",
+  "release": "v773"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR KEY OF zentity.",
+  "expect": "unknown",
+  "release": "v774"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR DETERMINATION zentity~zdet.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED zentity.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED zentity.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED zentity.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FEATURES KEY zentity.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FEATURES RESULT zentity.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR VALIDATION zentity~zval.",
+  "expect": "unknown",
+  "release": "v775"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR FAILED EARLY zentity.",
+  "expect": "unknown",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR MAPPED EARLY zentity.",
+  "expect": "unknown",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR REPORTED EARLY zentity.",
+  "expect": "unknown",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR LOCK zentity.",
+  "expect": "unknown",
+  "release": "v776"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR CHANGE zentity.",
+  "expect": "unknown",
+  "release": "v777"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR AUTHORIZATION RESULT zentity.",
+  "expect": "unknown",
+  "release": "v779"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR PERMISSIONS KEY zentity.",
+  "expect": "unknown",
+  "release": "v779"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR AUTHORIZATION KEY zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION KEY zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION REQUEST zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE AUTHORIZATION RESULT zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES KEY zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES REQUEST zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR INSTANCE FEATURES RESULT zentity.",
+  "expect": "unknown",
+  "release": "v780"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR EVENT zentity~zevent.",
+  "expect": "unknown",
+  "release": "v786"
+ },
+ {
+  "abap": "TYPES t TYPE TABLE FOR READ CHANGES zentity.",
+  "expect": "unknown",
+  "release": "v914"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOCATOR FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype READER FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype WRITER FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOB HANDLE FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype READ-ONLY LOCATOR FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOB HANDLE FOR ALL BLOB COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOB HANDLE FOR ALL CLOB COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOCATOR FOR COLUMNS clob1 blob2.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype LOCATOR FOR ALL BLOB COLUMNS READER FOR ALL CLOB COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v731"
+ },
+ {
+  "abap": "TYPES t TYPE ztype CLIENT SPECIFIED mandt.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v760"
+ },
+ {
+  "abap": "TYPES t TYPE ztype CLIENT SPECIFIED mandt LOCATOR FOR ALL COLUMNS.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v760"
+ },
+ {
+  "abap": "TYPES t TYPE t_deep WITH INDICATORS ind TYPE abap_bool.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE t_deep WITH INDICATORS ind.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v781"
+ },
+ {
+  "abap": "TYPES t TYPE t_deep WITH INDICATORS ind AS BITFIELD.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v784"
+ },
+ {
+  "abap": "TYPES gen TYPE ANY STRUCTURE CONTAINING x TYPE numeric.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v916"
+ },
+ {
+  "abap": "TYPES gen TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v916"
+ },
+ {
+  "abap": "TYPES pub TYPE ANY STRUCTURE CONTAINING comp1 TYPE c comp2 TYPE n comp3 TYPE i.",
+  "expect": "match",
+  "type": "Type",
+  "release": "v916"
+ }
+]

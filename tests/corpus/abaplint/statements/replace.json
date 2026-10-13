@@ -1,0 +1,152 @@
+[
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF '<_--28C_DATA_--29>' IN lv_xml WITH '<DATA>'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE FIRST OCCURRENCE OF 'asdf' IN lv_xml WITH 'asdf'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE '&' IN asdf WITH 'foo'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE '#' WITH lv_index_str INTO lv_value.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE SECTION OFFSET lv_off OF lv_value WITH ' '.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE '01' IN lv_file WITH '02' IN CHARACTER MODE.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE '~' INTO <fs_ihttpnvp>-name WITH space.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE REGEX '([^/])\\s*$' IN filename WITH '$1/' .",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF REGEX 'sdf' IN cv_xml WITH 'sdf' IGNORING CASE.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "replace section offset lv_off length 1 of <src> with char.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF `''` IN TABLE code WITH `bar`.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "replace all occurrences of '0' in section length lv_len OF lv_val with ` `.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF REGEX regx IN foo WITH repl RESPECTING CASE.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE SECTION OFFSET lv_offset LENGTH 1 OF lv_bytes WITH lv_with IN BYTE MODE.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF SUBSTRING '#' IN foo-bar WITH '##'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF '@' IN foo WITH 'at' REPLACEMENT COUNT count.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE REGEX `blah` IN <line> WITH 'moo'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF '?' IN foo WITH space IN CHARACTER MODE IGNORING CASE.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "replace lv_foo with lv_space into lv_command length lv_length.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "replace all occurences of `1` in lv_foo with lv_bar.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE FIRST OCCURRENCE OF lv_str IN SECTION OFFSET lv_offset OF lv_of WITH lv_with IN BYTE MODE REPLACEMENT OFFSET lv_offset.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "replace first occurrence of foo-bar in lv_source with moo-boo replacement offset lv_offset replacement length lv_length ignoring case.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE foo LENGTH lv_len2 WITH space INTO lv_result.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE 'AA' LENGTH 2 WITH something INTO target.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE 'foo' IN TABLE lt_tab WITH `` REPLACEMENT LINE lv_index.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE FIRST OCCURENCE OF lv_var IN lv_in WITH lv_with.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE ALL OCCURRENCES OF PCRE `sdf` IN str WITH ``.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE SUBSTRING 'a' IN var WITH 'b'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE REGEX 'a' IN var WITH 'b'.",
+  "expect": "match",
+  "type": "Replace"
+ },
+ {
+  "abap": "REPLACE PCRE 'a' IN var WITH 'b'.",
+  "expect": "match",
+  "type": "Replace"
+ }
+]

@@ -1,0 +1,19 @@
+[
+ {
+  "abap": "MODIFY SCREEN.",
+  "expect": "match",
+  "type": "ModifyScreen"
+ },
+ {
+  "abap": "MODIFY SCREEN FROM wa.",
+  "expect": "match",
+  "type": "ModifyScreen"
+ },
+ {
+  "abap": "MODIFY SCREEN.",
+  "expect": "match",
+  "type": "ModifyInternal",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

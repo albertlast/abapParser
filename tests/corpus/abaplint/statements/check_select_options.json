@@ -1,0 +1,14 @@
+[
+ {
+  "abap": "CHECK SELECT-OPTIONS.",
+  "expect": "match",
+  "type": "CheckSelectOptions"
+ },
+ {
+  "abap": "CHECK SELECT-OPTIONS.",
+  "expect": "match",
+  "type": "Check",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

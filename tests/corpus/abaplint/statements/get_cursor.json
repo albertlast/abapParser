@@ -1,0 +1,43 @@
+[
+ {
+  "abap": "GET CURSOR FIELD f LINE l.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "get cursor line l.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "GET CURSOR OFFSET off.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "GET CURSOR FIELD gv_field.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "GET CURSOR LINE lin OFFSET off VALUE val LENGTH len.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "GET CURSOR FIELD lv_field AREA lv_ara.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "get cursor line L_LIST_CURSOR_LINE display offset L_LIST_CURSOR_POS.",
+  "expect": "match",
+  "type": "GetCursor"
+ },
+ {
+  "abap": "GET CURSOR FIELD f LINE l.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

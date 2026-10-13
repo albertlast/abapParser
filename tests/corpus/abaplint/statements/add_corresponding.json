@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ADD-CORRESPONDING foo TO bar.",
+  "expect": "match",
+  "type": "AddCorresponding"
+ },
+ {
+  "abap": "ADD-CORRESPONDING foo TO bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

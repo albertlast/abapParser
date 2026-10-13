@@ -1,0 +1,122 @@
+[
+ {
+  "abap": "modify lt_table index sy-index from item.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_table INDEX SY-TABIX.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "modify lt_table.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE mt_map FROM ls_map.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_table TRANSPORTING field WHERE foo NE foo.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_table INDEX sy-tabix TRANSPORTING node_id.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_table FROM ls_data TRANSPORTING field.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "modify lt_bar from ls_moo index lv_index transporting field1 field2.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_table FROM ls_data INDEX SY-TABIX TRANSPORTING field.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "modify lt_table from ls_values transporting field where fieldname = 'FOO'.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY gt_alv FROM ls_alv INDEX ls_rows-index.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY ct_col INDEX sy-tabix FROM ls_col TRANSPORTING field.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "modify ct_data from <ls_data> transporting (name).",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY ct_data TRANSPORTING field.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE me->properties FROM prop TRANSPORTING text.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_tab FROM <data> INDEX sy-tabix ASSIGNING <fs>.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY ct_data FROM <ls_data> TRANSPORTING (b1) (b2).",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE lt_obj FROM ls_obj TRANSPORTING foo-bar type.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE <ls_transport>-import_info FROM VALUE #( system = <ls_info>-system ).",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE <ls_transport>-import_info FROM VALUE #( system = <ls_info>-system ) USING KEY unique.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY <lt_tab> FROM <lt_source>.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY shlp-fielddescr FROM wa TRANSPORTING mask+4(1) WHERE fieldname = 'FOO'.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY sdf FROM sdsf USING KEY loop_key TRANSPORTING sort.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY TABLE tab USING KEY primary_key FROM foo.",
+  "expect": "match",
+  "type": "ModifyInternal"
+ }
+]

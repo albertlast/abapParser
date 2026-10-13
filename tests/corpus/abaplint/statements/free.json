@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "free foobar.",
+  "expect": "match",
+  "type": "Free"
+ },
+ {
+  "abap": "FREE lv.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

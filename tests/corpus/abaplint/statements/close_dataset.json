@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "CLOSE DATASET lv_default_file_name.",
+  "expect": "match",
+  "type": "CloseDataset"
+ },
+ {
+  "abap": "CLOSE DATASET me->mv_file.",
+  "expect": "match",
+  "type": "CloseDataset"
+ },
+ {
+  "abap": "close dataset 'file.xml'.",
+  "expect": "match",
+  "type": "CloseDataset"
+ },
+ {
+  "abap": "CLOSE DATASET lv_default_file_name.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

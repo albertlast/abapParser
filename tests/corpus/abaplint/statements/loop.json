@@ -1,0 +1,177 @@
+[
+ {
+  "abap": "loop at foo.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "loop at foo into bar.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_lines ASSIGNING <ls_line>.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_branches FROM 1 ASSIGNING <ls_branch>.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT mt_diff TRANSPORTING NO FIELDS.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT mt_diff TRANSPORTING NO FIELDS WHERE foo = bar.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT it_methods ASSIGNING <ls_method2> FROM lv_index.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT it_tokens ASSIGNING <ls_token> FROM sdf TO to.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_lines ASSIGNING <ls_line> WHERE moo = boo.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT it_order REFERENCE INTO foo.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_catalog INTO ls_component USING KEY is_key WHERE is_key = abap_true.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "loop at it_foo assigning <bar> casting.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "loop at lt_data into <ls_data> where (condition).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT itab INTO wa GROUP BY wa-column.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT GROUP group INTO member.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT itab INTO DATA(wa) GROUP BY ( sy-tabix - 1 ) DIV n + 1.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT <tab> ASSIGNING <data> USING KEY (lv_name) WHERE (lv_where).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_compiler INTO ls_compiler WHERE statement->source_info->name = lv_include.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT list INTO DATA(item) GROUP BY item-type INTO DATA(type).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_tab INTO DATA(dat) GROUP BY ( model = bar ) ASSIGNING FIELD-SYMBOL(<fs>).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "loop at table assigning field-symbol(<fs>) group by field ascending assigning field-symbol(<tar>).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT mt_data ASSIGNING <ls_dummy> GROUP BY <ls_dummy>-abc WITHOUT MEMBERS INTO lv_def.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT mt_out ASSIGNING FIELD-SYMBOL(<ls_out>) GROUP BY ( d = <ls_out>-d group_size = GROUP SIZE ) REFERENCE INTO DATA(lr_group).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT tab ASSIGNING FIELD-SYMBOL(<fs>) WHERE field IS NOT INITIAL.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT tab ASSIGNING FIELD-SYMBOL(<fs>) WHERE field IS NOT INITIAL GROUP BY <fs>-key.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT tab WHERE ( field EQ 'B' ).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT tab WHERE ( field EQ 'B').",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT initial_numbers INTO DATA(initial_number)\n    GROUP BY ( group  = initial_number-group\n               size  = GROUP SIZE\n               index = GROUP INDEX )\n    ASCENDING\n    ASSIGNING FIELD-SYMBOL(<group>).",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT findings ASSIGNING FIELD-SYMBOL(<finding>) STEP -1.",
+  "expect": "match",
+  "type": "Loop"
+ },
+ {
+  "abap": "LOOP AT lt_packages ASSIGNING FIELD-SYMBOL(<package>).",
+  "expect": "match",
+  "type": "Loop",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "LOOP AT hierarchy ASSIGNING <h> GROUP BY ( parent = <h>-parent ).",
+  "expect": "match",
+  "type": "Loop",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "LOOP AT lo_dot->get_data( )-ignore INTO lv_ignore.",
+  "expect": "match",
+  "type": "Loop",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "LOOP AT table[] INTO bar.",
+  "expect": "match",
+  "type": "Loop",
+  "release": "v702"
+ },
+ {
+  "abap": "LOOP AT lt_tab ASSIGNING <fs> WHERE (lv_where).",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

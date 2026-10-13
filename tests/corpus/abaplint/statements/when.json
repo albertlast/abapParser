@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "WHEN 'X'.",
+  "expect": "match",
+  "type": "When"
+ },
+ {
+  "abap": "WHEN bar.",
+  "expect": "match",
+  "type": "When"
+ },
+ {
+  "abap": "WHEN bar OR foo.",
+  "expect": "match",
+  "type": "When"
+ }
+]

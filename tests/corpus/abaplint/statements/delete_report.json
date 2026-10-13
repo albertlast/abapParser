@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "DELETE REPORT zfoobar.",
+  "expect": "match",
+  "type": "DeleteReport"
+ },
+ {
+  "abap": "DELETE REPORT ls_foo-name.",
+  "expect": "match",
+  "type": "DeleteReport"
+ },
+ {
+  "abap": "delete report lv_report state 'I'.",
+  "expect": "match",
+  "type": "DeleteReport"
+ },
+ {
+  "abap": "DELETE REPORT zfoobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

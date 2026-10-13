@@ -1,0 +1,102 @@
+[
+ {
+  "abap": "FORMAT COLOR 1.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "format color 2 intensified off.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "format color 3 intensified on.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 4 INTENSIFIED HOTSPOT OFF.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 5 ON.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "format color off intensified off inverse off hotspot off input off.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "format intensified = 0 color = 0 inverse = 0.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT FRAMES OFF.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 6 INVERSE.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 3 INTENSIFIED.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 1 OFF.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR COL_NEGATIVE INVERSE INTENSIFIED.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT HOTSPOT.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR COL_HEADING.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT INTENSIFIED INPUT.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR INTENSIFIED OFF.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR COLOR OFF INTENSIFIED ON.",
+  "expect": "match",
+  "type": "Format"
+ },
+ {
+  "abap": "FORMAT COLOR 1.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "FORMAT COLOR = COND #( WHEN ls_product-active = abap_true THEN COL_NORMAL ELSE COL_NEGATIVE ).",
+  "expect": "unknown"
+ }
+]

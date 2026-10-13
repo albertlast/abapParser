@@ -1,0 +1,43 @@
+[
+ {
+  "abap": "INTERFACES lif_gui_page ABSTRACT METHODS render.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "INTERFACES zif_foo PARTIALLY IMPLEMENTED.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "interfaces zif_foo all methods abstract.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "interfaces zif_foo abstract methods ACTIVATE DEACTIVATE.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "interfaces zif_foo data values HEIGHT = 100 WIDTH = 100.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "INTERFACES zif_alog_logger FINAL METHODS entry.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "interfaces zif_foo all methods final.",
+  "expect": "match",
+  "type": "InterfaceDef"
+ },
+ {
+  "abap": "INTERFACES zif_foo PARTIALLY IMPLEMENTED.",
+  "expect": "match",
+  "type": "InterfaceDef",
+  "minRelease": "v740sp02"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "CALL SUBSCREEN foo.",
+  "expect": "match",
+  "type": "CallSubscreen"
+ },
+ {
+  "abap": "CALL SUBSCREEN foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

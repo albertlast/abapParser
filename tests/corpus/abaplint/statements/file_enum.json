@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "TYPES END OF ENUM name STRUCTURE name2.",
+  "expect": "match",
+  "type": "TypeEnumEnd"
+ }
+]

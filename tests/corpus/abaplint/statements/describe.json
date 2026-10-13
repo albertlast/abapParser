@@ -1,0 +1,152 @@
+[
+ {
+  "abap": "describe table lt_foo lines lv_lines.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe distance between <fgs> and <sdf> into l_int in byte mode.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field <item> into td.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE FIELD lv_field TYPE lv_type COMPONENTS lv_com OUTPUT-LENGTH lv_out DECIMALS lv_dec EDIT MASK lv_mask.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE FIELD ls_data LENGTH lv_max_length_line IN BYTE MODE.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE FIELD lv_foo DECIMALS lv_dec.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field lv_foo help-id l_fieldname.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field lv_field length len in character mode type itype.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE FIELD cv_data LENGTH lv_length IN CHARACTER MODE.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field <item> type typ.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE DISTANCE BETWEEN lv_foo AND lv_bar INTO ld_shift IN CHARACTER MODE.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE DISTANCE BETWEEN foo-boo AND  foo-moo INTO field-offset.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field e_field edit mask l_mask.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe field <fs> type l_typ components l_num.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe list number of lines lv_lines.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe list index sy-index number of lines row.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE FIELD lv_foo LENGTH lv_len.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "describe table lt_tab kind lv_kind.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE TABLE lt_foo.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST LINE sy-lilli PAGE lv_page.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST PAGE 1 TOP-LINES lv_top.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE TABLE lt_table LINES lv_lines OCCURS lv_occurs.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST INDEX lv_index PAGE lv_page TOP-LINES lv_top FIRST-LINE lv_first.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST INDEX 1 PAGE 1 LINE-SIZE size.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST INDEX 1 PAGE page TOP-LINES top.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST NUMBER OF PAGES tot INDEX 0.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST PAGE sy-cpage LINE-COUNT l_cnt LINE-SIZE l_lin.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE LIST PAGE page LINES lines.",
+  "expect": "match",
+  "type": "Describe"
+ },
+ {
+  "abap": "DESCRIBE TABLE moo( ) LINES bar.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "describe table lt_foo lines lv_lines.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

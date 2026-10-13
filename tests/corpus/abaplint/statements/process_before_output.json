@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "PROCESS BEFORE OUTPUT.",
+  "expect": "match",
+  "type": "ProcessBeforeOutput"
+ },
+ {
+  "abap": "PROCESS BEFORE OUTPUT.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

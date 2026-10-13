@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "LOAD REPORT lv_prog PART 'HEAD' INTO lt_head.",
+  "expect": "match",
+  "type": "LoadReport"
+ },
+ {
+  "abap": "LOAD REPORT lv_prog PART 'HEAD' INTO lt_head.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

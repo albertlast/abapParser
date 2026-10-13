@@ -1,0 +1,24 @@
+[
+ {
+  "abap": "AT PF1.",
+  "expect": "match",
+  "type": "AtPF"
+ },
+ {
+  "abap": "AT PF01.",
+  "expect": "match",
+  "type": "AtPF"
+ },
+ {
+  "abap": "AT PF24.",
+  "expect": "match",
+  "type": "AtPF"
+ },
+ {
+  "abap": "AT PF1.",
+  "expect": "match",
+  "type": "At",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

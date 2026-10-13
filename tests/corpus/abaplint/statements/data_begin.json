@@ -1,0 +1,42 @@
+[
+ {
+  "abap": "DATA begin of foo.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF tab OCCURS 20.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF COMMON PART.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF COMMON PART blah.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF status_/foo/bar.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF /foo/bar.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF foo-bar.",
+  "expect": "match",
+  "type": "DataBegin"
+ },
+ {
+  "abap": "DATA BEGIN OF stru OCCURS const.",
+  "expect": "match",
+  "type": "DataBegin"
+ }
+]

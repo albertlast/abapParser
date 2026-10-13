@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "CALL SELECTION-SCREEN 1001.",
+  "expect": "match",
+  "type": "CallSelectionScreen"
+ },
+ {
+  "abap": "CALL SELECTION-SCREEN DYNNR STARTING AT 5 5 ENDING AT 60 8.",
+  "expect": "match",
+  "type": "CallSelectionScreen"
+ },
+ {
+  "abap": "CALL SELECTION-SCREEN 200 STARTING AT 5 15.",
+  "expect": "match",
+  "type": "CallSelectionScreen"
+ },
+ {
+  "abap": "CALL SELECTION-SCREEN '1100' USING SELECTION-SET foo-variant.",
+  "expect": "match",
+  "type": "CallSelectionScreen"
+ },
+ {
+  "abap": "CALL SELECTION-SCREEN 1001.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

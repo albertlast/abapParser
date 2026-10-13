@@ -1,0 +1,32 @@
+[
+ {
+  "abap": "INCLUDE zabapgit_gui_pages_userexit IF FOUND.",
+  "expect": "match",
+  "type": "Include"
+ },
+ {
+  "abap": "INCLUDE <OBJECT>.",
+  "expect": "match",
+  "type": "Include"
+ },
+ {
+  "abap": "INCLUDE <%_bar>.",
+  "expect": "match",
+  "type": "Include"
+ },
+ {
+  "abap": "INCLUDE ZFOOOO-BAR.",
+  "expect": "match",
+  "type": "Include"
+ },
+ {
+  "abap": "INCLUDE zabapgit_gui_router.",
+  "expect": "match",
+  "type": "Include"
+ },
+ {
+  "abap": "INCLUDE LZ--AA01.",
+  "expect": "match",
+  "type": "Include"
+ }
+]

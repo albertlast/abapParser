@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "EXTRACT header.",
+  "expect": "match",
+  "type": "Extract"
+ },
+ {
+  "abap": "EXTRACT.",
+  "expect": "match",
+  "type": "Extract"
+ },
+ {
+  "abap": "EXTRACT header.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

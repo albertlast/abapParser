@@ -1,0 +1,19 @@
+[package]
+name = "abap-syntax"
+description = "ABAP statement splitting and classification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+abap-lexer.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+serde = ["dep:serde", "abap-lexer/serde"]
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

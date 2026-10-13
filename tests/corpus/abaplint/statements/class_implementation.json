@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "CLASS foobar IMPLEMENTATION.",
+  "expect": "match",
+  "type": "ClassImplementation"
+ }
+]

@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "ALIASES mo_files FOR lif_object~mo_files.",
+  "expect": "match",
+  "type": "Aliases"
+ }
+]

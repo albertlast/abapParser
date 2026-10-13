@@ -1,0 +1,173 @@
+[
+ {
+  "abap": "SUBMIT zdemo WITH rb_down = abap_true WITH rb_show = abap_false AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT (wa_report-progname) VIA SELECTION-SCREEN AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zreport and return with bar in foo with dark = 'X'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zmoo WITH p_foo EQ bar WITH p_bar EQ foo.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoobar WITH s_print = iv_tddest WITH s_pnow = 'X' VIA JOB 'BKG' NUMBER lv_number AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT (progname) AND RETURN WITH p_backfn = filename WITH rb_back  = 'X'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo VIA SELECTION-SCREEN WITH SELECTION-TABLE tab AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zfoo exporting list to memory and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zfoo via job jname number jnumber to sap-spool spool parameters params \narchive parameters aparams without spool dynpro and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT (name) LINE-SIZE width LINE-COUNT length AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zfoo with moo = stru-sdf with bar = stru-sdff via selection-screen and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo AND RETURN USER SY-UNAME VIA JOB name NUMBER count.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zfoo with field eq lv_value sign lv_sign and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo VIA SELECTION-SCREEN AND RETURN WITH p_add INCL boo WITH p_sub INCL moo.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit (lv_report) with kunnr = lv_kunnr with bukrs = lv_bukrs using selection-set lv_set with free selections lt_free and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit (lv_report) via selection-screen and return using selection-sets of program l_prog with free selections l_expressions.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo WITH SELECTION-TABLE lt_para WITH type BETWEEN 'A' AND 'B' WITH call = 'X' AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo TO SAP-SPOOL WITHOUT SPOOL DYNPRO KEEP IN SPOOL 'X' IMMEDIATELY 'X' DESTINATION 'LP01' AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT /foo/bar USING SELECTION-SCREEN '1000' VIA SELECTION-SCREEN WITH foo EQ 'X'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zsdfsdf WITH num EQ lv_num WITH date GE '00000000'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoobar WITH field BETWEEN foo AND bar SIGN 'I' AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zblah\n  WITH p_bukrs = p_bukrs\n  WITH SELECTION-TABLE lt_belnr\n  WITH p_list = p_list.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo AND RETURN\n  WITH s_type = lv_type\n  WITH s_name CP name.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zfoobar\n  with field1 EQ lv_field1\n  with field2 EQ lv_field2\n  via job lv_jobname number lv_jobcount\n  to sap-spool destination lv_device\n               immediately ' '\n               new list identification 'X'\n               layout 'X_65_80'\n               sap cover page 'N'\n               without spool dynpro\n  and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT (name) WITH SELECTION-TABLE tab VIA SELECTION-SCREEN WITH mode = '1'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zprog WITH p_foo EQ lv_foo SIGN 'I' WITH p_bar EQ lv_bar SIGN 'I' AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoobar VIA JOB lv_job NUMBER lv_number USER lv_user LANGUAGE lv_language AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoobar WITH rang-low EQ low AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "submit zffoo# with record = tbtco and return.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zsdfsd\n  WITH foo = bar\n  WITH layout = layout EXPORTING LIST TO MEMORY\n  WITH bar IN moo\n  AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zmoo VIA SELECTION-SCREEN\n    WITH  p_werks  = go->werk\n    WITH SELECTION-TABLE lt_seltab\n    WITH  p_name   = space\n    WITH  p_print  = 'ZMOO'.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoo\nTO SAP-SPOOL\nLINE-COUNT 65\nLINE-SIZE  200\nLIST NAME c_text1\nCOVER TEXT  text\nNEW LIST IDENTIFICATION 'X'\nWITHOUT SPOOL DYNPRO\nAND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zfoobarboo TO SAP-SPOOL WITHOUT SPOOL DYNPRO\n            WITH s_zzdate-low = 1\n            WITH s_zzuser-low = 2\n            WITH s_zztcod-low = 2\n            DESTINATION          'SDF'\n            COPIES               001\n            IMMEDIATELY          'X'\n            KEEP IN SPOOL        ' '\n            ARCHIVE MODE         '1'\n            LAYOUT               'X_90_120'\n            LINE-COUNT            120\n            LINE-SIZE             90\n            SAP COVER PAGE        'X'\n            RECEIVER              'SDF'\n            AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
+  "abap": "SUBMIT zdemo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

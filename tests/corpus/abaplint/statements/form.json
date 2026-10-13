@@ -1,0 +1,205 @@
+[
+ {
+  "abap": "FORM name TABLES tt_fields TYPE ty_sval_tt USING pv_code TYPE clike \nCHANGING cs_error TYPE svale RAISING lcx_exception.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM send_mail USING pt_mail_data TYPE ANY TABLE.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING workarea.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM top-of-page.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM name USING VALUE(INDEX) LIKE SY-TABIX.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM name USING foo VALUE(bar).",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM exit RAISING lcx_exception.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING    blah LIKE LINE OF gt_foo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM back RAISING RESUMABLE(zcx_exception).",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM name USING foo like tab value(I_*BSEG) like BSEG value(I_BSEG) like BSEG.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM read USING iv_foo TYPE /name/type.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM read TABLES et_tab STRUCTURE /foo/bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM /foo/bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo-bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo--bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo--.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo-- .",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo?.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foo IMPLEMENTATION.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "form foobar using\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  foo type bar\n  bar type bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "form foobar using\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  foo bar\n  bar bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM read USING\n  it_foo01 TYPE ANY TABLE\n  it_foo02 TYPE ANY TABLE\n  it_foo03 TYPE ANY TABLE\n  it_foo04 TYPE ANY TABLE\n  it_foo05 TYPE ANY TABLE\n  it_foo06 TYPE ANY TABLE\n  it_foo07 TYPE ANY TABLE\n  it_foo08 TYPE ANY TABLE\n  it_foo09 TYPE ANY TABLE\n  it_foo10 TYPE ANY TABLE\n  it_foo11 TYPE ANY TABLE.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM action USING\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE\n  foo TYPE STANDARD TABLE.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "form action tables\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  foo structure bar\n  using\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo\n  moo like boo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM run USING\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo\n  foo LIKE bar-moo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM alv CHANGING pi_list LIKE gi_excel[].",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM formname USING $var $lang$sdf$ $lang$sdf.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param LIKE LINE OF gt_foo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param LIKE REF TO go_foo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE LINE OF tt_foo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE REF TO to_foo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM re549r USING &permo.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM moo USING boo-vbeln bar-vbtyp.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM sdfsd TABLES sdfs/sdf/sdfs.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar TABLES it_move STRUCTURE data_work-wa.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM !bar.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM <foobar>.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "Form",
+  "release": "v916"
+ },
+ {
+  "abap": "FORM foobar CHANGING p_param TYPE ANY STRUCTURE.",
+  "expect": "match",
+  "type": "Form",
+  "release": "v916"
+ },
+ {
+  "abap": "FORM foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

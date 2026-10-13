@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "RESUME.",
+  "expect": "match",
+  "type": "Resume"
+ }
+]

@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "ROLLBACK WORK.",
+  "expect": "match",
+  "type": "Rollback"
+ },
+ {
+  "abap": "ROLLBACK CONNECTION (lv_con).",
+  "expect": "match",
+  "type": "Rollback"
+ },
+ {
+  "abap": "ROLLBACK CONNECTION default.",
+  "expect": "match",
+  "type": "Rollback"
+ },
+ {
+  "abap": "ROLLBACK WORK.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

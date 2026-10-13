@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "CHAIN.",
+  "expect": "match",
+  "type": "Chain"
+ },
+ {
+  "abap": "CHAIN.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "EXIT.",
+  "expect": "match",
+  "type": "Exit"
+ },
+ {
+  "abap": "exit from step-loop.",
+  "expect": "match",
+  "type": "Exit"
+ },
+ {
+  "abap": "EXIT FROM SQL.",
+  "expect": "match",
+  "type": "Exit"
+ }
+]

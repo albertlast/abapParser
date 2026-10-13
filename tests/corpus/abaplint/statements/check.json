@@ -1,0 +1,22 @@
+[
+ {
+  "abap": "CHECK lv_var >< 'ABCD'.",
+  "expect": "match",
+  "type": "Check"
+ },
+ {
+  "abap": "CHECK selpernr.",
+  "expect": "match",
+  "type": "Check"
+ },
+ {
+  "abap": "CHECK foo-bar.",
+  "expect": "match",
+  "type": "Check"
+ },
+ {
+  "abap": "CHECK <lt>[] IS ASSIGNED AND <lt>[] IS NOT INITIAL.",
+  "expect": "match",
+  "type": "Check"
+ }
+]

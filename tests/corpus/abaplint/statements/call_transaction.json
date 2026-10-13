@@ -1,0 +1,97 @@
+[
+ {
+  "abap": "CALL TRANSACTION 'FOO'.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' AND SKIP FIRST SCREEN.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK AND SKIP FIRST SCREEN.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK USING lt_bdcdata MODE lv_mode.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK USING bdcdata OPTIONS FROM opt.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' USING BDCDATA MODE 'E' UPDATE 'A'.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' USING BDCDATA MODE lv_mode MESSAGES INTO lt_messages.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITHOUT AUTHORITY-CHECK USING lt_data OPTIONS FROM ls_opt MESSAGES INTO lt_mess.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' USING mt_bdcdata UPDATE 'S' MODE 'E'.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'ZA01' USING gt_bdcdata MESSAGES INTO lt_msg MODE l_mode UPDATE 'S'.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'ZA02' USING gt_bdcdata MESSAGES INTO lt_msg OPTIONS FROM l_options.",
+  "expect": "match",
+  "type": "CallTransaction"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK.",
+  "expect": "match",
+  "type": "CallTransaction",
+  "release": "v740sp02"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITHOUT AUTHORITY-CHECK.",
+  "expect": "match",
+  "type": "CallTransaction",
+  "release": "v740sp02"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK.",
+  "expect": "match",
+  "type": "CallTransaction",
+  "release": "open-abap"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITHOUT AUTHORITY-CHECK.",
+  "expect": "match",
+  "type": "CallTransaction",
+  "release": "open-abap"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITH AUTHORITY-CHECK.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "CALL TRANSACTION 'FOO' WITHOUT AUTHORITY-CHECK.",
+  "expect": "unknown",
+  "release": "v702"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "INITIALIZATION.",
+  "expect": "match",
+  "type": "Initialization"
+ },
+ {
+  "abap": "INITIALIZATION.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

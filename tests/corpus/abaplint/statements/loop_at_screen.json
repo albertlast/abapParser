@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "LOOP AT SCREEN.",
+  "expect": "match",
+  "type": "LoopAtScreen"
+ },
+ {
+  "abap": "LOOP AT SCREEN INTO DATA(line).",
+  "expect": "match",
+  "type": "LoopAtScreen"
+ },
+ {
+  "abap": "LOOP AT SCREEN.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

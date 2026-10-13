@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "condense lv_foo.",
+  "expect": "match",
+  "type": "Condense"
+ },
+ {
+  "abap": "CONDENSE lv_index_str NO-GAPS.",
+  "expect": "match",
+  "type": "Condense"
+ }
+]

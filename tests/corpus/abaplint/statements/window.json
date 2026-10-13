@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "WINDOW STARTING AT 1 1 ENDING AT 2 2.",
+  "expect": "match",
+  "type": "Window"
+ },
+ {
+  "abap": "window starting at 1 1.",
+  "expect": "match",
+  "type": "Window"
+ },
+ {
+  "abap": "WINDOW STARTING AT 1 1 ENDING AT 2 2.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

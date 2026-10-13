@@ -1,0 +1,63 @@
+[
+ {
+  "abap": "CALL METHOD OF lv_charts 'Add'.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF io_app_obj 'Run' EXPORTING foo = bar.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF io_app_obj 'Run' EXPORTING foo = 'sdf'.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF io_app_obj 'Run' EXPORTING #1 = 'sdf'.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF io_app_obj 'Run' EXPORTING #1 = 'MAIN.start' #2 = 'From SAP'.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF lo_docs 'Open' = cv_ole_doc EXPORTING #1 = cv_fullpath.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF moo-obj 'GetServ' = service NO FLUSH EXPORTING #1 = 'bar'.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF app 'Create' = handle NO FLUSH QUEUE-ONLY.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF var1 var2.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF sdf-fds VERB = sdf->sdfa-sdf NO FLUSH QUEUE-ONLY.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF sdfsd 'field' = para\n    NO FLUSH\n    QUEUEONLY\n    EXPORTING #1 = foo-bar\n              #2 = param_id.",
+  "expect": "match",
+  "type": "CallOLE"
+ },
+ {
+  "abap": "CALL METHOD OF lv_charts 'Add'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

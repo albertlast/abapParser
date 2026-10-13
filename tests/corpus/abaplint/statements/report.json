@@ -1,0 +1,103 @@
+[
+ {
+  "abap": "REPORT zabapgit LINE-SIZE 100.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zfoobar MESSAGE-ID zfoo.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zfoobar MESSAGE-ID 01 NO STANDARD PAGE HEADING LINE-SIZE 190.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zfoobar NO STANDARD PAGE HEADING LINE-SIZE 1023 LINE-COUNT 600.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zabapgit.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "report zfoobar message-id s#.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT /foo/123.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT /foo/bar.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zbar NO STANDARD PAGE HEADING LINE-SIZE 255 LINE-COUNT 60(03) MESSAGE-ID z3.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zsomething NO STANDARD PAGE HEADING LINE-SIZE 132 LINE-COUNT 65(3).",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zbar USING DATABASE ldb MESSAGE-ID aa.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zxxsdfsd//sdfs.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zxxs/dfsd//sdf/s.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT foo-bar.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zmoo MESSAGE-ID W+.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zmoo LINE-SIZE 200 NO STANDARD PAGE HEADING MESSAGE-ID Y<.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "report ztips&tricks.",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT AQSDFSD======= LINE-SIZE 253 NO STANDARD PAGE HEADING LINE-COUNT 000(001).",
+  "expect": "match",
+  "type": "Report"
+ },
+ {
+  "abap": "REPORT zabapgit LINE-SIZE 100.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

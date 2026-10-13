@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "TRANSLATE rv_package USING '/_'.",
+  "expect": "match",
+  "type": "Translate"
+ },
+ {
+  "abap": "translate lv_foo to upper case.",
+  "expect": "match",
+  "type": "Translate"
+ }
+]

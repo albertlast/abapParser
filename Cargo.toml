@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/abap-lexer",
+    "crates/abap-syntax",
+    "crates/abap-model",
+    "crates/abap-sql",
+    "crates/abap-source",
+    "crates/abap-analysis",
+    "crates/abap-cli",
+    "bindings/node",
+    "bindings/python",
+]
+default-members = [
+    "crates/abap-lexer",
+    "crates/abap-syntax",
+    "crates/abap-model",
+    "crates/abap-sql",
+    "crates/abap-source",
+    "crates/abap-analysis",
+    "crates/abap-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/albertlast/abapPaser"
+rust-version = "1.88"
+
+[workspace.dependencies]
+abap-lexer = { path = "crates/abap-lexer" }
+abap-syntax = { path = "crates/abap-syntax" }
+abap-model = { path = "crates/abap-model" }
+abap-sql = { path = "crates/abap-sql" }
+abap-source = { path = "crates/abap-source" }
+abap-analysis = { path = "crates/abap-analysis" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

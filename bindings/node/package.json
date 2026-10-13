@@ -1,0 +1,37 @@
+{
+  "name": "abap-parser",
+  "version": "0.1.0",
+  "description": "ABAP parser: symbols, database access, calls and logic of ABAP code, sources from folders or an SAP system",
+  "keywords": [
+    "abap",
+    "sap",
+    "parser",
+    "abapgit",
+    "adt"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/albertlast/abapPaser.git",
+    "directory": "bindings/node"
+  },
+  "homepage": "https://github.com/albertlast/abapPaser#readme",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types.d.ts",
+    "README.md",
+    "LICENSE",
+    "abap_parser.node"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "build:debug": "node build.mjs --debug",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

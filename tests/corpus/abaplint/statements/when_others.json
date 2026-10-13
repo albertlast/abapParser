@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "WHEN OTHERS.",
+  "expect": "match",
+  "type": "WhenOthers"
+ }
+]

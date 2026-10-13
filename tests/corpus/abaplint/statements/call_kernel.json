@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "CALL 'SYST_LOGOFF'.",
+  "expect": "match",
+  "type": "CallKernel"
+ },
+ {
+  "abap": "CALL 'INTERNET_USER_LOGON' ID 'AUTHTYPE' FIELD AUTH_METHOD ID 'TESTMODE' FIELD SPACE.",
+  "expect": "match",
+  "type": "CallKernel"
+ },
+ {
+  "abap": "call funcname id 'FOO' field lv_foo id 'BAR' field lv_bar.",
+  "expect": "match",
+  "type": "CallKernel"
+ },
+ {
+  "abap": "CALL 'SYST_LOGOFF'.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,17 @@
+[
+ {
+  "abap": "CONSTANTS BEGIN OF foo.",
+  "expect": "match",
+  "type": "ConstantBegin"
+ },
+ {
+  "abap": "CONSTANTS BEGIN OF foo-bar.",
+  "expect": "match",
+  "type": "ConstantBegin"
+ },
+ {
+  "abap": "CONSTANTS BEGIN OF bar %_PREDEFINED.",
+  "expect": "match",
+  "type": "ConstantBegin"
+ }
+]

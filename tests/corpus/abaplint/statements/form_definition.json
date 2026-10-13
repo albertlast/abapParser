@@ -1,0 +1,12 @@
+[
+ {
+  "abap": "FORM foobar DEFINITION.",
+  "expect": "match",
+  "type": "FormDefinition"
+ },
+ {
+  "abap": "FORM foo DEFINITION USING bar TYPE c.",
+  "expect": "match",
+  "type": "FormDefinition"
+ }
+]

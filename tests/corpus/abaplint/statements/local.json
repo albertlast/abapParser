@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "LOCAL foo.",
+  "expect": "match",
+  "type": "Local"
+ },
+ {
+  "abap": "LOCAL moo[].",
+  "expect": "match",
+  "type": "Local"
+ },
+ {
+  "abap": "LOCAL foo-bar.",
+  "expect": "match",
+  "type": "Local"
+ },
+ {
+  "abap": "LOCAL foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

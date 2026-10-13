@@ -1,0 +1,28 @@
+[
+ {
+  "abap": "SORT BY foo bar.",
+  "expect": "match",
+  "type": "SortDataset"
+ },
+ {
+  "abap": "SORT.",
+  "expect": "match",
+  "type": "SortDataset"
+ },
+ {
+  "abap": "SORT AS TEXT.",
+  "expect": "match",
+  "type": "SortDataset"
+ },
+ {
+  "abap": "SORT AS TEXT BY foo-bar foo-bar.",
+  "expect": "match",
+  "type": "SortDataset"
+ },
+ {
+  "abap": "SORT BY foo bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

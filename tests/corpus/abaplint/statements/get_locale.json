@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "GET LOCALE LANGUAGE lang COUNTRY cntry MODIFIER mod.",
+  "expect": "match",
+  "type": "GetLocale"
+ },
+ {
+  "abap": "GET LOCALE LANGUAGE lang COUNTRY cntry MODIFIER mod.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

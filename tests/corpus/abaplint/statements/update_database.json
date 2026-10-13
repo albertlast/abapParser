@@ -1,0 +1,199 @@
+[
+ {
+  "abap": "UPDATE usr02 SET foo = 'bar'.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo FROM ls_foo.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo FROM TABLE mt_update.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "update zfoo client specified from table lt_table.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE usr02 SET foo = 'bar' WHERE moo = lv_boo.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE (c_tabname) SET data_str = iv_data WHERE type = iv_type AND value = iv_value.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED SET foo = bar WHERE moo = space.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo SET (l_string).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED SET foo = bar WHERE moo = SPACE OR boo IS NULL.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE vekp SET tarag = @lv_tarag, ntvol = @lv_ntvol WHERE venum = @ls_update-venum.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE table CONNECTION (lv_conn) SET field = value.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE table CONNECTION my_con SET field = value.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE table CONNECTION 'R/3*MYCON' SET field = value.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "update ztab using client '123' set field = @lv_value.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE ztab SET column = column + input-menge WHERE val = input-val.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE ztab SET column = column - 1 WHERE val = input-val.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zmoo SET (lt_set).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zmoo SET (lt_set[]).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zmoo CLIENT SPECIFIED SET (lt_set[]).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE (gv-bar) CLIENT SPECIFIED SET (lt_set[]).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE (gv-bar) CLIENT SPECIFIED SET (lt_set[]) WHERE mandt EQ sy-mandt AND (lt_where[]).",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "update /foo/bar from table @tab indicators set structure sdfds.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo FROM @ls_wa.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED FROM @ls_wa.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED FROM TABLE @lt_wa.",
+  "expect": "match",
+  "type": "UpdateDatabase"
+ },
+ {
+  "abap": "UPDATE ztab SET column = column * 2 WHERE val = input-val.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "UPDATE ztab SET column = column / 2 WHERE val = input-val.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "UPDATE zalpha FROM TABLE @utab MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE (lv_tab) FROM TABLE @utab MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zalpha FROM TABLE @utab INDICATORS SET STRUCTURE %zind MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE (lv_tab) FROM TABLE @utab INDICATORS SET STRUCTURE %zind MAPPING FROM ENTITY.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zalpha FROM @wa INDICATORS NOT NULL STRUCTURE %zind.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zalpha SET c1 = '#' WHERE c2 = @lv OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zalpha FROM TABLE @utab MAPPING FROM ENTITY OPTIONS USING CLIENT @lv.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zalpha FROM TABLE @utab OPTIONS PRIVILEGED ACCESS.",
+  "expect": "match",
+  "type": "UpdateDatabase",
+  "release": "v816"
+ },
+ {
+  "abap": "UPDATE zfoo CLIENT SPECIFIED.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

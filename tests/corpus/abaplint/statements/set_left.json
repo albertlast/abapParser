@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "SET LEFT SCROLL-BOUNDARY.",
+  "expect": "match",
+  "type": "SetLeft"
+ },
+ {
+  "abap": "SET LEFT SCROLL-BOUNDARY COLUMN 002.",
+  "expect": "match",
+  "type": "SetLeft"
+ },
+ {
+  "abap": "SET LEFT SCROLL-BOUNDARY.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

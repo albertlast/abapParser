@@ -1,0 +1,13 @@
+# source folders of the test corpus, relative to the repository root
+# used by tools/oracle.mjs --list and the corpus tests
+tests/corpus/abapgit/src
+tests/corpus/abap-cheat-sheets/src
+tests/corpus/abap2xlsx/src
+tests/corpus/code-pal-for-abap/src
+tests/corpus/abapOpenChecks/src
+tests/corpus/abap-sdk-for-azure/src
+tests/corpus/abap_fm_json/src
+tests/corpus/abap2UI5/src
+tests/corpus/ajson/src
+tests/corpus/abap-logger/src
+tests/corpus/spma-2025-08/src

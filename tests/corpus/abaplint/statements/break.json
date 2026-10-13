@@ -1,0 +1,48 @@
+[
+ {
+  "abap": "break-point.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK-POINT AT NEXT APPLICATION STATEMENT.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "break username.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK sy-uname.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK sy-anything.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK-POINT lv_logtxt.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK foo-gül.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "BREAK 9sla.",
+  "expect": "match",
+  "type": "Break"
+ },
+ {
+  "abap": "break-point.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

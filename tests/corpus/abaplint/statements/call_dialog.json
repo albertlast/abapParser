@@ -1,0 +1,33 @@
+[
+ {
+  "abap": "call dialog 'ZDIALOG' exporting foo from bar.",
+  "expect": "match",
+  "type": "CallDialog"
+ },
+ {
+  "abap": "CALL DIALOG 'ZDIALOG' EXPORTING field stru-field tcode moo FROM boo.",
+  "expect": "match",
+  "type": "CallDialog"
+ },
+ {
+  "abap": "CALL DIALOG 'ZFOOBAR'\n  EXPORTING\n    i_foo FROM i_foo\n  IMPORTING\n    e_bar TO e_bar.",
+  "expect": "match",
+  "type": "CallDialog"
+ },
+ {
+  "abap": "call dialog 'DIALOG'\n  exporting\n    field1 from value\n    field2 from 'FOO'.",
+  "expect": "match",
+  "type": "CallDialog"
+ },
+ {
+  "abap": "CALL DIALOG gi_var-field\n     EXPORTING psps.",
+  "expect": "match",
+  "type": "CallDialog"
+ },
+ {
+  "abap": "call dialog 'ZDIALOG' exporting foo from bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

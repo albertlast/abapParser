@@ -1,0 +1,19 @@
+[
+ {
+  "abap": "free object foobar.",
+  "expect": "match",
+  "type": "FreeObject"
+ },
+ {
+  "abap": "free object foobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "free object foobar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "TYPES BEGIN OF ENUM name STRUCTURE name2 BASE TYPE char01.",
+  "expect": "match",
+  "type": "TypeEnumBegin"
+ }
+]

@@ -1,0 +1,19 @@
+[package]
+name = "abap-cli"
+description = "Command line interface for the ABAP parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "abap"
+path = "src/main.rs"
+
+[dependencies]
+abap-lexer = { workspace = true, features = ["serde"] }
+abap-syntax = { workspace = true, features = ["serde"] }
+abap-model.workspace = true
+abap-analysis.workspace = true
+serde.workspace = true
+serde_json.workspace = true

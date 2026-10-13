@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDPROVIDE.",
+  "expect": "match",
+  "type": "EndProvide"
+ },
+ {
+  "abap": "ENDPROVIDE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

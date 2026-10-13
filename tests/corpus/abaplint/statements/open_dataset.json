@@ -1,0 +1,143 @@
+[
+ {
+  "abap": "OPEN DATASET lv_file_name FOR OUTPUT IN BINARY MODE.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET lv_element FOR INPUT IN TEXT MODE ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT IN BINARY MODE.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT IN BINARY MODE AT POSITION foo-pos.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "open dataset file for input in text mode at position lv_pos encoding default.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT IN TEXT MODE ENCODING UTF-8 MESSAGE msg IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN LEGACY TEXT MODE.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN LEGACY BINARY MODE.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT IN TEXT MODE ENCODING UTF-8 SKIPPING BYTE-ORDER MARK.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT AT POSITION lv_pos IN BINARY MODE.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET me->mv_file FOR INPUT IN BINARY MODE MESSAGE lv_msg.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file IN TEXT MODE FOR INPUT ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR APPENDING IN TEXT MODE ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN LEGACY BINARY MODE CODE PAGE codepage.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file TYPE 'NT' FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET l_file IN TEXT MODE ENCODING DEFAULT FOR INPUT WITH SMART LINEFEED MESSAGE l_msg.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN TEXT MODE ENCODING UTF-8 WITH BYTE-ORDER MARK\n  IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN TEXT MODE ENCODING DEFAULT\n  IGNORING CONVERSION ERRORS\n  REPLACEMENT CHARACTER c_non_unicode.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR OUTPUT IN TEXT MODE ENCODING UTF-8 WITH WINDOWS LINEFEED.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET iv_path FOR INPUT IN TEXT MODE ENCODING DEFAULT WITH NATIVE LINEFEED\n  AT POSITION iv_position MESSAGE lv_message IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET iv_path FOR INPUT IN TEXT MODE ENCODING DEFAULT IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET iv_path FOR INPUT IN TEXT MODE ENCODING DEFAULT WITH UNIX LINEFEED\n  AT POSITION iv_position MESSAGE lv_message IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET iv_path FOR UPDATE IN TEXT MODE ENCODING DEFAULT WITH NATIVE LINEFEED\n  AT POSITION iv_position MESSAGE lv_message IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET iv_path FOR UPDATE IN TEXT MODE ENCODING NON-UNICODE WITH SMART LINEFEED\n  AT POSITION iv_position MESSAGE lv_message IGNORING CONVERSION ERRORS.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET file FOR INPUT IN TEXT MODE FILTER filter ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET 'foobar.txt' FOR APPENDING IN TEXT MODE ENCODING DEFAULT.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET currfile.",
+  "expect": "match",
+  "type": "OpenDataset"
+ },
+ {
+  "abap": "OPEN DATASET lv_file_name FOR OUTPUT IN BINARY MODE.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

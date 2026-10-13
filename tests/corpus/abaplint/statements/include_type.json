@@ -1,0 +1,22 @@
+[
+ {
+  "abap": "include type t_type.",
+  "expect": "match",
+  "type": "IncludeType"
+ },
+ {
+  "abap": "INCLUDE STRUCTURE zfoo.",
+  "expect": "match",
+  "type": "IncludeType"
+ },
+ {
+  "abap": "include type t_type as something.",
+  "expect": "match",
+  "type": "IncludeType"
+ },
+ {
+  "abap": "INCLUDE TYPE foo AS bar RENAMING WITH SUFFIX 1.",
+  "expect": "match",
+  "type": "IncludeType"
+ }
+]

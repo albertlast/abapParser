@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "SET DATASET l_file POSITION l_pos.",
+  "expect": "match",
+  "type": "SetDataset"
+ },
+ {
+  "abap": "SET DATASET i_filename POSITION END OF FILE.",
+  "expect": "match",
+  "type": "SetDataset"
+ },
+ {
+  "abap": "SET DATASET l_file POSITION l_pos.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

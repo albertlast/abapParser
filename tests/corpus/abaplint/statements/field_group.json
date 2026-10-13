@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "FIELD-GROUPS test.",
+  "expect": "match",
+  "type": "FieldGroup"
+ },
+ {
+  "abap": "FIELD-GROUPS test.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

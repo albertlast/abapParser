@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "DELETE DYNPRO lv_dyn.",
+  "expect": "match",
+  "type": "DeleteDynpro"
+ },
+ {
+  "abap": "DELETE DYNPRO lv_dyn.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

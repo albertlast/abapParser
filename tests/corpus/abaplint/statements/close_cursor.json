@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "CLOSE CURSOR cur.",
+  "expect": "match",
+  "type": "CloseCursor"
+ },
+ {
+  "abap": "CLOSE CURSOR me->cursor.",
+  "expect": "match",
+  "type": "CloseCursor"
+ },
+ {
+  "abap": "CLOSE CURSOR @lv_cursor.",
+  "expect": "match",
+  "type": "CloseCursor"
+ },
+ {
+  "abap": "CLOSE CURSOR cur.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

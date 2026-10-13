@@ -1,0 +1,1335 @@
+[
+ {
+  "abap": "move 2 to lv_foo.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "move exact c_val to l_int.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE foo ?TO bar.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE '2' TO %bar.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_foo = 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-raw = gv_out.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_bool = boolc( sy-subrc = 0 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-compressed_len = xstrlen( foo ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lo_repo ?= lcl_app=>repo_srv( )->get( <ls_list>-key ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo ?= lo_obj->/iwbep/if_mgw_dp_int_facade~get_model( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "wa_asdf-cur = sy-tabix * ( -1 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_test = ( lv_seconds / 3600 ) DIV 24.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "move asdf to foobar(3).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_sdf = lv_dfd BIT-XOR lv_hex.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo = 'sdf' & 'sdf'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_foo = 'something'(002).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_foo = 'foobar'(bl1).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-len = xstrlen( foo ) - 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-len = xstrlen( foo ) - field.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_maxint = 2 ** 31 - 1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_moo = |foo \\| bar|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-len = xstrlen( foo ) - foo( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "iv_f = - lv_maxint.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rs_data-len = xstrlen( foo ) - go_stream->rema( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo = method( 2 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo = method(\n 2 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_res = BIT-NOT iv_x.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_res = ( iv_x BIT-AND iv_y ) BIT-OR ( ( BIT-NOT iv_x ) BIT-AND iv_z ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_res = ( iv_x BIT-AND iv_y ) BIT-OR ( iv_x BIT-AND iv_z ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo = method(\n2 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "index1 = index2 = index1 - 1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_chunk = iv_line+<match>-offset.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_chunk = iv_line(<match>-length).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_chunk = iv_line+<match>-offset(<match>-length).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "ls_/foo/bar-visible = 'X'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_type = mr_property->*-data-type.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lr_ref->*-length = ls_type-length.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "x = column - '0.5'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "e_flag-4 = 'X'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "int = +1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "int = -1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "int = 1 - +1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "int = 1 - -1.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE +1 TO int.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "target = conv string( field1 ) && conv string( field2 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_foo = `foo` & `foo` & `foo` & `foo` & `foo` & `foo` & \n`foo` & `foo` & `foo` & `foo` & `foo` & `foo` & `foo` & \n`foo` & `foo` & `foo` & `foo` & `foo` & `foo` & `foo` & \n`foo` & `foo` & `foo` & `foo` & `foo` & `foo` & `foo` & \n`foo` & `foo` & `foo` & `foo` & `foo`.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_foo = 'bar' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' &&\n  'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo' && 'foo'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "ls_extension = CORRESPONDING #( ls_line_item MAPPING /abc/comp_a = comp_a\n  /abc/comp_b = comp_b\n  /abc/comp_c = comp_c ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = COND #(\n  WHEN constant_value IS NOT INITIAL\n  THEN `blabla`\n  ELSE THROW cx_with_parameter( id ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE foo(+100) TO bar.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "gs_structure-field$01 = 'val'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "foo = bar ##called.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "##called foo = bar.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(ints) = NEW tyt_integer( ( 1 ) ( 2 ) ( 3 ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(lt_list) = VALUE mo_out->ty_list_tt( ( 1 ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf) = VALUE numtp( me->s_mesh-t_mara\\_ean[ s_mesh-t_mara[ matnr = matnr ] eantp = 'AA' ]-bar ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "CAST cl_class( x )->property = blah.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "CAST cl_class( x )->property-component = blah.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "CAST cl_class( x->y->z )->property-component = blah.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "CAST cl_class( x->y->z )->property-component = cl_other_class=>constant.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "NEW zcl_foo( )->prop = bar.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "boo = VALUE #( BASE moo ( LINES OF <foo>-bar ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(other_cases) = VALUE test_cases(\n  ( test_case )\n  ( expression = `blah` expected_result = abap_true ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "moo = REDUCE string( INIT x TYPE string\n  FOR wa IN material_data\n  WHERE ( plnal = opr->plnal AND plnnr = opr->plnnr )\n  NEXT x = |{ x } { wa-matnr alpha = out }, | ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_str = | { zif_bar=>and ALIGN = RIGHT WIDTH = 5 } |.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_str = | { zif_bar=>and ALIGN = RIGHT WIDTH = 5  PAD = '_' } |.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_str = |{ k WIDTH = 78 ALIGN = LEFT PAD = space }*|. ",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "<timezone>-datetime = |{ tstamp TIMEZONE = <timezone>-tzone TIMESTAMP = USER }|. ",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "<timezone>-datetime = |{ tstamp TIMESTAMP = USER TIMEZONE = <timezone>-tzone }|. ",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "<timezone>-datetime = |{ tstamp TIMEZONE = <timezone>-tzone }|. ",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "<timezone>-datetime = |{ tstamp TIMESTAMP = USER }|. ",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_number = |{ lv_number DECIMALS = 2 NUMBER = RAW SIGN = LEFT }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_number = |{ lv_number DECIMALS = lv_dec NUMBER = RAW SIGN = LEFT }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_number = |{ lv_number NUMBER = RAW SIGN = LEFT }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_number = |{ lv_number SIGN = LEFT }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(foo) = REDUCE i( INIT s TYPE i FOR i = 1 UNTIL i > 10 NEXT s = s + i ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "gp_amount_sp = REDUCE #(\n    INIT x TYPE vbrk-netwr\n    FOR <i> IN invoices\n    WHERE ( vtweg = '20' )\n    NEXT x = x + <i>-kwert ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(lr_sdf) = REF #( foobar OPTIONAL ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_amount = - abs( foo-bar ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "ls_struct-amount = - ( iv_amount1 / ls_struct2-amount2 ) * ls_struct2-amount3.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(lt_tab) = VALUE lty_bar( FOR d IN tab INDEX INTO i ( id = lv_id number = i ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "et_errors = CORRESPONDING #( lt_errors MAPPING company_code = doc-bukrs fiscal_year = doc-gjahr ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "ri_entity_object = CAST #( LET collectors = get_collectors( ) IN collectors[ type = iv_type ]-collector ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "\nmock_cds_db = cl_cds_test_environment=>create_for_multiple_cds( i_for_entities = VALUE #(\n  ( VALUE #( i_for_entity = parameter_cds-fmt i_dependency_list = VALUE #( ( parameter-fmt ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmttype i_dependency_list = VALUE #( ( parameter-fmttype ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmttypet i_dependency_list = VALUE #( ( parameter-fmttypet ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmtvers i_dependency_list = VALUE #( ( parameter-fmtvers ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmtconst i_dependency_list = VALUE #( ( parameter-fmtconst ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmtenum i_dependency_list = VALUE #( ( parameter-fmtenum ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmtenumv i_dependency_list = VALUE #( ( parameter-fmtenumv ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-fmtattrf i_dependency_list = VALUE #( ( parameter-fmtattrf ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-node i_dependency_list = VALUE #( ( parameter-node ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-nodefld i_dependency_list = VALUE #( ( parameter-nodefld ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-nodefldg i_dependency_list = VALUE #( ( parameter-nodefldg ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-noderec i_dependency_list = VALUE #( ( parameter-noderec ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-noderecg i_dependency_list = VALUE #( ( parameter-noderecg ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-nodeact i_dependency_list = VALUE #( ( parameter-nodeact ) ) ) )\n  ( VALUE #( i_for_entity = parameter_cds-nodeactparam i_dependency_list = VALUE #( ( parameter-nodeactparam ) ) ) )\n) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lt_vals = VALUE #(\n    ( classnum = 'FOO_DAT' name_char = 'WER'  value = data-sdf )\n    ( classnum = 'FOO_DAS' name_char = 'EWR'  value = data-rew )\n    ( classnum = 'FOO_AMS' name_char = 'WER'  value = sdfsd )\n    ( classnum = 'FOO_AMS' name_char = 'WER'  value = data-hg )\n    ( classnum = 'FOO_AMS' name_char = 'EWR'  value = ls_gfh-value )\n    ( classnum = 'FOO_AMS' name_char = 'REW'  value = |{ data-hgf }| )\n    ( classnum = 'FOO_ROW' name_char = 'WER'  value = lv_dfgdf )\n    ( classnum = 'FOO_ROW' name_char = 'SDF'  value = data-yrt )\n    ( classnum = 'FOO_ROW' name_char = 'SDF'  value = yrt-value )\n    ( classnum = 'FOO_ROW' name_char = 'SDF'  value = |{ data-gfg }| ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lt_vals = VALUE #(\n      ( classnum = 'FOO_DAT' name_char = 'WER'  value = data-sdf )\n      ( classnum = 'FOO_DAS' name_char = 'EWR'  value = data-rew )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = sdfsd )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = abc )\n      ( classnum = 'FOO_AMS' name_char = 'ERW'  value = sdfsd )\n      ( classnum = 'FOO_AMS' name_char = 'REW'  value = sdfsd )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = data-hg )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = sdfds )\n      ( classnum = 'FOO_AMS' name_char = 'EWR'  value = sdfs )\n      ( classnum = 'FOO_AMS' name_char = 'EWR'  value = ls_gfh-value )\n      ( classnum = 'FOO_AMS' name_char = 'REW'  value = sdfds )\n      ( classnum = 'FOO_ROW' name_char = 'WER'  value = lv_dfgdf )\n      ( classnum = 'FOO_ROW' name_char = 'WRE'  value = sdfs )\n      ( classnum = 'FOO_ROW' name_char = 'WER'  value = sdfds )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = sdfds )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = data-yrt )\n      ( classnum = 'FOO_ROW' name_char = 'SDFS' value = sdfsd )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = sdfds )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = yrt-value )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = sdfsd ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lt_vals = VALUE #(\n      ( classnum = 'FOO_DAT' name_char = 'WER'  value = data-sdf )\n      ( classnum = 'FOO_DAS' name_char = 'EWR'  value = data-rew )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = sdfsd )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = |{ data-fgh NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_AMS' name_char = 'ERW'  value = |{ data-hgf NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_AMS' name_char = 'REW'  value = |{ data-hgf NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = data-hg )\n      ( classnum = 'FOO_AMS' name_char = 'WER'  value = |{ data-gfh NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_AMS' name_char = 'EWR'  value = |{ data-hfs NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_AMS' name_char = 'EWR'  value = ls_gfh-value )\n      ( classnum = 'FOO_AMS' name_char = 'REW'  value = |{ data-hgf }| )\n      ( classnum = 'FOO_ROW' name_char = 'WER'  value = lv_dfgdf )\n      ( classnum = 'FOO_ROW' name_char = 'WRE'  value = |{ data-fgd NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_ROW' name_char = 'WER'  value = |{ data-fgd NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = |{ data-yrs NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = data-yrt )\n      ( classnum = 'FOO_ROW' name_char = 'SDFS' value = |{ data-ytr NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = |{ data-ytr NUMBER = ENVIRONMENT }| )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = yrt-value )\n      ( classnum = 'FOO_ROW' name_char = 'SDF'  value = |{ data-gfg }| ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(bar) = + '11'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(bar) = +'sdf'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(test) = VALUE string_table( ( `( 1 =`) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(test) = VALUE string_table( (`( 1 =` ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = NEW cl_oo_class( myname )->class-descript.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "rv_inbound_fm = 'CONVERSION_EXIT_' && get_field_ref( iv_table = iv_table iv_field = iv_field )->edit_mask+2 && '_INPUT'.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = xsdbool( FILTER #( messages USING KEY type IN message_error_types WHERE type = table_line ) IS NOT INITIAL ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "reported = CORRESPONDING #( DEEP update_reported ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = EXACT i( 5 ) + 3.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = SWITCH i( val WHEN 2 THEN 2 ) + 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = VALUE syst( mandt = '22' ) + 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = CORRESPONDING syst( val ) + 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_var = get_field('FOO').",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = NEW ty_sdfsd( ( option = 'EQ' sign = 'E' low = '90' ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(dat1) = COND string( WHEN 1 = 2 THEN 'asdf' WHEN 'sdf' = '' THEN '').",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(dat2) = CONV string( 'sdf').",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdfs) = SWITCH string( val WHEN 2 THEN 'sdf').",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "<ls_list>-sdfds = |{ lv_order_date DATE = (cl_abap_format=>d_user) }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = REDUCE string( INIT s = 0\n      FOR  i = 0 WHILE i < strlen( input )\n      NEXT s += COND i( LET current_val = to_upper( input+i(1) ) IN\n      WHEN contains( val = 'QZ' sub = current_val ) THEN 10\n      ELSE 0\n      ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = REDUCE string( INIT s = 0\n      FOR  i = 0 WHILE i < strlen( input )\n      NEXT s += 2 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "result = VALUE ztimem_line_t(\n        FOR part IN parts\n        FOR line IN part-lines\n        ( line ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "datetime = REDUCE #(\n          INIT dt = '00000000000000'\n          FOR step IN system-steps\n          FOR action IN step-actions\n          NEXT dt = COND #(\n          WHEN action-date > dt(8) AND action-time > dt+8\n          THEN |{ action-date DATE = RAW }{ action-time TIME = RAW }| ELSE dt ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "tab2 = VALUE #( ( LINES OF tab1 TO index ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "tab2 = VALUE #( ( LINES OF tab1 FROM index ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "tab2 = VALUE #( ( LINES OF tab1 FROM index TO index ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf) = VALUE initial_numbers(\n    FOR GROUPS grouping_group OF initial_line IN initial_numbers\n    GROUP BY ( group = initial_line-group )\n    ( group = grouping_group-group\n    ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "aggregated_data = VALUE aggregated_data( BASE aggregated_data\n      FOR GROUPS ls_group OF ls_numgrp IN initial_numbers\n        GROUP BY ( group = ls_numgrp-group  count = GROUP SIZE )\n        ASCENDING\n      ( REDUCE aggregated_data_type(\n        INIT ls_agr_data = VALUE aggregated_data_type( )\n         FOR ls_grp_data IN GROUP ls_group\n        NEXT ls_agr_data = VALUE #(\n                                group = ls_group-group\n                                count = ls_group-count\n                                sum = 2\n                                max = 2\n                                min = 2\n                                average = ls_agr_data-sum / ls_agr_data-count\n                               )\n\n     ) ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "aggregated_data = REDUCE aggregated_data(\n  INIT aggregated = VALUE aggregated_data( )\n       data = VALUE aggregated_data_type( )\n  FOR GROUPS <group_key> OF <wa> IN initial_numbers\n    GROUP BY <wa>-group ASCENDING\n  NEXT data = VALUE #( group = <group_key> )\n       aggregated = VALUE #( BASE aggregated ( data ) ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "    aggregated_data = VALUE #(\n  FOR GROUPS grp OF rec IN initial_numbers\n  GROUP BY ( group = rec-group cnt = GROUP SIZE )\n  LET res = REDUCE aggregated_data_type( INIT tmp = VALUE aggregated_data_type( min = initial_numbers[ group = grp-group ]-number )\n            FOR rec2 IN GROUP grp\n            NEXT tmp-sum = tmp-sum + rec2-number\n               tmp-min = COND #( WHEN tmp-min > rec2-number THEN rec2-number ELSE tmp-min )\n               tmp-max = COND #( WHEN tmp-max < rec2-number THEN rec2-number ELSE tmp-max )\n            ) IN\n            ( group = grp-group\n              count = grp-cnt\n              sum = res-sum\n              min = res-min\n              max = res-max\n              average = res-sum / grp-cnt ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf1) = + VALUE i( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf2) = - VALUE i( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf3) = + CONV i( 1 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf4) = - CONV i( 1 ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf1) = + + VALUE i( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(sdf2) = + + - + VALUE i( ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(x) = COND i( WHEN mo_server->ms_db-id_prev_app IS INITIAL THEN THROW _('CX_STACK_EMPTY - NO CALLING APP FOUND') ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "FINAL(dat) = 2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "?moo = 5.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_temp = lv_temp+(w_init).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "DATA(lv) = SWITCH #( me->var->get( )\n      WHEN zif_bar=>moo-sl\n        OR zif_bar=>moo-su THEN dsf-bar\n      ELSE THROW zcx_bar( MESSAGE e022 ) ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE foo TO bar PERCENTAGE len.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE foo-moo TO bar PERCENTAGE 100 RIGHT.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lt_root_create = CORRESPONDING #( roots CHANGING CONTROL EXCEPT DeleteHidden UpdateHidden ValidTo ).",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lv_min = |{ cl_foobar=>gc_min_value SIGN = LEFT ALIGN = (cl_abap_format=>a_left) NUMBER = USER }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "MOVE <fs>-field+40() TO adr-name2.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "stru-/val/ue = <fs>-/foo/bar/moo/boo.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
+  "abap": "lo_foo = NEW zcl_class( ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lo_obj = CAST cl_abap_objectdescr( cl_abap_objectdescr=>describe_by_object_ref( ii_handler ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(lo_obj) = CAST cl_abap_objectdescr(\n cl_abap_objectdescr=>describe_by_object_ref( ii_handler ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = CORRESPONDING #( get( ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "lv_commit = CONV #( iv_branch ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lv_value = REF #( attribute_value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ev_filename = mt_files[ 1 ]-key-obj_name.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(new_level) = VALUE #( mt_levels[ random_int ] OPTIONAL ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "land_text = countries[ land1 = lv_foo ]-landx50.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(lt_tkey) = VALUE cvt_selops( ( option = 'EQ' sign   = 'I' low    = 'sdf' ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lv_xstr = CAST cl_sxml_string_writer( li_writer )->get_output( ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lv_value = COND #( WHEN type_kind = 'r' THEN 's' WHEN type_kind = 'h' THEN 'b' ELSE 'sd' ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "moo = COND string( WHEN 1 = 2 THEN '12' ELSE '34' ) && 'bar'.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lv_commit = lo_repo->get_branch( CONV #( iv_branch ) )->get_data( )-sha1.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = gt_det[ <lv_row> ].",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = li_foo->create( VALUE #( ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = mi_foo->update( CORRESPONDING #( get( ) EXCEPT field ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "foo = VALUE /bobf/t_frw_name( ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = switch #( i_popup when abap_true then c_popup when abap_false then c_full ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "_locale = SWITCH #( i_locale WHEN `` THEN get_locale( ) ELSE i_locale ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "r_source = VALUE #( BASE r_source ( source_line ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = VALUE #( ( col1 = 13 col2 = 232 col3 = 332 ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "excluded = value #( ( b_01 ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "excluded = value #( ( foo = b_01 ) ( bar = b_02 ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "excluded = value #( ( b_01 ) ( b_02 ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(lt_tadir) = VALUE tt_tadir( FOR ls_object IN it_objects (\npgmid = ls_object-pgmid\nobject = ls_object-object\nobj_name = ls_object-obj_name ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "foo = VALUE #(\n( col1 = 11 col2 = 211 col3 = 311 )\n( col1 = 11 col2 = 212 col3 = 312 )\n( col1 = 12 col2 = 221 col3 = 321 )\n( col1 = 12 col2 = 222 col3 = 322 )\n( col1 = 13 col2 = 231 col3 = 331 )\n( col1 = 13 col2 = 232 col3 = 332 ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "moo = VALUE #(\nFOR j = 1 THEN i + 1 WHILE j <= i_cols (\nrow = i\ncol = j ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "r_grid->grid_cells = VALUE #(\nFOR i = 1 THEN i + 1 WHILE i <= i_rows\nFOR j = 1 THEN j + 1 WHILE j <= i_cols (\nrow = i\ncol = j ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "r_cells_alive = lines( FILTER #( cells USING KEY key_alive WHERE alive = abap_true ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "foo = CORRESPONDING #( <ls_data> MAPPING country = coun currency = curr ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "foo = CORRESPONDING #( <ls_data> MAPPING country = coun currency = curr EXCEPT bar ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "foo = CORRESPONDING #( <ls_data> MAPPING country = coun currency = curr EXCEPT * ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "ct_usage[ id = c_excel ]-enabled = abap_false.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ct_usage[ KEY name id = c_excel ]-enabled = abap_false.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "e_object->mt_toolbar[ function = <tb>-function ]-disabled = abap_true.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "ro_elem = VALUE #( char_table[ char = lv_char ]-elem DEFAULT NEW lcl_lisp_char( lv_char ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "color = VALUE #( ( color-col = color_on ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = VALUE #( ( ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(message) = COND #( LET len = strlen( i_message ) IN WHEN len > 0 THEN 'sdf' ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "r_list = VALUE #( FOR <attribute> IN sdf->attributes ( <attribute>-name ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "thesum = thesum + me->matrix[ x ] * i_matrix->matrix[ j ].",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "thesum = thesum + me->matrix[ x ][ j ] * i_matrix->matrix[ j ][ y ].",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = CONV decfloat16( _num_samples ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "t->matrix[ 1 ][ 4 ] = i_rotate_about_line->x.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(asdf) = VALUE zfoo(\nFOR ls_sdf IN  lt_sdf WHERE ( classtype = '001' AND classnum = 'SOMETHING' )\n( ls_sdf ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "DATA(asdf) = VALUE zfoo(\nFOR ls_sdf IN  lt_sdf FROM bar WHERE ( classnum = 'SOMETHING' )\n( ls_sdf ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "DATA(asdf) = VALUE zfoo(\nFOR ls_sdf IN  lt_sdf TO bar WHERE ( classnum = 'SOMETHING' )\n( ls_sdf ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "DATA(asdf) = VALUE zfoo(\nFOR ls_sdf IN  lt_sdf FROM moo TO bar WHERE ( classnum = 'SOMETHING' )\n( ls_sdf ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "et_blah = VALUE #( field = 2 ( id = c_bac ) ( id = c_gen ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "foo = EXACT #( blah ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(lv_end_date) = CONV zcreated( ms_periods-end_d ) + 235959.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "target[] = FILTER #( lt_tab[] IN lt_tab2[] WHERE field = var ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "lt_result = CORRESPONDING table_type( lt_input DISCARDING DUPLICATES ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v751"
+ },
+ {
+  "abap": "DATA(result) = REDUCE string(\n  INIT text = ``\n  FOR i = 0 UNTIL i >= xstrlen( source )\n  LET char = CONV string( source+i(1) ) IN\n  NEXT text = text && |{ char } | ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "ro_type = SWITCH #( LET rnd = lo_rnd->get( ) IN rnd\n  WHEN 3 THEN zcl_log=>go_error\n  WHEN 4 THEN zcl_log=>go_debug ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "DATA(new_cells) = VALUE tty_cell(\nFOR cell IN cells\nLET alive_neighbours = get_alive( )\nIN ( col   = cell-col\n     row   = cell-row\n     alive = rule( ) ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "ls_line = CORRESPONDING #( is_data\n  MAPPING\n    field1 = lv_field1\n    field2 = lv_field2\n  EXCEPT\n    field3 ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp05"
+ },
+ {
+  "abap": "lt_range = VALUE #( sign = 'I' option = 'EQ' ( low = 'VAL1' )\n( low = 'VAL2' )\noption = 'NE' ( low = 'VAL3' )\n( low = 'VAL4' ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "lv_foo += 2.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "lv_foo -= 2.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "lv_foo /= 2.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "lv_foo *= 2.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "lv_foo &&= `abc`.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "result = REDUCE i( INIT s = 0 FOR value IN values NEXT s += value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "result = REDUCE i( INIT s = 0 FOR value IN values NEXT s -= value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "result = REDUCE i( INIT s = 1 FOR value IN values NEXT s *= value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "result = REDUCE i( INIT s = 1 FOR value IN values NEXT s /= value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "result = REDUCE string( INIT s = `` FOR value IN values NEXT s &&= value ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "DATA(mode) = SWITCH edit_mode( id_edit_mode\n  WHEN 'U' THEN asdf\n  ELSE THROW zcx_exception( ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "output = VALUE #(\n    FOR GROUPS _tabname OF _dd03l IN dd03l\n    GROUP BY _dd03l-tabname\n    ( _tabname ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v740sp08"
+ },
+ {
+  "abap": "output = VALUE #(\n    FOR GROUPS _tabname OF _dd03l IN dd03l\n    GROUP BY _dd03l-tabname\n    ( _tabname ) ).",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "lv_foo *= 2.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "OpenABAP"
+ },
+ {
+  "abap": "lv_ref_bgqc_name->* = me->ms_item-obj_name.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v756"
+ },
+ {
+  "abap": "DATA(sdf1) = CAST ty( val )->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v740sp08"
+ },
+ {
+  "abap": "DATA(sdf) = VALUE tystru( sdf = CAST tynumc( foo )->* ).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v740sp08"
+ },
+ {
+  "abap": "lv_foo *= 2.",
+  "expect": "unknown",
+  "release": "v702"
+ },
+ {
+  "abap": "move 2 to lv_foo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "result = ref->(comp_name).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->('comp').",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->(`comp`).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->(comp_name)->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-(comp_name).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-(comp_name)->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-('comp')->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->(comp_name->*).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = obj->meth( )-(comp_name)->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = obj->meth( )->(comp_name).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(result) = ref->(comp_name).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(result) = struc-(comp_name)->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "ref->(comp_name) = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "struc-(comp_name) = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "ref->(comp_name)->* = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "struc-(comp_name)->(attr_name) = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "itab[ 1 ]->(comp_name) = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "itab[ 1 ]->(comp_name)->* = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = itab[ 1 ]->(comp_name).",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = itab[ 1 ]->(comp_name)->*.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "struc-(s_name)-(comp_name) = 5.",
+  "expect": "match",
+  "type": "Move",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->( comp ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->( comp).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = ref->(comp ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-( comp ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-( comp).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = struc-(comp ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "result = obj->meth( )-( comp )->*.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(foo) = bar->( bar ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(foo) = bar->( bar).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(foo) = bar->(bar ).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "DATA(foo) = bar-( bar).",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ref->( comp ) = 5.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "ref->( comp) = 5.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "struc-( comp ) = 5.",
+  "expect": "unknown",
+  "release": "v757"
+ },
+ {
+  "abap": "struc-(comp ) = 5.",
+  "expect": "unknown",
+  "release": "v757"
+ }
+]

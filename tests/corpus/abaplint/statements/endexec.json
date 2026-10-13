@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "ENDEXEC.",
+  "expect": "match",
+  "type": "EndExec"
+ },
+ {
+  "abap": "ENDEXEC.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "position lv_pos.",
+  "expect": "match",
+  "type": "Position"
+ },
+ {
+  "abap": "position lv_pos.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

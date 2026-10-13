@@ -1,0 +1,160 @@
+[
+ {
+  "abap": "INSERT INITIAL LINE INTO ct_diff INDEX lv_index.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT INITIAL LINE INTO bar ASSIGNING <sdf> INDEX lv_tabix.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "insert initial line into lt_table reference into lr_ref index lv_index.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT INITIAL LINE INTO TABLE tab.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT ls_stage INTO TABLE mt_stage.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT <ls_list>-icfhandler INTO TABLE rt_list.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT lt_table INDEX lv_index.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT ls_font_cache INTO TABLE mth_font_cache ASSIGNING <ls_font_cache>.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT ls_theme INTO _themes_for_templates INDEX 1.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT LINES OF lt_comp INTO TABLE components.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT LINES OF lt_table FROM lv_from TO lv_to INTO TABLE lt_result.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT LINES OF lt_table FROM lv_from INTO TABLE et_merge_table.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT node_tmp INTO TABLE mt_json_tree REFERENCE INTO node_ref.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT TABLE lt_foobar.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT VALUE #(\n    tabname        = <ls_f4_group>-tabname\n    fieldname      = <ls_f4_group>-fieldname\n    f4_definitions = VALUE zdbbr_f4_data_itab( FOR f4 IN GROUP <ls_f4_group> ( f4 ) )\n    ) INTO TABLE mt_custom_f4_map.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT LINES OF sorted_scores TO hits INTO TABLE result.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT row INTO tab INDEX 1 ASSIGNING <fs>.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT row INTO tab ASSIGNING <fs> INDEX 1.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT str INTO tab.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT tab INDEX 1.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT tab INDEX 1 ASSIGNING <fs>.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT tab ASSIGNING <fs> INDEX 1.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT LINES OF tab TO 2 FROM 1 INTO TABLE tab.",
+  "expect": "match",
+  "type": "InsertInternal"
+ },
+ {
+  "abap": "INSERT row REFERENCE INTO ref INTO table tab.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "INSERT ls_copy INTO TABLE ms_spec-components-schemas INDEX 1.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "INSERT row INTO TABLE tab REFERENCE INTO ref ASSIGNING <fs>.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "INSERT row INTO tab REFERENCE INTO ref ASSIGNING <fs>.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "INSERT row ASSIGNING <fs> INTO table tab.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "INSERT NEW zcl_foobar( ) INTO TABLE lt_tab ASSIGNING FIELD-SYMBOL(<fs>).",
+  "expect": "match",
+  "type": "InsertInternal",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "insert |field_more| into table ls_result-struc_data-field_more.",
+  "expect": "match",
+  "type": "InsertInternal",
+  "minRelease": "v740sp02"
+ },
+ {
+  "abap": "INSERT ls_node INTO TABLE mr_dest_tree->*.",
+  "expect": "match",
+  "type": "InsertInternal",
+  "release": "v702"
+ },
+ {
+  "abap": "insert |field_more| into table ls_result-struc_data-field_more.",
+  "expect": "unknown",
+  "release": "v702"
+ }
+]

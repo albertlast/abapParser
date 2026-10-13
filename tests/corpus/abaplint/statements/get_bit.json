@@ -1,0 +1,7 @@
+[
+ {
+  "abap": "GET BIT lv_bit OF lv_x INTO lv_c.",
+  "expect": "match",
+  "type": "GetBit"
+ }
+]

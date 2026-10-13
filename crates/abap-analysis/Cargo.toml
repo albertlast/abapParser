@@ -1,0 +1,18 @@
+[package]
+name = "abap-analysis"
+description = "Symbol extraction and analyses on top of the ABAP syntax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+abap-syntax.workspace = true
+abap-model.workspace = true
+abap-sql.workspace = true
+abap-source.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

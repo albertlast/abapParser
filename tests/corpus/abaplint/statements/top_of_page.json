@@ -1,0 +1,18 @@
+[
+ {
+  "abap": "top-of-page.",
+  "expect": "match",
+  "type": "TopOfPage"
+ },
+ {
+  "abap": "top-of-page during line-selection.",
+  "expect": "match",
+  "type": "TopOfPage"
+ },
+ {
+  "abap": "top-of-page.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

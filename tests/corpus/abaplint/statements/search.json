@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "SEARCH foo-bar FOR '/' STARTING AT 2.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "search foo for bar in byte mode.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "search foo for bar in character mode starting at lv_start.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "search foo for 'a' starting at 1 ending at 2.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "SEARCH foo FOR tag STARTING AT lv_start IN BYTE MODE.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "SEARCH foo-bar FOR 'val' AND MARK.",
+  "expect": "match",
+  "type": "Search"
+ },
+ {
+  "abap": "SEARCH foo-bar FOR '/' STARTING AT 2.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

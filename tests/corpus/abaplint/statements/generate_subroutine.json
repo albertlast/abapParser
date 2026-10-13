@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source\n  NAME    l_name\n  MESSAGE l_error\n  LINE    l_line.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source\n  NAME    l_name\n  MESSAGE l_message\n  LINE    l_line\n  WORD    l_word\n  OFFSET  l_offset.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source NAME l_name.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source\n  NAME lv_name\n  MESSAGE lv_message\n  SHORTDUMP-ID lv_sort.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source\n  NAME       l_name\n  MESSAGE-ID l_id\n  MESSAGE    l_message\n  LINE       l_line\n  OFFSET     l_offset\n  WORD       l_word.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE\n  POOL         lt_source\n  NAME         lv_name\n  INCLUDE      lv_include\n  LINE         lv_line\n  OFFSET       lv_offset\n  WORD         lv_word\n  MESSAGE      lv_message\n  MESSAGE-ID   lv_id\n  SHORTDUMP-ID lv_short.",
+  "expect": "match",
+  "type": "GenerateSubroutine"
+ },
+ {
+  "abap": "GENERATE SUBROUTINE POOL lt_source\n  NAME    l_name\n  MESSAGE l_error\n  LINE    l_line.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

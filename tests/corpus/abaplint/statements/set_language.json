@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "SET LANGUAGE SY-LANGU.",
+  "expect": "match",
+  "type": "SetLanguage"
+ },
+ {
+  "abap": "SET LANGUAGE SY-LANGU.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

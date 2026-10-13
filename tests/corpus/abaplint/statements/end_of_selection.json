@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "END-OF-SELECTION.",
+  "expect": "match",
+  "type": "EndOfSelection"
+ },
+ {
+  "abap": "END-OF-SELECTION.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

@@ -1,0 +1,268 @@
+[
+ {
+  "abap": "IF foo = bar.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo = bar AND moo = boo.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lv_column_s CN sy-abcde.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ep_style IS REQUESTED.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo NE 0.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF go_gui IS NOT BOUND.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lv_left >= strlen( mv_bits ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if foobar na 'C'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo => 0.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF li_node IS BOUND.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF sy-tabix BETWEEN from AND to.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF iv_str CA '/'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF iv_param CS iv_type.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF NOT it_tpool IS INITIAL.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF NOT it_tpool[] IS INITIAL.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ( sy-subrc = 0 AND lines( it_tpool ) = 1 ) OR lines( it_tpool ) = 0.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF xstrlen( ls_file-file-data ) = 2.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lines( lt_lines ) MOD 2 <> 0.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo = bar AND NOT ( foo = bar OR moo = boo ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lv_devclass NOT IN mt_devclass.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lv_statement IN mt_range.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF iv_branch_name IS SUPPLIED.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF out EQ abap_false.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF is_foo O lv_bar.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lv_filename NS '.xls'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ( lv_offset + 1 ) MOD 8 = 0.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF is_item-obj_name IS INITIAL.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF iv_f < - lv_maxint OR iv_f > lv_maxint.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo = bar OR moo = boo.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF <field> NOT BETWEEN ls_foo-low AND ls_foo-high.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ( foo = bar ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF lcl_foo=>check( ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF bar =< foo.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if child is INSTANCE OF cl_gui_container.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if not line_exists( added[ function = iv_function ] ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if foo = bar and line_exists( fcat[ fieldname = 'MOO' ] ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo(2) = 12 OR foo(2) = 12.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo BYTE-CO bar.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF data BYTE-NS end.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ) OR \n  ( foo-bar CP 'a' ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12\n  OR foo(2) = 12.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF NOT line_exists( lt_eord[ KEY primary_key COMPONENTS matnr = <ls_excel>-matnr \nwerks = <ls_excel>-werks lifnr = <ls_excel>-lifnr ] ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF alv? = ''.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF gi_tab-field* = 'X'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if not line_exists( outputs[ table_line->alv = io_alv ] ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "if lv_value <> - 1.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF a = b EQUIV c = d.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF foo- = 2.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ( foo = 'bar').",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF ('bar' = foo ).",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF |{ lv_host CASE = (cl_abap_format=>c_lower) }| EQ 'http'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF <foo>-bar IS ASSIGNED.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
+  "abap": "IF r_e071k->* IS INITIAL.",
+  "expect": "match",
+  "type": "If",
+  "release": "v756"
+ }
+]

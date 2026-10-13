@@ -1,0 +1,55 @@
+[
+ {
+  "abap": "ASSERT <lv_field> IS ASSIGNED.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT CONDITION 0 = 1.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT ID user_mgnt_law CONDITION lv_in_central EQ 'X'.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT ID __foo__ CONDITION lv_in_central EQ 'X'.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT FIELDS lx_root->get_text( ) CONDITION 1 = 0.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT ID bar SUBKEY 'FOO' FIELDS field CONDITION sy-subrc EQ 0.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT ID /foo/bar CONDITION sy-subrc = 0.",
+  "expect": "match",
+  "type": "Assert"
+ },
+ {
+  "abap": "ASSERT hex = |11|.",
+  "expect": "match",
+  "type": "Assert",
+  "release": "v702"
+ },
+ {
+  "abap": "ASSERT hex = |22|.",
+  "expect": "match",
+  "type": "Assert",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "ASSERT CONDITION 1 = 1.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

@@ -1,0 +1,19 @@
+[
+ {
+  "abap": "COMPUTE exact <foo> = bar.",
+  "expect": "match",
+  "type": "Compute"
+ },
+ {
+  "abap": "COMPUTE exact <foo> = bar.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "COMPUTE lv = 1 + 2.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

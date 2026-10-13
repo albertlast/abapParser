@@ -1,0 +1,38 @@
+[
+ {
+  "abap": "COMMIT ENTITIES\n  RESPONSE OF zi_foobar\n  FAILED     DATA(failed_commit)\n  REPORTED   DATA(reported_commit).",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES IN SIMULATION MODE.",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES.",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES\n  RESPONSE OF /foo/bar\n  FAILED DATA(failed)\n  REPORTED DATA(reported).",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES RESPONSES FAILED DATA(commit_failed) REPORTED DATA(commit_reported).",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES RESPONSE OF zfoo\n    REPORTED DATA(reported_late)\n    FAILED DATA(failed_late).",
+  "expect": "match",
+  "type": "CommitEntities"
+ },
+ {
+  "abap": "COMMIT ENTITIES.",
+  "expect": "match",
+  "type": "CommitEntities",
+  "release": "OpenABAP"
+ }
+]

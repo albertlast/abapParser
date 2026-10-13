@@ -1,0 +1,23 @@
+[
+ {
+  "abap": "ENHANCEMENT-SECTION section SPOTS spot.",
+  "expect": "match",
+  "type": "EnhancementSection"
+ },
+ {
+  "abap": "ENHANCEMENT-SECTION foo-bar SPOTS sdf.",
+  "expect": "match",
+  "type": "EnhancementSection"
+ },
+ {
+  "abap": "ENHANCEMENT-SECTION asdf SPOTS asdf INCLUDE BOUND.",
+  "expect": "match",
+  "type": "EnhancementSection"
+ },
+ {
+  "abap": "ENHANCEMENT-SECTION section SPOTS spot.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]

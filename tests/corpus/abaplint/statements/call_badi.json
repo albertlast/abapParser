@@ -1,0 +1,19 @@
+[
+ {
+  "abap": "call badi lr_badi->method importing ev_foo = lv_moo ev_bar = lv_boo.",
+  "expect": "match",
+  "type": "CallBadi"
+ },
+ {
+  "abap": "call badi lr_badi->method importing ev_foo = lv_moo ev_bar = lv_boo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ },
+ {
+  "abap": "call badi lr_badi->method importing ev_foo = lv_moo ev_bar = lv_boo.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "KeyUser"
+ }
+]

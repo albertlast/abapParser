@@ -1,0 +1,13 @@
+[
+ {
+  "abap": "GET RUN TIME FIELD lv_t1.",
+  "expect": "match",
+  "type": "GetRunTime"
+ },
+ {
+  "abap": "GET RUN TIME FIELD lv_t1.",
+  "expect": "unknown",
+  "release": "Newest",
+  "lang": "Cloud"
+ }
+]
