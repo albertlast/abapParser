@@ -154,10 +154,14 @@ class DataAccess(_DataAccessRequired, total=False):
     """A data object read or written by a statement."""
     declared: bool
     """declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable"""
+    depends: Dependency
+    """writes through a call: what the written value depends on in the called procedure"""
     from_entry: bool
     """reads: the value may come from before the procedure, e.g. from a parameter or attribute"""
     sources: List[int]
     """reads: statements whose writes may provide the value"""
+    through: str
+    """accessed through a field symbol or data reference, e.g. `<ls_item>` for `<ls_item>-amount = 0` after `LOOP AT mt_items ASSIGNING <ls_item>`; `name` is then the data it points to, `path` the operand as written"""
     via: BlockRef
     """accessed by the called procedure, not by the statement itself"""
     whole: bool
@@ -322,6 +326,16 @@ class Declaration(_DeclarationRequired, total=False):
     typing: Typing
     value: str
     visibility: Visibility
+
+
+class Dependency(TypedDict):
+    """What a value written by a called procedure depends on there, in names of the caller."""
+    arguments: bool
+    """the value depends on parameters, so on the arguments of the call"""
+    reads: List[str]
+    """data read through the call: attributes, global data"""
+    tables: List[str]
+    """database tables read, upper case"""
 
 
 class _DialogModuleRequired(TypedDict):
@@ -629,6 +643,8 @@ class _TableAccessRequired(TypedDict):
 
 class TableAccess(_TableAccessRequired, total=False):
     """A database table read or written by a statement."""
+    depends: Dependency
+    """writes through a call: what the written rows depend on in the called procedure"""
     via: BlockRef
     """accessed by the called procedure, not by the statement itself"""
 

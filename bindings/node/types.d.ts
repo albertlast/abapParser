@@ -130,6 +130,8 @@ export interface DataAccess {
   access: AccessKind;
   /** declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable */
   declared?: boolean;
+  /** writes through a call: what the written value depends on in the called procedure */
+  depends?: Dependency;
   /** reads: the value may come from before the procedure, e.g. from a parameter or attribute */
   from_entry?: boolean;
   /** lower case; attributes of other objects with the path to them, e.g. `lo_order->items`, `zcl_x=>gv_count`; `me->` is left out */
@@ -140,6 +142,8 @@ export interface DataAccess {
   scope: DataScope;
   /** reads: statements whose writes may provide the value */
   sources?: number[];
+  /** accessed through a field symbol or data reference, e.g. `<ls_item>` for `<ls_item>-amount = 0` after `LOOP AT mt_items ASSIGNING <ls_item>`; `name` is then the data it points to, `path` the operand as written */
+  through?: string;
   /** accessed by the called procedure, not by the statement itself */
   via?: BlockRef;
   /** writes: the whole data object is replaced, not just a component */
@@ -294,6 +298,16 @@ export interface Declaration {
 }
 
 export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "type" | "field_symbol" | "parameter" | "select_option" | "range" | "tables" | "node" | "include" | "enum_value";
+
+/** What a value written by a called procedure depends on there, in names of the caller. */
+export interface Dependency {
+  /** the value depends on parameters, so on the arguments of the call */
+  arguments: boolean;
+  /** data read through the call: attributes, global data */
+  reads: string[];
+  /** database tables read, upper case */
+  tables: string[];
+}
 
 /** Dynpro module, `MODULE name INPUT|OUTPUT`. */
 export interface DialogModule {
@@ -573,6 +587,8 @@ export interface Step {
 export interface TableAccess {
   /** `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE */
   access: AccessKind;
+  /** writes through a call: what the written rows depend on in the called procedure */
+  depends?: Dependency;
   /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses */
   name: string;
   operation: DbOperation;

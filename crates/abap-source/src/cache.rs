@@ -67,6 +67,10 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
         self.inner.function_modules(group)
     }
 
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        self.inner.implementations(interface)
+    }
+
     fn describe(&self) -> String {
         format!("cache {} -> {}", self.dir.display(), self.inner.describe())
     }

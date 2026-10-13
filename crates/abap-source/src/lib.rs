@@ -235,6 +235,12 @@ pub trait SourceProvider: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Global classes implementing an interface, upper case, when the
+    /// provider can list them; folders can, an SAP system is not asked.
+    fn implementations(&self, _interface: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
     /// Short description for messages, e.g. the folder or URL.
     fn describe(&self) -> String;
 }
@@ -268,6 +274,18 @@ impl SourceProvider for ChainProvider {
             }
         }
         Ok(Vec::new())
+    }
+
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        let mut out: Vec<String> = Vec::new();
+        for p in &self.providers {
+            for c in p.implementations(interface)? {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+        }
+        Ok(out)
     }
 
     fn describe(&self) -> String {

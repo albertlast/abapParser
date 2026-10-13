@@ -181,9 +181,10 @@ In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `
 - **Conditions:** parsed into a tree of AND, OR, NOT, comparisons, `IS INITIAL`/`BOUND`/`ASSIGNED`/`INSTANCE OF`, `IN` and `BETWEEN`. Operands are classified as literal (with its value), data, call, constructor or arithmetic. A WHEN becomes `operand = value OR ...`.
 - **Guards:** every condition that holds when a step runs, outermost first. ELSE and ELSEIF get the earlier conditions negated. Statements after `CHECK c` are guarded by `c`. Statements after `IF c. RETURN. ENDIF.` are guarded by `NOT c`.
 - **Reads and writes:** each data object a statement reads, writes or changes in place (`APPEND ... TO itab`), with its position and scope: local, parameter, attribute, global (declared at program level, also in event blocks) or other.
+- **Field symbols and references:** a write through `<fs>` or `lr->` is a write of the data they point to, as bound anywhere in the procedure by `ASSIGN`, `LOOP AT ... ASSIGNING`, `READ TABLE ... REFERENCE INTO`, `GET REFERENCE OF` or `REF #( )`. Such accesses name the field symbol or reference in `through`. Binding a field symbol to a table does not change the table.
 - **Database tables:** each step lists the tables it reads, and the table that INSERT, UPDATE, MODIFY, DELETE or MERGE writes. Open SQL and native SQL are both covered.
 - **Data flow:** each read lists the steps whose writes may provide its value, and whether the value may come from before the procedure. Computed by reaching definitions over the control flow graph, which is also part of the output.
-- **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. The arguments of a call count as the inputs of its results.
+- **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. Each value written through a call carries in `depends` what it depends on in the called procedure: data read there, tables read there, and whether it depends on the arguments of the call. A call through an interface is followed into each implementation in the sources, if there are no more than 10. Calls through aliases resolve to the interface method.
 - **Effects:** every parameter, attribute, global or database table the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
 
 ```abap
@@ -219,9 +220,10 @@ abap logic FUGR:ZORDERS --src ./src --depth 2
 ```
 
 Not covered yet:
-- Writes through field symbols and references are writes of the field symbol, not of what it points to.
-- Calls through an interface or a dynamic name are not followed, since the implementation is only known at runtime. A method redefined in a subclass is followed into the class the call names.
-- A call into another object counts all the tables it reads as inputs of everything that step writes.
+- Dynamic calls are not followed. A method redefined in a subclass is followed into the class the call names.
+- Implementations of global interfaces are found in source folders; an SAP system is not asked for them yet.
+- What a field symbol or reference points to is collected per procedure, not along the control flow, and not across calls.
+- Exporting and changing arguments of a call depend on all arguments, since parameters are not matched to arguments yet.
 
 ## Layout
 

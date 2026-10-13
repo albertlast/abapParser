@@ -32,6 +32,7 @@ pub struct Workspace {
     provider: Box<dyn SourceProvider>,
     units: Mutex<HashMap<SourceRef, Option<Arc<Unit>>>>,
     objects: Mutex<HashMap<SourceRef, Option<Arc<Object>>>>,
+    implementations: Mutex<HashMap<String, Vec<String>>>,
     errors: Mutex<Vec<String>>,
 }
 
@@ -44,6 +45,7 @@ impl Workspace {
             provider,
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
+            implementations: Mutex::new(HashMap::new()),
             errors: Mutex::new(Vec::new()),
         }
     }
@@ -165,6 +167,27 @@ impl Workspace {
             symbols,
             missing_includes,
         })
+    }
+
+    /// Global classes implementing an interface, as far as the provider can
+    /// list them, upper case.
+    pub fn implementations(&self, interface: &str) -> Vec<String> {
+        let key = interface.to_ascii_uppercase();
+        if let Some(c) = self.implementations.lock().unwrap().get(&key) {
+            return c.clone();
+        }
+        let classes = match self.provider.implementations(&key) {
+            Ok(c) => c,
+            Err(e) => {
+                self.errors.lock().unwrap().push(format!("{key}: {e}"));
+                Vec::new()
+            }
+        };
+        self.implementations
+            .lock()
+            .unwrap()
+            .insert(key, classes.clone());
+        classes
     }
 
     /// The object of a class or interface name, whichever exists.

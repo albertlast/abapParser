@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use crate::{ClassPart, ObjectKind, Result, Source, SourceProvider, SourceRef};
 
@@ -12,6 +13,9 @@ pub struct FsProvider {
     index: HashMap<SourceRef, PathBuf>,
     /// function group (upper case) -> function modules
     groups: HashMap<String, Vec<String>>,
+    /// interface -> global classes implementing it, upper case; read from
+    /// the class sources on first use
+    implementers: OnceLock<HashMap<String, Vec<String>>>,
 }
 
 impl FsProvider {
@@ -21,6 +25,7 @@ impl FsProvider {
             roots: roots.clone(),
             index: HashMap::new(),
             groups: HashMap::new(),
+            implementers: OnceLock::new(),
         };
         for root in &roots {
             p.scan(root)?;
@@ -81,6 +86,39 @@ impl FsProvider {
                 .or_insert_with(|| path.to_path_buf());
         }
     }
+}
+
+/// Interfaces named by the INTERFACES statements of a source, upper case.
+fn interfaces_of(text: &str) -> Vec<String> {
+    let code: String = text
+        .lines()
+        .filter(|l| !l.starts_with('*'))
+        .map(|l| l.split('"').next().unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut out = Vec::new();
+    for statement in code.split('.') {
+        let statement = statement.trim();
+        let Some(rest) = statement
+            .get(..10)
+            .filter(|k| k.eq_ignore_ascii_case("INTERFACES"))
+            .map(|_| &statement[10..])
+        else {
+            continue;
+        };
+        if !rest.starts_with(|c: char| c == ':' || c.is_whitespace()) {
+            continue;
+        }
+        for part in rest.trim_start_matches([' ', ':']).split(',') {
+            if let Some(name) = part.split_whitespace().next() {
+                let name = name.trim_start_matches(':').to_ascii_uppercase();
+                if !name.is_empty() && !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// abapGit encodes '/' of namespaces as '#'.
@@ -171,6 +209,31 @@ impl SourceProvider for FsProvider {
         Ok(fms)
     }
 
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        let index = self.implementers.get_or_init(|| {
+            let mut index: HashMap<String, Vec<String>> = HashMap::new();
+            for (r, path) in &self.index {
+                if r.kind != ObjectKind::Clas || r.part.is_some() {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                for i in interfaces_of(&text) {
+                    index.entry(i).or_default().push(r.name.clone());
+                }
+            }
+            for classes in index.values_mut() {
+                classes.sort();
+            }
+            index
+        });
+        Ok(index
+            .get(&interface.to_ascii_uppercase())
+            .cloned()
+            .unwrap_or_default())
+    }
+
     fn describe(&self) -> String {
         self.roots
             .iter()
@@ -240,5 +303,21 @@ mod tests {
             .fetch(&SourceRef::program("SAPLZABAPGIT_PARALLEL"))
             .unwrap();
         assert!(main.is_some());
+        let objects = p.implementations("zif_abapgit_object").unwrap();
+        assert!(objects.len() > 50, "{objects:?}");
+        assert!(objects.contains(&"ZCL_ABAPGIT_OBJECT_CLAS".to_string()));
+    }
+
+    #[test]
+    fn interfaces_statements() {
+        let src = "CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES zif_a.
+    \"INTERFACES zif_comment.
+*   INTERFACES zif_star.
+    INTERFACES: zif_b, /abc/if_c ALL METHODS ABSTRACT.
+    INTERFACES zif_d DATA VALUES x = 1.
+ENDCLASS.";
+        assert_eq!(interfaces_of(src), ["ZIF_A", "ZIF_B", "/ABC/IF_C", "ZIF_D"]);
     }
 }

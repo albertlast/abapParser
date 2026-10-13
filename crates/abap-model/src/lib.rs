@@ -814,7 +814,28 @@ pub struct DataAccess {
     /// accessed by the called procedure, not by the statement itself
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<BlockRef>,
+    /// accessed through a field symbol or data reference, e.g. `<ls_item>`
+    /// for `<ls_item>-amount = 0` after `LOOP AT mt_items ASSIGNING <ls_item>`;
+    /// `name` is then the data it points to, `path` the operand as written
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub through: Option<String>,
+    /// writes through a call: what the written value depends on in the
+    /// called procedure
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends: Option<Dependency>,
     pub position: Position,
+}
+
+/// What a value written by a called procedure depends on there, in names
+/// of the caller.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Dependency {
+    /// data read through the call: attributes, global data
+    pub reads: Vec<String>,
+    /// the value depends on parameters, so on the arguments of the call
+    pub arguments: bool,
+    /// database tables read, upper case
+    pub tables: Vec<String>,
 }
 
 /// A database table read or written by a statement.
@@ -830,6 +851,10 @@ pub struct TableAccess {
     /// accessed by the called procedure, not by the statement itself
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<BlockRef>,
+    /// writes through a call: what the written rows depend on in the
+    /// called procedure
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends: Option<Dependency>,
 }
 
 /// A condition that holds when a step runs.
