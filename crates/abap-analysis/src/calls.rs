@@ -179,7 +179,8 @@ impl TypeResolver for SymbolsResolver<'_> {
     }
 }
 
-/// Built-in functions, never method calls.
+/// Built-in functions; a bare call is one unless the class has a method of
+/// that name.
 const BUILTINS: &[&str] = &[
     "abs",
     "ceil",
@@ -424,9 +425,17 @@ impl<'a> CallExtractor<'a> {
                 c.program.is_none() && s.forms.iter().any(|f| f.name.eq_ignore_ascii_case(&c.name))
             }
             m::CallKind::Method | m::CallKind::Constructor => {
-                c.class.as_deref().is_some_and(|cls| {
-                    method_defined(s, cls, &c.name, c.kind == m::CallKind::Constructor)
-                })
+                // the class, then its superclasses in this source
+                let constructor = c.kind == m::CallKind::Constructor;
+                let mut class = c.class.as_deref();
+                for _ in 0..10 {
+                    let Some(cls) = class else { return false };
+                    if method_defined(s, cls, &c.name, constructor) {
+                        return true;
+                    }
+                    class = type_info(s, cls).and_then(|i| i.superclass);
+                }
+                false
             }
             _ => false,
         }
@@ -814,13 +823,17 @@ impl<'a> CallExtractor<'a> {
             let units = units(t, start, k);
             let Some(last) = units.last() else { continue };
             if units.len() == 1 {
-                // a bare name: built-in function, or a method of the own class
+                // a bare name: built-in function, or a method of the own
+                // class; a method hides the built-in function of its name
                 let name = last.name.to_ascii_lowercase();
                 let first = t[start];
+                let Some(class) = scope.class.as_deref() else {
+                    continue;
+                };
                 if first.kind != TokenKind::Identifier
-                    || BUILTINS.contains(&name.as_str())
-                    || scope.class.is_none()
                     || name.contains('-')
+                    || (BUILTINS.contains(&name.as_str())
+                        && self.resolver.method_parameters(class, &name).is_none())
                 {
                     continue;
                 }
@@ -1343,6 +1356,59 @@ ENDCLASS.
                 (m::CallKind::Include, "Z_TOP", None, false),
                 (m::CallKind::Form, "main", None, true),
                 (m::CallKind::Form, "other", Some("ZPROG"), false),
+            ]
+        );
+    }
+
+    #[test]
+    fn methods_hide_builtin_functions() {
+        let c = calls(
+            "CLASS lcl_base DEFINITION.
+  PUBLIC SECTION.
+    METHODS log IMPORTING iv TYPE string.
+ENDCLASS.
+CLASS lcl DEFINITION INHERITING FROM lcl_base.
+  PUBLIC SECTION.
+    METHODS run.
+    METHODS lines RETURNING VALUE(rv) TYPE i.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+  METHOD run.
+    DATA(n) = lines( ).
+    log( |{ n }| ).
+    DATA(m) = strlen( `abc` ).
+  ENDMETHOD.
+  METHOD lines.
+  ENDMETHOD.
+ENDCLASS.
+CLASS lcl_other DEFINITION.
+  PUBLIC SECTION.
+    METHODS run.
+ENDCLASS.
+CLASS lcl_other IMPLEMENTATION.
+  METHOD run.
+    DATA lt TYPE string_table.
+    DATA(n) = lines( lt ).
+    DATA(x) = log( 2 ).
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let got: Vec<_> = c
+            .iter()
+            .map(|c| {
+                (
+                    c.from.as_ref().unwrap().class.as_deref().unwrap(),
+                    c.class.as_deref(),
+                    c.name.as_str(),
+                    c.resolved,
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("lcl", Some("lcl"), "lines", true),
+                ("lcl", Some("lcl"), "log", true),
             ]
         );
     }
