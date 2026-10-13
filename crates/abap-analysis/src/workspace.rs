@@ -36,6 +36,7 @@ pub struct Workspace {
     units: Mutex<HashMap<SourceRef, Option<Arc<Unit>>>>,
     objects: Mutex<HashMap<SourceRef, Option<Arc<Object>>>>,
     implementations: Mutex<HashMap<String, Vec<String>>>,
+    subclasses: Mutex<HashMap<String, Vec<String>>>,
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     errors: Mutex<Vec<String>>,
@@ -99,6 +100,7 @@ impl Workspace {
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
             implementations: Mutex::new(HashMap::new()),
+            subclasses: Mutex::new(HashMap::new()),
             structures: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
             errors: Mutex::new(Vec::new()),
@@ -307,6 +309,24 @@ impl Workspace {
             .lock()
             .unwrap()
             .insert(key, classes.clone());
+        classes
+    }
+
+    /// Global classes inheriting directly from a class, as far as the
+    /// provider can list them, upper case.
+    pub fn subclasses(&self, class: &str) -> Vec<String> {
+        let key = class.to_ascii_uppercase();
+        if let Some(c) = self.subclasses.lock().unwrap().get(&key) {
+            return c.clone();
+        }
+        let classes = match self.provider.subclasses(&key) {
+            Ok(c) => c,
+            Err(e) => {
+                self.errors.lock().unwrap().push(format!("{key}: {e}"));
+                Vec::new()
+            }
+        };
+        self.subclasses.lock().unwrap().insert(key, classes.clone());
         classes
     }
 
@@ -764,6 +784,60 @@ ENDCLASS.",
         assert!(g.missing.is_empty(), "{:?}", g.missing);
         assert!(g.errors.is_empty(), "{:?}", g.errors);
         ws.logic(&SourceRef::class("ZCL_ANY"), 2);
+    }
+
+    #[test]
+    fn redefinitions_in_other_objects() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_BASE"),
+            "CLASS zcl_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    METHODS save.
+ENDCLASS.
+CLASS zcl_base IMPLEMENTATION.
+  METHOD save.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_DB"),
+            "CLASS zcl_db DEFINITION PUBLIC INHERITING FROM zcl_base.
+  PUBLIC SECTION.
+    METHODS save REDEFINITION.
+ENDCLASS.
+CLASS zcl_db IMPLEMENTATION.
+  METHOD save.
+    DELETE FROM zorders WHERE id = 1.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_OTHER"),
+            "CLASS zcl_other DEFINITION PUBLIC INHERITING FROM zcl_base.
+ENDCLASS.
+CLASS zcl_other IMPLEMENTATION.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.
+DATA go TYPE REF TO zcl_base.
+START-OF-SELECTION.
+  go->save( ).",
+        );
+        let ws = Workspace::new(Box::new(p));
+        assert_eq!(ws.subclasses("zcl_base"), ["ZCL_DB", "ZCL_OTHER"]);
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 1);
+        let effects: Vec<(&str, Option<&str>)> = l.procedures[0]
+            .effects
+            .iter()
+            .map(|e| (e.name.as_str(), e.via[0].class.as_deref()))
+            .collect();
+        assert_eq!(effects, [("ZORDERS", Some("zcl_db"))]);
+        // not followed into other objects: only the class the call names
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 0);
+        assert!(l.procedures[0].effects.is_empty());
     }
 
     #[test]

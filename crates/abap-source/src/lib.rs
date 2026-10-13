@@ -260,6 +260,12 @@ pub trait SourceProvider: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Global classes inheriting directly from a class, upper case, when the
+    /// provider can list them.
+    fn subclasses(&self, _class: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
     /// Short description for messages, e.g. the folder or URL.
     fn describe(&self) -> String;
 }
@@ -307,6 +313,18 @@ impl SourceProvider for ChainProvider {
         Ok(out)
     }
 
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        let mut out: Vec<String> = Vec::new();
+        for p in &self.providers {
+            for c in p.subclasses(class)? {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+        }
+        Ok(out)
+    }
+
     fn describe(&self) -> String {
         self.providers
             .iter()
@@ -330,6 +348,20 @@ impl MemoryProvider {
     pub fn insert(&mut self, reference: SourceRef, text: impl Into<String>) {
         self.sources.insert(reference, text.into());
     }
+
+    /// Global classes whose main source matches, sorted.
+    fn classes(&self, matches: impl Fn(&str, &str) -> bool) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .sources
+            .iter()
+            .filter(|(r, text)| {
+                r.kind == ObjectKind::Clas && r.part.is_none() && matches(text, &r.name)
+            })
+            .map(|(r, _)| r.name.clone())
+            .collect();
+        out.sort();
+        out
+    }
 }
 
 impl SourceProvider for MemoryProvider {
@@ -343,6 +375,17 @@ impl SourceProvider for MemoryProvider {
 
     fn function_modules(&self, _group: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
+    }
+
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        Ok(self
+            .classes(|text, _| fs::interfaces_of(text).contains(&interface.to_ascii_uppercase())))
+    }
+
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        Ok(self.classes(|text, name| {
+            fs::superclass_of(text, name).is_some_and(|s| s.eq_ignore_ascii_case(class))
+        }))
     }
 
     fn describe(&self) -> String {

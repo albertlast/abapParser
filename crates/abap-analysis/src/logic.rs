@@ -94,6 +94,10 @@ impl Workspace {
 /// implementations; with more, which one runs says too little.
 const MAX_IMPLEMENTATIONS: usize = 10;
 
+/// Subclasses looked at for redefinitions of a called method; with more,
+/// a class is too general to tell which redefinition runs.
+const MAX_SUBCLASSES: usize = 50;
+
 /// What a written value depends on in the procedure writing it, in its names.
 #[derive(Clone, Default)]
 struct Deps {
@@ -320,8 +324,75 @@ impl<'w> Engine<'w> {
         out
     }
 
+    /// Classes inheriting directly from a class: in the object `o` and,
+    /// through the workspace, in the sources.
+    fn subclasses(&self, o: usize, class: &str) -> Vec<String> {
+        let mut out: Vec<String> = self.objects[o]
+            .symbols
+            .classes
+            .iter()
+            .filter(|c| {
+                c.superclass
+                    .as_deref()
+                    .is_some_and(|s| s.eq_ignore_ascii_case(class))
+            })
+            .map(|c| c.name.clone())
+            .collect();
+        if let Some(ws) = self.workspace {
+            for c in ws.subclasses(class) {
+                if !out.iter().any(|x| x.eq_ignore_ascii_case(&c)) {
+                    out.push(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// Redefinitions of a method in the subclasses of a class, at any
+    /// depth; none when the class has too many subclasses to tell.
+    fn redefinitions(
+        &mut self,
+        o: usize,
+        class: &str,
+        name: &str,
+        depth: u32,
+    ) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
+        let mut queue = vec![class.to_string()];
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(cls) = queue.pop() {
+            for sub in self.subclasses(o, &cls) {
+                if seen.iter().any(|x| x.eq_ignore_ascii_case(&sub)) {
+                    continue;
+                }
+                if seen.len() >= MAX_SUBCLASSES {
+                    return Vec::new();
+                }
+                seen.push(sub.clone());
+                if let Some(h) = self.holder(o, &sub, depth) {
+                    let redefines = type_info(&self.objects[h].symbols, &sub).is_some_and(|i| {
+                        i.methods
+                            .iter()
+                            .any(|m| m.is_redefinition && m.name.eq_ignore_ascii_case(name))
+                    });
+                    if redefines {
+                        if let Some(k) = self.find(h, "method", Some(&sub), name) {
+                            out.push((h, k));
+                        }
+                    }
+                }
+                queue.push(sub);
+            }
+        }
+        if out.len() > MAX_IMPLEMENTATIONS {
+            return Vec::new();
+        }
+        out
+    }
+
     /// The procedures a call may run that are in the sources: one, or for a
-    /// method of an interface its implementations.
+    /// method of an interface its implementations; for an instance method
+    /// also its redefinitions in subclasses.
     fn callees(&mut self, o: usize, c: &m::Call) -> Vec<(usize, usize)> {
         if c.dynamic {
             return Vec::new();
@@ -353,8 +424,21 @@ impl<'w> Engine<'w> {
                 } else {
                     c.name.as_str()
                 };
+                // the object may be of a subclass redefining the method,
+                // unless the call names the implementation: super->m( ),
+                // static methods, constructors
+                let dispatched = c.kind == m::CallKind::Method
+                    && !c.is_static
+                    && !c
+                        .receiver
+                        .as_deref()
+                        .is_some_and(|r| r.eq_ignore_ascii_case("super"));
                 if let Some(found) = self.method_in(o, &class, name, depth) {
-                    return vec![found];
+                    let mut out = vec![found];
+                    if dispatched {
+                        out.extend(self.redefinitions(o, &class, name, depth));
+                    }
+                    return out;
                 }
                 // a method of an interface: any implementation may run
                 let interface = self.holder(o, &class, depth).is_some_and(|h| {
@@ -372,10 +456,15 @@ impl<'w> Engine<'w> {
                     return Vec::new();
                 }
                 let method = format!("{class}~{name}");
-                return classes
-                    .iter()
-                    .filter_map(|cls| self.method_in(o, cls, &method, depth))
-                    .collect();
+                let mut out = Vec::new();
+                for cls in &classes {
+                    if let Some(found) = self.method_in(o, cls, &method, depth) {
+                        out.push(found);
+                        out.extend(self.redefinitions(o, cls, &method, depth));
+                    }
+                }
+                out.dedup();
+                return out;
             }
             _ => None,
         };
@@ -3290,6 +3379,72 @@ ENDCLASS.",
             effect(run, "io_file->mv_written").via[0].name,
             "lif_store~save"
         );
+    }
+
+    #[test]
+    fn calls_reach_redefinitions() {
+        let l = logic(
+            "CLASS lcl_base DEFINITION.
+  PUBLIC SECTION.
+    METHODS save.
+    CLASS-METHODS create RETURNING VALUE(ro) TYPE REF TO lcl_base.
+  PROTECTED SECTION.
+    DATA mv_saved TYPE abap_bool.
+ENDCLASS.
+CLASS lcl_base IMPLEMENTATION.
+  METHOD save.
+    mv_saved = abap_true.
+  ENDMETHOD.
+  METHOD create.
+  ENDMETHOD.
+ENDCLASS.
+CLASS lcl_db DEFINITION INHERITING FROM lcl_base.
+  PUBLIC SECTION.
+    METHODS save REDEFINITION.
+ENDCLASS.
+CLASS lcl_db IMPLEMENTATION.
+  METHOD save.
+    super->save( ).
+    INSERT zlog FROM @( VALUE #( id = 1 ) ).
+  ENDMETHOD.
+ENDCLASS.
+CLASS lcl_db_audit DEFINITION INHERITING FROM lcl_db.
+  PUBLIC SECTION.
+    METHODS save REDEFINITION.
+ENDCLASS.
+CLASS lcl_db_audit IMPLEMENTATION.
+  METHOD save.
+    INSERT zaudit FROM @( VALUE #( id = 1 ) ).
+  ENDMETHOD.
+ENDCLASS.
+CLASS lcl_app DEFINITION.
+  PUBLIC SECTION.
+    METHODS run IMPORTING io TYPE REF TO lcl_base.
+ENDCLASS.
+CLASS lcl_app IMPLEMENTATION.
+  METHOD run.
+    io->save( ).
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        // the object may be of any subclass: the redefinitions may run
+        let run = procedure(&l, "run");
+        let names: Vec<&str> = run.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["ZAUDIT", "ZLOG", "io->mv_saved"]);
+        let via: Vec<&str> = effect(run, "ZAUDIT")
+            .via
+            .iter()
+            .filter_map(|b| b.class.as_deref())
+            .collect();
+        assert_eq!(via, ["lcl_db_audit"]);
+        // super->save( ) runs the implementation of the superclass only
+        let db = l
+            .procedures
+            .iter()
+            .find(|p| p.block.class.as_deref() == Some("lcl_db"))
+            .unwrap();
+        let names: Vec<&str> = db.effects.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["ZLOG", "mv_saved"]);
     }
 
     #[test]

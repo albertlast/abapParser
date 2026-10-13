@@ -156,6 +156,11 @@ impl Server {
                 let classes = self.workspace()?.implementations(&interface);
                 Ok(compact(&classes))
             }
+            "find_subclasses" => {
+                let class = string(args, "class")?;
+                let classes = self.workspace()?.subclasses(&class);
+                Ok(compact(&classes))
+            }
             "analyze_source" => {
                 let source = string(args, "source")?;
                 let analysis = args
@@ -425,7 +430,7 @@ fn tools() -> Value {
         {
             "name": "get_logic",
             "title": "What procedures do",
-            "description": "Per procedure (method, form, function module): parameters and effects, i.e. the data, parameters and database tables written, by which statements, under which conditions, from which inputs; effects of called procedures included. detail=full gives every statement with conditions, data read and written, and the control flow.",
+            "description": "Per procedure (method, form, function module): parameters and effects, i.e. the data, parameters and database tables written, by which statements, under which conditions, from which inputs; effects of called procedures included, for instance methods also their redefinitions in subclasses. detail=full gives every statement with conditions, data read and written, and the control flow.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -458,6 +463,17 @@ fn tools() -> Value {
                 "type": "object",
                 "properties": {"interface": {"type": "string", "description": "e.g. ZIF_REPOSITORY"}},
                 "required": ["interface"],
+            },
+            "annotations": read_only,
+        },
+        {
+            "name": "find_subclasses",
+            "title": "Subclasses of a class",
+            "description": "Global classes inheriting directly from a class. get_logic follows calls into their redefinitions.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"class": {"type": "string", "description": "e.g. ZCL_DOCUMENT"}},
+                "required": ["class"],
             },
             "annotations": read_only,
         },
@@ -548,6 +564,7 @@ ENDCLASS.",
                 "get_logic",
                 "get_db_access",
                 "find_implementations",
+                "find_subclasses",
                 "analyze_source"
             ]
         );

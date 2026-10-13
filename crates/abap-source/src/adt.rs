@@ -50,6 +50,8 @@ pub struct AdtProvider {
     usages: Mutex<HashMap<String, Vec<String>>>,
     /// implementing classes per interface, upper case
     implementers: Mutex<HashMap<String, Vec<String>>>,
+    /// subclasses per class, upper case
+    subclasses: Mutex<HashMap<String, Vec<String>>>,
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -112,6 +114,7 @@ impl AdtProvider {
             session: Mutex::new(None),
             usages: Mutex::new(HashMap::new()),
             implementers: Mutex::new(HashMap::new()),
+            subclasses: Mutex::new(HashMap::new()),
         }
     }
 
@@ -270,7 +273,14 @@ impl AdtProvider {
     /// Classes implementing an interface directly, from the class relations
     /// through the data preview; `None` when the system has no data preview.
     pub fn implementing_classes(&self, interface: &str) -> Result<Option<Vec<String>>> {
-        let key = interface.to_ascii_uppercase();
+        self.related_classes(interface, Relation::Implements)
+    }
+
+    /// Classes with a relation to `name` in the class relations (SEOMETAREL)
+    /// read through the data preview; `None` when the system has no data
+    /// preview.
+    fn related_classes(&self, name: &str, relation: Relation) -> Result<Option<Vec<String>>> {
+        let key = name.to_ascii_uppercase();
         // the name goes into SQL: only what ABAP names consist of
         if key.is_empty()
             || !key
@@ -280,7 +290,8 @@ impl AdtProvider {
             return Ok(Some(Vec::new()));
         }
         let query = format!(
-            "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '1' AND version = '1'"
+            "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '{}' AND version = '1'",
+            relation as u8
         );
         let xml = self.post(
             "/sap/bc/adt/datapreview/freestyle?rowNumber=1000",
@@ -343,6 +354,13 @@ impl AdtProvider {
 }
 
 const USAGE_REQUEST: &str = r#"<?xml version="1.0" encoding="UTF-8"?><usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences"><usagereferences:affectedObjects/></usagereferences:usageReferenceRequest>"#;
+
+/// Relation types of the class relations, SEOMETAREL-RELTYPE.
+#[derive(Clone, Copy)]
+enum Relation {
+    Implements = 1,
+    Inherits = 2,
+}
 
 /// Percent encoding of a query parameter value.
 fn query_encode(value: &str) -> String {
@@ -466,6 +484,22 @@ impl SourceProvider for AdtProvider {
     /// The classes the class relations (SEOMETAREL) name, read through the
     /// data preview; where that is not allowed, the where-used list of the
     /// interface, a superset which callers check against the class sources.
+    /// From the class relations through the data preview; nothing where
+    /// that is not allowed.
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        let key = class.to_ascii_uppercase();
+        if let Some(c) = self.subclasses.lock().unwrap().get(&key) {
+            return Ok(c.clone());
+        }
+        let classes = match self.related_classes(&key, Relation::Inherits) {
+            Ok(classes) => classes.unwrap_or_default(),
+            Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => Vec::new(),
+            Err(e) => return Err(e),
+        };
+        self.subclasses.lock().unwrap().insert(key, classes.clone());
+        Ok(classes)
+    }
+
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
         let key = interface.to_ascii_uppercase();
         if let Some(c) = self.implementers.lock().unwrap().get(&key) {
@@ -648,10 +682,16 @@ mod tests {
         );
         // names that are no ABAP names are not put into SQL
         assert!(adt.implementations("X' OR '1' = '1").unwrap().is_empty());
+        // subclasses the same way, answers cached
+        assert_eq!(
+            adt.subclasses("cl_base").unwrap(),
+            ["CL_IDENTITY", "CL_OTHER"]
+        );
+        adt.subclasses("CL_BASE").unwrap();
         let paths: Vec<String> = requests.try_iter().collect();
         assert_eq!(
             paths.iter().filter(|p| p.contains("freestyle")).count(),
-            1,
+            2,
             "{paths:?}"
         );
     }

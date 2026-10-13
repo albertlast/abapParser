@@ -221,16 +221,15 @@ ENDMETHOD.
 
 `total` has the effect `ev_total` with the input `iv_vbeln` and the table `VBAP`. `run` has the effects `ZLOG` (scope database) and `mv_count`, both through `write_log`, and both depend on `VBAP` because the IF decides on the result of `total`.
 
-For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
+For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. A call of an instance method also reaches the redefinitions of the method in subclasses, since the object may be of a subclass; `super->m( )` reaches only the superclass's method. A call of an interface method reaches the implementations. Both are followed up to 10 candidates, and subclasses are looked at up to 50; beyond that the call says too little about what runs. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
 
 ```sh
 abap logic FUGR:ZORDERS --src ./src --depth 2
 ```
 
 Not covered yet:
-- A method redefined in a subclass is followed into the class the call names, not into the redefinitions.
 - Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
-- Implementations of global interfaces come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview, or, where that is not allowed, from the where-used list. The where-used index of a system may be incomplete for SAP standard code.
+- Implementations of global interfaces and subclasses of global classes come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview. Where that is not allowed, implementations come from the where-used list, whose index may be incomplete for SAP standard code, and subclasses are not found.
 - A field symbol or reference stored in a structure, table or attribute is not followed.
 
 ## Language models (MCP)
@@ -245,6 +244,7 @@ Not covered yet:
 | `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
 | `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
 | `find_implementations` | global classes implementing an interface |
+| `find_subclasses` | global classes inheriting directly from a class |
 | `analyze_source` | the analyses of ABAP code given as text, without a system |
 
 Answers are in the compact text form unless `detail: "full"` asks for JSON, and are cut at 80,000 characters with a hint to ask for less.

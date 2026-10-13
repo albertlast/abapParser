@@ -78,6 +78,10 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
         self.inner.implementations(interface)
     }
 
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        self.inner.subclasses(class)
+    }
+
     fn describe(&self) -> String {
         format!("cache {} -> {}", self.dir.display(), self.inner.describe())
     }
