@@ -619,6 +619,10 @@ pub struct Call {
     /// class or interface of a method or constructor, when known
     #[serde(skip_serializing_if = "Option::is_none")]
     pub class: Option<String>,
+    /// BAdI called with `CALL BADI`, when its definition is known; `class`
+    /// is then its interface
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub badi: Option<String>,
     /// program of `PERFORM ... IN PROGRAM`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub program: Option<String>,

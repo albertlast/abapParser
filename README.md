@@ -163,6 +163,7 @@ abap fetch DDLS:I_COUNTRY --adt-url https://sap:44300
 - method calls, functional and `CALL METHOD`
 - constructors, from `NEW` and `CREATE OBJECT`
 - `CALL FUNCTION`, `PERFORM`, `SUBMIT`, transactions, `CALL TRANSFORMATION` and `INCLUDE`
+- `CALL BADI`, and customer exits: `CALL CUSTOMER-FUNCTION '001'` in program SAPMV45A calls `EXIT_SAPMV45A_001`
 
 Each call has its processing block, receiver, target class, options like `DESTINATION` or `IN UPDATE TASK`, and a `dynamic` flag. Receiver types come from declarations, parameters, attributes and inline `DATA(x) = NEW ...` or `x = NEW #( )`. References inside structures are followed, `ls_node-idref->get( )` or `lr_node->idref->get( )`, with local types and dictionary structures. Data elements typed as a reference, `io_id TYPE zid_ref`, lead to their class or interface. Chains like `zcl_factory=>get( )->run( )` are typed through returning parameters. Dynamic names written as literals, `('CL_X')=>('METH')`, count as static.
 
@@ -170,7 +171,7 @@ Each call has its processing block, receiver, target class, options like `DESTIN
 
 | Provider | Reads |
 |---|---|
-| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml` |
+| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml`; BAdIs from `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml`; enhancement code from `.enho.<hash>.abap` |
 | SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
 | cache | sources fetched from the SAP system, one folder per system and client |
 
@@ -191,6 +192,23 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 ```
 
 The ADT provider only reads. It is tested against the mock server below and by hand against the SAP ABAP Cloud Developer Trial.
+
+### BAdIs
+
+Which classes a BAdI runs is not in the calling code, so the providers look it up:
+
+| Kind | Called with | Runs |
+|---|---|---|
+| BAdI of an enhancement spot | `GET BADI lo_badi.` `CALL BADI lo_badi->check( ).` | the classes of its active implementations, else its fallback class |
+| classic BAdI | `cl_exithandler=>get_instance( CHANGING instance = lo_exit )`, then `lo_exit->check( )` on its interface `IF_EX_<name>` | the classes of its active implementations, else its default implementation; with a BAdI it was migrated to, that one's too |
+
+A `CALL BADI` gets the BAdI in `badi` and its interface in `class`. The call graph loads the classes that run, and `logic` follows the call into them, up to 10 like other interface calls. Classes that implement the interface but are not active implementations, like the adapter class `CL_EX_<name>` of a classic BAdI, are left out. An SAP system answers from the BAdI tables (BADI_MAIN and BADI_IMPL; SXS_INTER, SXS_ATTR, SXC_CLASS and SXC_ATTR) through the data preview, folders from the abapGit files. Filters are not evaluated: every active implementation counts. Business transaction events (`OPEN_FI_PERFORM_...`) are not followed: which function modules run is customizing.
+
+### Enhancements
+
+Enhancement implementations add code to programs, function modules and classes without changing them: at an `ENHANCEMENT-POINT`, in place of an `ENHANCEMENT-SECTION`, or implicitly at the begin or end of a form, function module, method or include. When an object is loaded, this code is put where it runs, so calls, database access and logic see it like code of the object; `INCLUDE`s in it are loaded too. It goes on the line of its position, written on one line without comments, so the rows of the rest of the source stay the same. The call graph lists each enhancement implementation applied as a unit `ENHO:<name>` with where its code came from.
+
+An SAP system names the enhancements of a program in its index of enhancement includes (ENHINCINX, through the data preview); their code comes from ADT. Implementations switched off by the switch framework are left out, except at static points, which hold declarations. Folders give the `.enho.<hash>.abap` files abapGit writes for each position. Not handled: enhancements of function module parameters, and class enhancements (pre-, post- and overwrite methods, added attributes).
 
 ### Testing without an SAP system
 
@@ -272,7 +290,8 @@ Not covered yet:
 | `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
 | `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
 | `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
-| `find_implementations` | global classes implementing an interface |
+| `find_implementations` | global classes implementing an interface; for a classic BAdI's interface the active implementations |
+| `find_badi_implementations` | a BAdI by name or a classic one by interface: its interface, active implementations, fallback class |
 | `find_subclasses` | global classes inheriting directly from a class |
 | `analyze_source` | the analyses of ABAP code given as text, without a system |
 

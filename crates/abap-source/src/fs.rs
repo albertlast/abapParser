@@ -2,13 +2,18 @@
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
 //! namespaces), or plain `name.abap` files taken as programs; dictionary
 //! types from `name.tabl.xml` and `name.dtel.xml`, CDS data definitions from
-//! `name.ddls.asddls`.
+//! `name.ddls.asddls`; BAdIs from enhancement spots and implementations
+//! (`.enhs.xml`, `.enho.xml`) and classic ones (`.sxsd.xml`, `.sxci.xml`);
+//! code of enhancement implementations from `.enho.<hash>.abap`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::{ClassPart, ObjectKind, Result, Source, SourceProvider, SourceRef};
+use crate::badi::BadiIndex;
+use crate::{
+    hook_matches, Badi, ClassPart, Hook, ObjectKind, Result, Source, SourceProvider, SourceRef,
+};
 
 pub struct FsProvider {
     roots: Vec<PathBuf>,
@@ -19,7 +24,18 @@ pub struct FsProvider {
     /// global classes inheriting from it, upper case; read from the class
     /// sources on first use
     relations: OnceLock<Relations>,
+    /// abapGit files of BAdI definitions and implementations with their
+    /// object type, read on first use
+    enhancements: Vec<(String, PathBuf)>,
+    badis: OnceLock<BadiIndex>,
+    /// code files of enhancement implementations with the implementation,
+    /// read on first use
+    hook_files: Vec<(String, PathBuf)>,
+    hooks: OnceLock<Vec<Hook>>,
 }
+
+/// abapGit object types holding BAdIs.
+const BADI_TYPES: [&str; 4] = ["enhs", "enho", "sxsd", "sxci"];
 
 #[derive(Default)]
 struct Relations {
@@ -35,6 +51,10 @@ impl FsProvider {
             index: HashMap::new(),
             groups: HashMap::new(),
             relations: OnceLock::new(),
+            enhancements: Vec::new(),
+            badis: OnceLock::new(),
+            hook_files: Vec::new(),
+            hooks: OnceLock::new(),
         };
         for root in &roots {
             p.scan(root)?;
@@ -83,6 +103,20 @@ impl FsProvider {
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             return;
         };
+        let lower = name.to_ascii_lowercase();
+        if let Some(kind) = BADI_TYPES
+            .iter()
+            .find(|k| lower.ends_with(&format!(".{k}.xml")))
+        {
+            self.enhancements
+                .push((kind.to_string(), path.to_path_buf()));
+            return;
+        }
+        // name.enho.<hash>.abap: one position of an enhancement implementation
+        if let [name, "enho", _, "abap"] = lower.split('.').collect::<Vec<_>>().as_slice() {
+            self.hook_files.push((decode(name), path.to_path_buf()));
+            return;
+        }
         if let Some((reference, group)) = parse_file_name(name) {
             if let Some(group) = group {
                 self.groups
@@ -127,6 +161,53 @@ pub(crate) fn superclass_of(text: &str, class: &str) -> Option<String> {
 }
 
 impl FsProvider {
+    fn badis(&self) -> &BadiIndex {
+        self.badis.get_or_init(|| {
+            let mut index = BadiIndex::default();
+            for (kind, path) in &self.enhancements {
+                if let Ok(xml) = std::fs::read_to_string(path) {
+                    index.add(kind, &xml);
+                }
+            }
+            index
+        })
+    }
+
+    /// The code files of enhancement implementations; abapGit writes the
+    /// position into the first line, `"Name: \PR:ZREPORT\EX:ZPOINT\EI`.
+    fn hooks(&self) -> &[Hook] {
+        self.hooks.get_or_init(|| {
+            let mut out = Vec::new();
+            for (enhancement, path) in &self.hook_files {
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                let Some(position) = text
+                    .lines()
+                    .next()
+                    .and_then(|l| l.trim().strip_prefix("\"Name:"))
+                else {
+                    continue;
+                };
+                let code: Vec<&str> = text
+                    .lines()
+                    .skip_while(|l| {
+                        !l.trim_start()
+                            .to_ascii_uppercase()
+                            .starts_with("ENHANCEMENT ")
+                    })
+                    .collect();
+                out.push(Hook {
+                    enhancement: enhancement.clone(),
+                    position: position.trim().to_string(),
+                    code: code.join("\n"),
+                    origin: path.display().to_string(),
+                });
+            }
+            out
+        })
+    }
+
     fn relations(&self) -> &Relations {
         self.relations.get_or_init(|| {
             let mut index = Relations::default();
@@ -304,6 +385,23 @@ impl SourceProvider for FsProvider {
             .unwrap_or_default())
     }
 
+    fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
+        Ok(self
+            .hooks()
+            .iter()
+            .filter(|h| hook_matches(h, programs, function_modules))
+            .cloned()
+            .collect())
+    }
+
+    fn badi(&self, name: &str) -> Result<Option<Badi>> {
+        Ok(self.badis().by_name(name))
+    }
+
+    fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        Ok(self.badis().classic(interface))
+    }
+
     fn describe(&self) -> String {
         self.roots
             .iter()
@@ -380,6 +478,47 @@ mod tests {
         let objects = p.implementations("zif_abapgit_object").unwrap();
         assert!(objects.len() > 50, "{objects:?}");
         assert!(objects.contains(&"ZCL_ABAPGIT_OBJECT_CLAS".to_string()));
+    }
+
+    #[test]
+    fn enhancement_code_files() {
+        let dir = std::env::temp_dir().join(format!("abap-fs-hooks-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("zenh_orders.enho.1a2b3c4d.abap"),
+            "\"Name: \\PR:ZORDERS\\FO:SAVE\\SE:END\\EI\nENHANCEMENT 0 ZENH_ORDERS.\n  x = 1.\nENDENHANCEMENT.\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("zenh_orders.enho.5e6f7a8b.abap"),
+            "\"Name: \\FU:Z_POST\\SE:BEGIN\\EI\nENHANCEMENT 0 ZENH_ORDERS.\nENDENHANCEMENT.\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("#abc#enh.enho.11111111.abap"),
+            "\"Name: \\TY:/ABC/CL_X\\ME:RUN\\SE:BEGIN\\EI\nENHANCEMENT 0 /ABC/ENH.\nENDENHANCEMENT.\n",
+        )
+        .unwrap();
+        let p = FsProvider::new(vec![dir.clone()]).unwrap();
+        // the code files are no objects of their own
+        assert!(p.is_empty());
+        let hooks = p.enhancements(&["ZORDERS".into()], &[]).unwrap();
+        assert_eq!(hooks.len(), 1);
+        assert_eq!(hooks[0].enhancement, "ZENH_ORDERS");
+        assert_eq!(hooks[0].position, r"\PR:ZORDERS\FO:SAVE\SE:END\EI");
+        assert_eq!(
+            hooks[0].code,
+            "ENHANCEMENT 0 ZENH_ORDERS.\n  x = 1.\nENDENHANCEMENT."
+        );
+        let hooks = p.enhancements(&[], &["Z_POST".into()]).unwrap();
+        assert_eq!(hooks.len(), 1);
+        // a class by its class pool
+        let pool = crate::class_pool("/ABC/CL_X");
+        assert_eq!(pool, "/ABC/CL_X=====================CP");
+        let hooks = p.enhancements(&[pool], &[]).unwrap();
+        assert_eq!(hooks[0].enhancement, "/ABC/ENH");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

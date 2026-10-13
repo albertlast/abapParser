@@ -7,7 +7,9 @@ use std::time::Duration;
 
 use base64::Engine;
 
-use crate::{ClassPart, ObjectKind, Result, Source, SourceError, SourceProvider, SourceRef};
+use crate::{
+    Badi, ClassPart, Hook, ObjectKind, Result, Source, SourceError, SourceProvider, SourceRef,
+};
 
 #[derive(Debug, Clone)]
 pub struct AdtConfig {
@@ -52,6 +54,103 @@ pub struct AdtProvider {
     implementers: Mutex<HashMap<String, Vec<String>>>,
     /// subclasses per class, upper case
     subclasses: Mutex<HashMap<String, Vec<String>>>,
+    /// BAdIs by name, classic ones by interface with a leading `if:`
+    badis: Mutex<HashMap<String, Option<Badi>>>,
+    /// enhancement implementation -> its code, URL and whether it is
+    /// switched off
+    hook_sources: Mutex<HashMap<String, Option<HookSource>>>,
+}
+
+#[derive(Clone)]
+struct HookSource {
+    text: String,
+    origin: String,
+    switched_off: bool,
+}
+
+/// The block `ENHANCEMENT <id> ...` to `ENDENHANCEMENT.` of the code of an
+/// enhancement implementation.
+fn hook_block(source: &str, id: &str) -> Option<String> {
+    let mut out: Option<Vec<&str>> = None;
+    for line in source.lines() {
+        let words: Vec<String> = line
+            .split(|c: char| c.is_whitespace() || c == '.')
+            .filter(|w| !w.is_empty())
+            .map(|w| w.to_ascii_uppercase())
+            .collect();
+        match &mut out {
+            None => {
+                if words.first().is_some_and(|w| w == "ENHANCEMENT")
+                    && words.get(1).map(String::as_str) == Some(id)
+                {
+                    out = Some(vec![line]);
+                }
+            }
+            Some(lines) => {
+                lines.push(line);
+                if words.first().is_some_and(|w| w == "ENDENHANCEMENT") {
+                    return Some(lines.join("\n"));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Whether a name may go into SQL: only what ABAP names consist of.
+fn is_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
+}
+
+/// The rows of a data preview answer, which lists the values per column.
+fn preview_rows(xml: &str) -> Vec<Vec<String>> {
+    let columns: Vec<Vec<String>> = xml
+        .split("<dataPreview:dataSet>")
+        .skip(1)
+        .map(|set| {
+            let set = set
+                .split("</dataPreview:dataSet>")
+                .next()
+                .unwrap_or_default();
+            set.split("<dataPreview:data")
+                .skip(1)
+                .map(|d| match d.strip_prefix('>') {
+                    Some(v) => v.split('<').next().unwrap_or_default().trim().to_string(),
+                    // an empty <dataPreview:data/>
+                    None => String::new(),
+                })
+                .collect()
+        })
+        .collect();
+    let n = columns.iter().map(Vec::len).max().unwrap_or(0);
+    (0..n)
+        .map(|i| {
+            columns
+                .iter()
+                .map(|c| c.get(i).cloned().unwrap_or_default())
+                .collect()
+        })
+        .collect()
+}
+
+/// The values of the first column, upper case, sorted, without empty ones.
+fn first_column(rows: Vec<Vec<String>>) -> Vec<String> {
+    let mut out: Vec<String> = rows
+        .into_iter()
+        .filter_map(|r| non_empty(r.first()))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn non_empty(value: Option<&String>) -> Option<String> {
+    value
+        .map(|v| v.trim().to_ascii_uppercase())
+        .filter(|v| !v.is_empty())
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -115,6 +214,8 @@ impl AdtProvider {
             usages: Mutex::new(HashMap::new()),
             implementers: Mutex::new(HashMap::new()),
             subclasses: Mutex::new(HashMap::new()),
+            badis: Mutex::new(HashMap::new()),
+            hook_sources: Mutex::new(HashMap::new()),
         }
     }
 
@@ -281,36 +382,141 @@ impl AdtProvider {
     /// preview.
     fn related_classes(&self, name: &str, relation: Relation) -> Result<Option<Vec<String>>> {
         let key = name.to_ascii_uppercase();
-        // the name goes into SQL: only what ABAP names consist of
-        if key.is_empty()
-            || !key
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
-        {
+        if !is_name(&key) {
             return Ok(Some(Vec::new()));
         }
-        let query = format!(
+        let rows = self.select(&format!(
             "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '{}' AND version = '1'",
             relation as u8
-        );
+        ))?;
+        Ok(rows.map(first_column))
+    }
+
+    /// Rows of an ABAP SQL query through the data preview; `None` when the
+    /// system has no data preview.
+    fn select(&self, query: &str) -> Result<Option<Vec<Vec<String>>>> {
         let xml = self.post(
             "/sap/bc/adt/datapreview/freestyle?rowNumber=1000",
             "text/plain",
             "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml",
-            &query,
+            query,
         )?;
-        Ok(xml.map(|xml| {
-            let mut classes: Vec<String> = xml
-                .split("<dataPreview:data>")
-                .skip(1)
-                .filter_map(|d| d.split('<').next())
-                .map(|d| d.trim().to_ascii_uppercase())
-                .filter(|d| !d.is_empty())
-                .collect();
-            classes.sort();
-            classes.dedup();
-            classes
+        Ok(xml.map(|xml| preview_rows(&xml)))
+    }
+
+    /// A BAdI of an enhancement spot: interface and fallback class from its
+    /// definition, the classes of its active implementations.
+    fn spot_badi(&self, name: &str) -> Result<Option<Badi>> {
+        let definition = self
+            .select(&format!(
+                "SELECT interface_name, default_class FROM badi_main WHERE badi_name = '{name}'"
+            ))?
+            .unwrap_or_default();
+        let Some(row) = definition.first() else {
+            return Ok(None);
+        };
+        Ok(Some(Badi {
+            name: name.to_string(),
+            interface: non_empty(row.first()),
+            implementations: self.badi_implementations(name)?,
+            fallback: non_empty(row.get(1)),
+            classic: false,
         }))
+    }
+
+    /// Classes of the active implementations of a BAdI of an enhancement
+    /// spot: the runtime table only has those.
+    fn badi_implementations(&self, name: &str) -> Result<Vec<String>> {
+        Ok(self
+            .select(&format!(
+                "SELECT class_name FROM badi_impl WHERE badi_name = '{name}'"
+            ))?
+            .map(first_column)
+            .unwrap_or_default())
+    }
+
+    /// A classic BAdI by its interface with its active implementations;
+    /// those of the BAdI it was migrated to count too.
+    fn exit_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        let definition = self
+            .select(&format!(
+                "SELECT x~exit_name, a~def_clname, a~mig_badi_name FROM sxs_inter AS x \
+                 INNER JOIN sxs_attr AS a ON a~exit_name = x~exit_name \
+                 WHERE x~inter_name = '{interface}'"
+            ))?
+            .unwrap_or_default();
+        let Some(row) = definition.first() else {
+            return Ok(None);
+        };
+        let mut implementations = self
+            .select(&format!(
+                "SELECT c~imp_class FROM sxc_class AS c INNER JOIN sxc_attr AS a \
+                 ON a~imp_name = c~imp_name WHERE c~inter_name = '{interface}' AND a~active = 'X'"
+            ))?
+            .map(first_column)
+            .unwrap_or_default();
+        if let Some(migrated) = non_empty(row.get(2)).filter(|m| is_name(m)) {
+            implementations.extend(self.badi_implementations(&migrated)?);
+            implementations.sort();
+            implementations.dedup();
+        }
+        Ok(Some(Badi {
+            name: non_empty(row.first()).unwrap_or_default(),
+            interface: Some(interface.to_string()),
+            implementations,
+            fallback: non_empty(row.get(1)),
+            classic: true,
+        }))
+    }
+
+    /// The code of an enhancement implementation with its URL and whether
+    /// it is switched off.
+    fn hook_source(&self, name: &str) -> Result<Option<HookSource>> {
+        if let Some(s) = self.hook_sources.lock().unwrap().get(name) {
+            return Ok(s.clone());
+        }
+        let path = format!("/sap/bc/adt/enhancements/enhoxhh/{}", encode(name));
+        let metadata = self.get(&path, "*/*")?.unwrap_or_default();
+        let switched_off = metadata.split("<enho:switch ").nth(1).is_some_and(|s| {
+            s.split('>')
+                .next()
+                .unwrap_or_default()
+                .contains("state=\"off\"")
+        });
+        let main = format!("{path}/source/main");
+        let source = self.get(&main, "text/plain")?.map(|text| HookSource {
+            text,
+            origin: format!("{}{main}", self.config.url),
+            switched_off,
+        });
+        self.hook_sources
+            .lock()
+            .unwrap()
+            .insert(name.to_string(), source.clone());
+        Ok(source)
+    }
+
+    /// A BAdI looked up once; systems without data preview have none.
+    fn cached_badi(
+        &self,
+        key: String,
+        lookup: impl Fn(&str) -> Result<Option<Badi>>,
+    ) -> Result<Option<Badi>> {
+        if let Some(b) = self.badis.lock().unwrap().get(&key) {
+            return Ok(b.clone());
+        }
+        let name = key.trim_start_matches("if:");
+        let badi = if !is_name(name) {
+            None
+        } else {
+            match lookup(name) {
+                Ok(b) => b,
+                Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => None,
+                Err(e) => return Err(e),
+            }
+        };
+        self.badis.lock().unwrap().insert(key, badi.clone());
+        Ok(badi)
     }
 
     fn source(&self, reference: &SourceRef, path: &str) -> Result<Option<Source>> {
@@ -485,9 +691,6 @@ impl SourceProvider for AdtProvider {
         }
     }
 
-    /// The classes the class relations (SEOMETAREL) name, read through the
-    /// data preview; where that is not allowed, the where-used list of the
-    /// interface, a superset which callers check against the class sources.
     /// From the class relations through the data preview; nothing where
     /// that is not allowed.
     fn subclasses(&self, class: &str) -> Result<Vec<String>> {
@@ -504,6 +707,9 @@ impl SourceProvider for AdtProvider {
         Ok(classes)
     }
 
+    /// The classes the class relations (SEOMETAREL) name, read through the
+    /// data preview; where that is not allowed, the where-used list of the
+    /// interface, a superset which callers check against the class sources.
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
         let key = interface.to_ascii_uppercase();
         if let Some(c) = self.implementers.lock().unwrap().get(&key) {
@@ -521,6 +727,98 @@ impl SourceProvider for AdtProvider {
             .unwrap()
             .insert(key, classes.clone());
         Ok(classes)
+    }
+
+    /// From the index of enhancement includes (ENHINCINX) through the data
+    /// preview, the code from each enhancement implementation.
+    fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
+        // names go into SQL: ABAP names, class pools and their includes
+        let valid = |n: &&String| {
+            !n.is_empty()
+                && n.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '='))
+        };
+        let programs: Vec<String> = programs
+            .iter()
+            .filter(valid)
+            .map(|p| format!("'{}'", p.to_ascii_uppercase()))
+            .collect();
+        let modules: Vec<String> = function_modules
+            .iter()
+            .filter(valid)
+            .map(|f| f.to_ascii_uppercase())
+            .collect();
+        let mut conditions: Vec<String> = programs
+            .chunks(50)
+            // the data preview takes lines up to 255 characters
+            .map(|c| format!("programname IN ( {} )", c.join(",\n")))
+            .collect();
+        conditions.extend(
+            modules
+                .iter()
+                .map(|f| format!("full_name LIKE '\\FU:{f}\\%'")),
+        );
+        let mut rows = Vec::new();
+        for c in conditions.chunks(20) {
+            let query = format!(
+                "SELECT enhname, id, enhmode, full_name FROM enhincinx WHERE version = 'A' AND ( {} )",
+                c.join("\nOR ")
+            );
+            match self.select(&query) {
+                Ok(r) => rows.extend(r.unwrap_or_default()),
+                // a query the system rejects is a mistake here; other answers
+                // mean the system has no data preview for us
+                Err(SourceError::Http { status, .. }) if status != 400 => return Ok(Vec::new()),
+                Err(SourceError::Auth { .. }) => return Ok(Vec::new()),
+                Err(e) => return Err(e),
+            }
+        }
+        let mut out: Vec<Hook> = Vec::new();
+        for row in rows {
+            let [name, id, mode, position] = &row[..] else {
+                continue;
+            };
+            let name = name.trim().to_ascii_uppercase();
+            // enhancements of a function module's parameters are no code
+            if !is_name(&name)
+                || position.matches(r"\SE:").count() > 1
+                || out
+                    .iter()
+                    .any(|h| h.enhancement == name && h.position == *position)
+            {
+                continue;
+            }
+            // one the system does not deliver does not stop the others
+            let source = match self.hook_source(&name) {
+                Ok(Some(source)) => source,
+                Ok(None) | Err(SourceError::Http { .. }) => continue,
+                Err(e) => return Err(e),
+            };
+            // switched off, only the static parts stay, like declarations
+            if source.switched_off && mode.trim() == "D" {
+                continue;
+            }
+            if let Some(code) = hook_block(&source.text, id.trim()) {
+                out.push(Hook {
+                    enhancement: name,
+                    position: position.trim().to_string(),
+                    code,
+                    origin: source.origin,
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// From the BAdI tables through the data preview.
+    fn badi(&self, name: &str) -> Result<Option<Badi>> {
+        self.cached_badi(name.to_ascii_uppercase(), |n| self.spot_badi(n))
+    }
+
+    fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        self.cached_badi(format!("if:{}", interface.to_ascii_uppercase()), |n| {
+            self.exit_badi(n)
+        })
     }
 
     fn describe(&self) -> String {
@@ -692,6 +990,61 @@ mod tests {
             ["CL_IDENTITY", "CL_OTHER"]
         );
         adt.subclasses("CL_BASE").unwrap();
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert_eq!(
+            paths.iter().filter(|p| p.contains("freestyle")).count(),
+            2,
+            "{paths:?}"
+        );
+    }
+
+    #[test]
+    fn blocks_of_enhancement_code() {
+        let source = "ENHANCEMENT 1  .\r\n  x = 1.\r\nENDENHANCEMENT.\r\nENHANCEMENT 12  .\r\n  y = 2.\r\nENDENHANCEMENT.";
+        assert_eq!(
+            hook_block(source, "12").as_deref(),
+            Some("ENHANCEMENT 12  .\n  y = 2.\nENDENHANCEMENT.")
+        );
+        assert_eq!(
+            hook_block(source, "1").as_deref(),
+            Some("ENHANCEMENT 1  .\n  x = 1.\nENDENHANCEMENT.")
+        );
+        assert_eq!(hook_block(source, "2"), None);
+    }
+
+    #[test]
+    fn data_preview_rows() {
+        let xml = "<dataPreview:tableData><dataPreview:columns><dataPreview:metadata dataPreview:name=\"A\"/>            <dataPreview:dataSet><dataPreview:data>X1</dataPreview:data><dataPreview:data/></dataPreview:dataSet>            </dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"B\"/>            <dataPreview:dataSet><dataPreview:data> y1 </dataPreview:data><dataPreview:data>Y2</dataPreview:data>            </dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>";
+        assert_eq!(preview_rows(xml), [["X1", "y1"], ["", "Y2"]]);
+        assert_eq!(first_column(preview_rows(xml)), ["X1"]);
+        // an empty answer has no rows
+        assert!(preview_rows(
+            "<dataPreview:tableData><dataPreview:dataSet/></dataPreview:tableData>"
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn badis_from_the_badi_tables() {
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            (
+                "/sap/bc/adt/datapreview/freestyle",
+                200,
+                "<dataPreview:tableData><dataPreview:columns><dataPreview:dataSet><dataPreview:data>ZIF_X</dataPreview:data></dataPreview:dataSet></dataPreview:columns><dataPreview:columns><dataPreview:dataSet><dataPreview:data/></dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>",
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        // every query gets the same answer: the definition row, then one class
+        let b = adt.badi("zbadi_x").unwrap().unwrap();
+        assert_eq!(b.name, "ZBADI_X");
+        assert_eq!(b.interface.as_deref(), Some("ZIF_X"));
+        assert_eq!(b.implementations, ["ZIF_X"]);
+        assert_eq!(b.fallback, None);
+        assert!(!b.classic);
+        adt.badi("ZBADI_X").unwrap();
+        // names that are no ABAP names are not put into SQL
+        assert!(adt.classic_badi("X' OR '1' = '1").unwrap().is_none());
         let paths: Vec<String> = requests.try_iter().collect();
         assert_eq!(
             paths.iter().filter(|p| p.contains("freestyle")).count(),

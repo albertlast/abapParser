@@ -79,6 +79,22 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
         self.inner.implementations(interface)
     }
 
+    fn enhancements(
+        &self,
+        programs: &[String],
+        function_modules: &[String],
+    ) -> Result<Vec<crate::Hook>> {
+        self.inner.enhancements(programs, function_modules)
+    }
+
+    fn badi(&self, name: &str) -> Result<Option<crate::Badi>> {
+        self.inner.badi(name)
+    }
+
+    fn classic_badi(&self, interface: &str) -> Result<Option<crate::Badi>> {
+        self.inner.classic_badi(interface)
+    }
+
     fn subclasses(&self, class: &str) -> Result<Vec<String>> {
         self.inner.subclasses(class)
     }

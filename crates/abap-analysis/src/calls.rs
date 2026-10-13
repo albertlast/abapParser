@@ -402,6 +402,18 @@ pub(crate) struct CallExtractor<'a> {
     pub file: &'a File,
     pub symbols: &'a m::FileSymbols,
     pub resolver: &'a dyn TypeResolver,
+    /// main program, for the names of customer exits
+    pub program: Option<String>,
+}
+
+/// The main program named by `REPORT`, `PROGRAM` or `FUNCTION-POOL`.
+pub(crate) fn main_program(symbols: &m::FileSymbols) -> Option<String> {
+    let p = symbols.program.as_ref()?;
+    match p.kind.as_str() {
+        "report" | "program" => Some(p.name.to_ascii_uppercase()),
+        "function-pool" => Some(format!("SAPL{}", p.name.to_ascii_uppercase())),
+        _ => None,
+    }
 }
 
 impl<'a> CallExtractor<'a> {
@@ -711,6 +723,25 @@ impl<'a> CallExtractor<'a> {
             out.push(new_call(kind, name, dynamic, opts));
         };
         match s.kind {
+            K::CallFunction if word(1) == "CUSTOMER" => {
+                // CALL CUSTOMER-FUNCTION 'nnn': the exit EXIT_<main program>_nnn
+                let Some(k) = (2..t.len()).find(|k| literal(t[*k]).is_some()) else {
+                    return t.len();
+                };
+                let number = literal(t[k]).unwrap_or_default();
+                let opts = vec!["CUSTOMER-FUNCTION".to_string()];
+                match &self.program {
+                    Some(p) => push(
+                        m::CallKind::Function,
+                        format!("EXIT_{}_{number}", p.to_ascii_uppercase()),
+                        false,
+                        opts,
+                    ),
+                    // the program is not known
+                    None => push(m::CallKind::Function, text(k, k + 1), true, opts),
+                }
+                k + 1
+            }
             K::CallFunction => {
                 let (name, dynamic) = target(2);
                 let opts = options(&[
@@ -1178,6 +1209,7 @@ pub(crate) fn new_call(
         from: None,
         name,
         class: None,
+        badi: None,
         program: None,
         receiver: None,
         is_static: false,
@@ -1379,6 +1411,7 @@ pub fn calls(source: &str) -> Vec<m::Call> {
         file: &file,
         symbols: &symbols,
         resolver: &resolver,
+        program: main_program(&symbols),
     }
     .calls()
 }
@@ -1430,6 +1463,29 @@ CLASS lcl_main IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.
 "#;
+
+    #[test]
+    fn customer_exits_are_named_by_the_program() {
+        let names = |src: &str| -> Vec<(String, bool)> {
+            calls(src)
+                .into_iter()
+                .map(|c| (c.name, c.dynamic))
+                .collect()
+        };
+        assert_eq!(
+            names("REPORT sapmv45a.\nCALL CUSTOMER-FUNCTION '001' EXPORTING iv = 1."),
+            [("EXIT_SAPMV45A_001".to_string(), false)]
+        );
+        assert_eq!(
+            names("FUNCTION-POOL v45a.\nCALL CUSTOMER-FUNCTION '010'."),
+            [("EXIT_SAPLV45A_010".to_string(), false)]
+        );
+        // an include alone does not tell its program
+        assert_eq!(
+            names("CALL CUSTOMER-FUNCTION '002'."),
+            [("'002'".to_string(), true)]
+        );
+    }
 
     #[test]
     fn calls_with_types() {

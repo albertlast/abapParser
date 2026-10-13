@@ -40,6 +40,7 @@ pub fn logic_of(file: &File) -> m::FileLogic {
         file,
         symbols: &symbols,
         resolver: &resolver,
+        program: crate::calls::main_program(&symbols),
     }
     .calls();
     let attributes = |class: &str| class_attributes(&symbols, None, class);
@@ -463,7 +464,14 @@ impl<'w> Engine<'w> {
                 if !interface || name.contains('~') {
                     return Vec::new();
                 }
-                let classes = self.implementations(o, &class);
+                // CALL BADI runs the active implementations of the BAdI
+                let classes = match (&c.badi, self.workspace) {
+                    (Some(badi), Some(ws)) => ws
+                        .badi(badi)
+                        .map(|b| crate::workspace::badi_classes(&b))
+                        .unwrap_or_default(),
+                    _ => self.implementations(o, &class),
+                };
                 if classes.len() > MAX_IMPLEMENTATIONS {
                     return Vec::new();
                 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **BAdIs:** `CALL BADI` resolves to the interface of the BAdI, and calls through the interface of a classic BAdI (`IF_EX_...`) reach only its active implementations, not the adapter class. The call graph loads the classes that run, logic follows them. They come from the BAdI tables of an SAP system or from abapGit `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml` files. New `badi` on calls, MCP tool `find_badi_implementations`.
+- **Enhancements:** code of enhancement implementations is put where it runs when an object is loaded: at enhancement points, in place of enhancement sections, and at the begin or end of forms, function modules, methods and includes. It is on the line of its position, so rows stay. From an SAP system through the index of enhancement includes, without implementations switched off, or from abapGit `.enho.<hash>.abap` files. The call graph lists them as units `ENHO:<name>`.
+- **Customer exits:** `CALL CUSTOMER-FUNCTION '001'` calls `EXIT_<program>_001`, named by the program; it was a dynamic call of `-FUNCTION` before.
+
 ## 0.2.0
 
 Tested against a real SAP system (ABAP Cloud Developer Trial 2025), and the pieces for language models and for following data through code.

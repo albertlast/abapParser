@@ -523,14 +523,23 @@ fn call(c: &m::Call) -> String {
     if !c.resolved {
         flags.push("unresolved");
     }
+    // CALL BADI with the BAdI, its interface is the class
+    let options: Vec<String> = c
+        .options
+        .iter()
+        .map(|o| match &c.badi {
+            Some(b) if o == "BADI" => format!("BADI {b}"),
+            _ => o.clone(),
+        })
+        .collect();
     format!(
         "  {:>5} {from}: {} {target}{}{}\n",
         c.span.start.row,
         format!("{:?}", c.kind).to_ascii_lowercase(),
-        if c.options.is_empty() {
+        if options.is_empty() {
             String::new()
         } else {
-            format!(" [{}]", c.options.join(", "))
+            format!(" [{}]", options.join(", "))
         },
         if flags.is_empty() {
             String::new()

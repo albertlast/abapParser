@@ -5,6 +5,7 @@ mod calls;
 mod context;
 mod db;
 mod ddic;
+mod enhance;
 mod logic;
 mod stores;
 mod symbols;

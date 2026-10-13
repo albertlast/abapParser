@@ -168,6 +168,14 @@ impl Server {
                 let classes = self.workspace()?.implementations(&interface);
                 Ok(compact(&classes))
             }
+            "find_badi_implementations" => {
+                let name = string(args, "badi")?;
+                let ws = self.workspace()?;
+                Ok(match ws.badi(&name).or_else(|| ws.classic_badi(&name)) {
+                    Some(b) => compact(&b),
+                    None => format!("no BAdI {} known", name.to_ascii_uppercase()),
+                })
+            }
             "find_subclasses" => {
                 let class = string(args, "class")?;
                 let classes = self.workspace()?.subclasses(&class);
@@ -481,6 +489,17 @@ fn tools() -> Value {
             "annotations": read_only,
         },
         {
+            "name": "find_badi_implementations",
+            "title": "Implementations of a BAdI",
+            "description": "A BAdI by its name (GET BADI / CALL BADI) or a classic BAdI by its interface (IF_EX_...): its interface, the classes of its active implementations and its fallback class. get_logic follows calls into these classes only.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"badi": {"type": "string", "description": "e.g. BADI_SD_SALES or IF_EX_BADI_SD_SALES"}},
+                "required": ["badi"],
+            },
+            "annotations": read_only,
+        },
+        {
             "name": "find_subclasses",
             "title": "Subclasses of a class",
             "description": "Global classes inheriting directly from a class. get_logic follows calls into their redefinitions.",
@@ -532,7 +551,29 @@ CLASS zcl_orders IMPLEMENTATION.
   ENDMETHOD.
 ENDCLASS.",
         );
+        p.insert_badi(abap_analysis::abap_source::Badi {
+            name: "ZBADI_ORDER".into(),
+            interface: Some("ZIF_BADI_ORDER".into()),
+            implementations: vec!["ZCL_ORDER_CHECK".into()],
+            fallback: None,
+            classic: false,
+        });
         Server::new(Ok(Box::new(p)))
+    }
+
+    #[test]
+    fn badi_implementations() {
+        let s = server();
+        let (text, err) = call(
+            &s,
+            "find_badi_implementations",
+            json!({"badi": "zbadi_order"}),
+        );
+        assert!(!err);
+        assert!(text.contains(r#""interface":"ZIF_BADI_ORDER""#), "{text}");
+        assert!(text.contains("ZCL_ORDER_CHECK"), "{text}");
+        let (text, _) = call(&s, "find_badi_implementations", json!({"badi": "znone"}));
+        assert_eq!(text, "no BAdI ZNONE known");
     }
 
     fn call(s: &Server, tool: &str, args: Value) -> (String, bool) {
@@ -578,6 +619,7 @@ ENDCLASS.",
                 "get_logic",
                 "get_db_access",
                 "find_implementations",
+                "find_badi_implementations",
                 "find_subclasses",
                 "analyze_source"
             ]
