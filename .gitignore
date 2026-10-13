@@ -12,3 +12,4 @@ __pycache__/
 /tools/scratch/
 *.pdb
 /bindings/python/dist/
+/npm-placeholders/

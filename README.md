@@ -11,7 +11,7 @@ The goal is to answer structured questions about ABAP code, so tools don't have 
 Includes and referenced objects that are missing locally are fetched from the SAP system through the ADT REST API.
 
 ```sh
-npm install @abap-parser/core     # Node.js 18+, prebuilt for Windows x64, macOS, Linux x64/arm64
+npm install abap-parser     # Node.js 18+, prebuilt for Windows x64, macOS, Linux x64/arm64
 pip install abap-parser           # Python 3.9+, wheels for the same platforms
 ```
 
@@ -263,10 +263,10 @@ cargo run -p abap-cli -- logic PROG:ZREPORT --src ./src --depth 1
 cargo run -p abap-cli -- statements zprogram.prog.abap --json
 ```
 
-Node.js (`npm install @abap-parser/core`, or from this repository `cd bindings/node && npm run build`):
+Node.js (`npm install abap-parser`, or from this repository `cd bindings/node && npm run build`):
 
 ```js
-const abap = require("@abap-parser/core");
+const abap = require("abap-parser");
 const s = abap.symbols(source);
 for (const c of s.classes) {
   console.log(c.name, c.methods.map((m) => m.name));
@@ -341,10 +341,22 @@ The tag starts `.github/workflows/release.yml`. It checks that the tag, the pack
 - the command line tool per platform.
 
 It then publishes:
-- `@abap-parser/core` and its platform packages to npm, using the `NPM_TOKEN` secret, with provenance;
+- `abap-parser` and its platform packages (`abap-parser-linux-x64-gnu` and so on) to npm through trusted publishing, with provenance;
 - `abap-parser` to PyPI through trusted publishing, which needs a PyPI trusted publisher for this repository and the environment `pypi`;
 - a GitHub release with the command line tool and the changelog section.
 
 Started by hand from the Actions tab, the workflow builds and tests everything and keeps the results as artifacts, without publishing.
+
+npm and PyPI trust the workflow through OIDC, no tokens are stored. Set up once:
+- PyPI: a pending trusted publisher for the project `abap-parser`, repository `albertlast/abapPaser`, workflow `release.yml`, environment `pypi`; and the environment `pypi` in the repository settings.
+- npm: a trusted publisher for each of the six packages, repository `albertlast/abapPaser`, workflow `release.yml`. npm sets this up only for packages that exist, so before the first release publish placeholders by hand:
+
+  ```sh
+  node bindings/node/npm/placeholders.mjs npm-placeholders
+  # in each of the six folders, logged in with npm login:
+  npm publish --access public
+  ```
+
+  Then in the settings of each package on npmjs.com, add the trusted publisher, and under publishing access require two-factor authentication and disallow tokens.
 
 `schema_version` in the JSON results changes only when a result changes in a way that breaks readers. New optional fields leave it unchanged.

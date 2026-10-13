@@ -1,15 +1,15 @@
-# @abap-parser/core
+# abap-parser
 
 Parses ABAP code and tells what it does: classes, methods, forms and declarations; which database tables a statement reads or writes; which methods, function modules and forms it calls; and the logic of each procedure, from conditions and data flow to what it writes in the end. Sources come from a folder (abapGit layout or plain `.abap` files) or from an SAP system through the ADT REST API.
 
 ```sh
-npm install @abap-parser/core
+npm install abap-parser
 ```
 
 Prebuilt for Windows x64, macOS x64 and arm64, Linux x64 and arm64 (glibc). Other platforms build from source with Rust: `npm run build` in this package.
 
 ```js
-const abap = require("@abap-parser/core");
+const abap = require("abap-parser");
 
 const source = fs.readFileSync("zcl_orders.clas.abap", "utf8");
 for (const c of abap.symbols(source).classes) {

@@ -3,10 +3,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-/** Platform package with the prebuilt native module, e.g. `@abap-parser/core-linux-x64-gnu`. */
+/** Platform package with the prebuilt native module, e.g. `abap-parser-linux-x64-gnu`. */
 function platformPackage() {
   const abi = {linux: "-gnu", win32: "-msvc"}[process.platform] ?? "";
-  return `@abap-parser/core-${process.platform}-${process.arch}${abi}`;
+  return `abap-parser-${process.platform}-${process.arch}${abi}`;
 }
 
 /** A module built locally with `npm run build` wins over the prebuilt one. */
@@ -20,7 +20,7 @@ function loadNative() {
     return require(name);
   } catch (e) {
     throw new Error(
-      `@abap-parser/core: no native module for ${process.platform}-${process.arch}. ` +
+      `abap-parser: no native module for ${process.platform}-${process.arch}. ` +
       `The optional dependency ${name} is missing or failed to load; ` +
       `reinstall, or build from source with "npm run build" (needs Rust). ${e.message}`,
     );

@@ -1,6 +1,6 @@
 # Builds and publishes a release when a tag like v0.2.0 is pushed:
-# - npm: @abap-parser/core and one package per platform with its prebuilt
-#   native module (secret NPM_TOKEN)
+# - npm: abap-parser and one package per platform with its prebuilt
+#   native module (trusted publishing, configured for each of the packages)
 # - PyPI: abap-parser wheels and source distribution (trusted publishing,
 #   environment "pypi")
 # - GitHub release with the abap command line tool per platform
@@ -40,7 +40,8 @@ jobs:
       matrix:
         include:
           - {platform: win32-x64-msvc, os: windows-latest, target: x86_64-pc-windows-msvc, lib: abap_node.dll, test: true}
-          - {platform: darwin-x64, os: macos-latest, target: x86_64-apple-darwin, lib: libabap_node.dylib, test: false}
+          # tested with an x64 Node.js running under Rosetta
+          - {platform: darwin-x64, os: macos-latest, target: x86_64-apple-darwin, lib: libabap_node.dylib, test: true, node-arch: x64}
           - {platform: darwin-arm64, os: macos-latest, target: aarch64-apple-darwin, lib: libabap_node.dylib, test: true}
           - {platform: linux-x64-gnu, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, lib: libabap_node.so, test: true}
           - {platform: linux-arm64-gnu, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, lib: libabap_node.so, test: true}
@@ -61,6 +62,7 @@ jobs:
         if: matrix.test
         with:
           node-version: 22
+          architecture: ${{ matrix.node-arch }}
       - name: The module loads and works
         if: matrix.test
         working-directory: bindings/node
@@ -91,16 +93,17 @@ jobs:
           merge-multiple: true
           path: artifacts
       - run: node bindings/node/npm/packages.mjs artifacts npm-out
+      # trusted publishing: npm checks the workflow through OIDC, no token;
+      # it needs npm 11.5.1 or later and adds provenance by itself
+      - run: npm install -g npm@11
       - name: Publish the platform packages, then the main package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in npm-out/*/; do
             if [ "$dir" != "npm-out/core/" ]; then
-              (cd "$dir" && npm publish --access public --provenance)
+              (cd "$dir" && npm publish --access public)
             fi
           done
-          cd npm-out/core && npm publish --access public --provenance
+          cd npm-out/core && npm publish --access public
 
   wheels:
     needs: version
