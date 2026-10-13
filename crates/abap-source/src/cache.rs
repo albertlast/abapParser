@@ -28,6 +28,7 @@ impl<P: SourceProvider> CachedProvider<P> {
         let extension = match r.kind {
             ObjectKind::Dtel => "xml",
             ObjectKind::Tabl => "ddl",
+            ObjectKind::Ddls => "asddls",
             _ => "abap",
         };
         self.dir

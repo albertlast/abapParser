@@ -1,4 +1,4 @@
-import type {Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo} from "./types";
+import type {CdsDefinition, Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo} from "./types";
 
 export * from "./types";
 
@@ -53,12 +53,18 @@ export function logicObject(reference: string, options: SourceOptions, depth?: n
 export function statements(source: string): StatementInfo[];
 
 /**
+ * A CDS data definition (DDL source): its sources, joins, associations,
+ * parameters and the fields each element is made of.
+ */
+export function cds(source: string): CdsDefinition;
+
+/**
  * Compact text of one ABAP source file, e.g. for a language model: "symbols"
  * (definitions written like ABAP), "calls" and "db" (one line each), "logic"
- * (per procedure its effects with the statements and conditions). Rows tell
- * where to find things.
+ * (per procedure its effects with the statements and conditions); "cds" for a
+ * CDS data definition. Rows tell where to find things.
  */
-export function text(analysis: "symbols" | "calls" | "db" | "logic", source: string): string;
+export function text(analysis: "symbols" | "calls" | "db" | "logic" | "cds", source: string): string;
 
 /**
  * Compact text of objects like "CLAS:ZCL_ORDERS": "symbols" of all sources of
@@ -87,7 +93,8 @@ export function fetchSourceAsync(reference: string, options: SourceOptions): Pro
 export function logicAsync(source: string): Promise<FileLogic>;
 export function logicObjectAsync(reference: string, options: SourceOptions, depth?: number): Promise<FileLogic>;
 export function statementsAsync(source: string): Promise<StatementInfo[]>;
-export function textAsync(analysis: "symbols" | "calls" | "db" | "logic", source: string): Promise<string>;
+export function cdsAsync(source: string): Promise<CdsDefinition>;
+export function textAsync(analysis: "symbols" | "calls" | "db" | "logic" | "cds", source: string): Promise<string>;
 export function objectTextAsync(
   analysis: "symbols" | "logic" | "graph",
   objects: string[],

@@ -129,6 +129,26 @@ AMDP methods have more information in other APIs:
 
 Not covered: the data flow inside SQLScript in the logic API; dynamic SQL (`EXEC :lv_sql`) is a `native` access with its text.
 
+## CDS views
+
+`cds` reads a CDS data definition (DDL source): view entities, classic views with their SQL view name, projection views, table functions with their implementing AMDP method, abstract and custom entities, hierarchies and extensions. It gives the data sources with their joins, the associations and compositions with their targets, the parameters, the WHERE condition, and for each element the fields it is made of, with aliases resolved to the data source.
+
+```
+VIEW I_Country (SQL view IFICOUNTRY) 'Country/Region'  " 25-41
+  from T005
+  association _Text[0..*] to I_COUNTRYTEXT on $projection.Country = _Text.Country
+    key Country = T005.LAND1
+    CountryThreeLetterISOCode = T005.INTCA3
+    _Text = association
+```
+
+Data definitions are objects `DDLS:NAME`: from abapGit `.ddls.asddls` files or from an SAP system. A SELECT from a CDS view names the view as its table; `cds` of the view tells where its data comes from.
+
+```sh
+abap cds zi_country.ddls.asddls --text
+abap fetch DDLS:I_COUNTRY --adt-url https://sap:44300
+```
+
 ## Calls and sources
 
 `calls` lists the calls of one source:
@@ -193,7 +213,8 @@ In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `
 - **Database tables:** each step lists the tables it reads, and the table that INSERT, UPDATE, MODIFY, DELETE or MERGE writes. Open SQL and native SQL are both covered.
 - **Data flow:** each read lists the steps whose writes may provide its value, and whether the value may come from before the procedure. Computed by reaching definitions over the control flow graph, which is also part of the output.
 - **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. Arguments are matched to parameters by name, by position for PERFORM, and the single unnamed argument to the first importing parameter. Each value a call writes, into an argument, the receiving variable or through the called procedure, carries in `depends` what it depends on there: the caller's data passed to the parameters it uses, data read there, tables read there. A call through an interface is followed into each implementation, if there are no more than 10. Calls through aliases resolve to the interface method. A dynamic call like `CALL METHOD (lv_name)` or `CALL FUNCTION lv_fm` is followed into the names its operand can have on the way to the call, from literals assigned to it and from constants; the operand then counts as an input of what the call writes.
-- **Effects:** every parameter, attribute, global or database table the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
+- **Effects:** every parameter, attribute, global, database table or external store the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
+- **External stores:** data kept outside the program is handled like a table, named with its kind: ABAP memory (`EXPORT/IMPORT ... MEMORY ID`, `memory:ZORDERS`), SAP memory (`SET/GET PARAMETER ID`, `parameter:VKO`), files (`TRANSFER`, `READ/DELETE DATASET`, `file:/tmp/out.csv`), shared buffers and shared memory. Data clusters in tables (`EXPORT ... TO DATABASE indx(ar)`) are accesses of that table. So a value exported by one program and imported by another connects the tables before and after.
 
 ```abap
 FORM price USING iv_qty TYPE i CHANGING cv_price TYPE p.
@@ -221,7 +242,7 @@ ENDMETHOD.
 
 `total` has the effect `ev_total` with the input `iv_vbeln` and the table `VBAP`. `run` has the effects `ZLOG` (scope database) and `mv_count`, both through `write_log`, and both depend on `VBAP` because the IF decides on the result of `total`.
 
-For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. A call of an instance method also reaches the redefinitions of the method in subclasses, since the object may be of a subclass; `super->m( )` reaches only the superclass's method. A call of an interface method reaches the implementations. Both are followed up to 10 candidates, and subclasses are looked at up to 50; beyond that the call says too little about what runs. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
+For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. `SUBMIT` runs the event blocks of the program: its tables and stores count for the caller, its own data ends with it, and what it writes depending on its selection parameters depends on the values passed with `WITH`. A call of an instance method also reaches the redefinitions of the method in subclasses, since the object may be of a subclass; `super->m( )` reaches only the superclass's method. A call of an interface method reaches the implementations. Both are followed up to 10 candidates, and subclasses are looked at up to 50; beyond that the call says too little about what runs. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
 
 ```sh
 abap logic FUGR:ZORDERS --src ./src --depth 2
@@ -239,7 +260,7 @@ Not covered yet:
 | Tool | Answers |
 |---|---|
 | `get_source` | source of an object with row numbers, optionally a row range |
-| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP |
+| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP; for a CDS view (`DDLS:NAME`) its sources, associations and the fields of its elements |
 | `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
 | `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
 | `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
@@ -281,11 +302,12 @@ crates/abap-syntax    statements (splitting, chains, pragmas, macros, native SQL
                       block structure, declaration grammars, expressions and conditions,
                       operands read and written per statement
 crates/abap-model     serializable output model and its JSON Schema
-crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
+crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP;
+                      CDS data definitions
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
 crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph,
                       compact text forms
-crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mcp`, `abap mock-adt`, `abap schema`
+crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic|cds <file>`, `abap graph|logic|fetch <object>`, `abap mcp`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs); npm/ builds the per-platform packages of a release
 bindings/python       Python package (PyO3, maturin)
 tools/                corpus extraction, abaplint oracle, type generation, release version,
@@ -340,6 +362,8 @@ const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
 const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {src: ["./src"]}, 2);
 // compact text, e.g. for a prompt: "symbols", "calls", "db" or "logic"
 const prompt = abap.text("logic", source);
+// a CDS view: sources, associations, the fields of each element
+const view = abap.cds(ddlSource);
 // of objects: "symbols", "logic" or "graph"
 const outline = abap.objectText("symbols", ["CLAS:ZCL_ORDERS"], {src: ["./src"]});
 ```
@@ -362,6 +386,7 @@ lg = abap_parser.logic_object("PROG:ZREPORT", {"src": ["./src"]}, depth=1)
 graph = await abap_parser.call_graph_async(["CLAS:ZCL_ORDERS"], {"src": ["./src"]}, 2)
 # compact text, e.g. for a prompt
 prompt = abap_parser.text("logic", source)
+view = abap_parser.cds(ddl_source)
 outline = abap_parser.object_text("symbols", ["CLAS:ZCL_ORDERS"], {"src": ["./src"]})
 ```
 

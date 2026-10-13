@@ -4,7 +4,8 @@
 //! Objects are addressed with [`SourceRef`], written like `PROG:ZREPORT`,
 //! `CLAS:ZCL_ORDERS`, `CLAS:ZCL_ORDERS/implementations`, `INTF:ZIF_X`,
 //! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`; dictionary types as
-//! `TABL:BAPIRET2` (structures and tables) and `DTEL:XUBNAME`.
+//! `TABL:BAPIRET2` (structures and tables) and `DTEL:XUBNAME`, CDS data
+//! definitions as `DDLS:I_COUNTRY`.
 
 #[cfg(feature = "adt")]
 mod adt;
@@ -40,6 +41,8 @@ pub enum ObjectKind {
     Tabl,
     /// dictionary data element: ADT and abapGit give XML
     Dtel,
+    /// CDS data definition, its DDL source; abapGit `.ddls.asddls`
+    Ddls,
 }
 
 impl ObjectKind {
@@ -52,6 +55,7 @@ impl ObjectKind {
             ObjectKind::Func => "FUNC",
             ObjectKind::Tabl => "TABL",
             ObjectKind::Dtel => "DTEL",
+            ObjectKind::Ddls => "DDLS",
         }
     }
 }
@@ -131,6 +135,10 @@ impl SourceRef {
         Self::new(ObjectKind::Dtel, name)
     }
 
+    pub fn data_definition(name: &str) -> Self {
+        Self::new(ObjectKind::Ddls, name)
+    }
+
     pub fn with_part(mut self, part: ClassPart) -> Self {
         self.part = Some(part);
         self
@@ -158,7 +166,7 @@ impl fmt::Display for SourceRef {
 impl FromStr for SourceRef {
     type Err = String;
 
-    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL
+    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, DDLS
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -171,6 +179,7 @@ impl FromStr for SourceRef {
             "FUNC" => ObjectKind::Func,
             "TABL" => ObjectKind::Tabl,
             "DTEL" => ObjectKind::Dtel,
+            "DDLS" => ObjectKind::Ddls,
             other => return Err(format!("unknown object kind {other:?}")),
         };
         // names may contain namespaces like /ABC/ZCL_X; a part follows the
