@@ -816,6 +816,13 @@ impl<'a> CallExtractor<'a> {
                 );
                 if name != "#" {
                     c.class = Some(name);
+                } else if let Some(eq) = start
+                    .checked_sub(2)
+                    .filter(|e| *e > 0 && matches!(t[*e].text.as_str(), "=" | "?="))
+                {
+                    // x = NEW #( ): the type of the target
+                    c.class = self.receiver_class(t, 0, eq, scope);
+                    c.receiver = Some(join(t, 0, eq, &self.file.lexed.source));
                 }
                 out.push(c);
                 continue;
@@ -1284,6 +1291,7 @@ CLASS lcl_main IMPLEMENTATION.
     PERFORM write_log IN PROGRAM zlog_prog IF FOUND.
     SUBMIT zreport AND RETURN.
     CALL TRANSACTION 'VA01'.
+    lo_item = NEW #( ).
   ENDMETHOD.
   METHOD helper.
   ENDMETHOD.
@@ -1330,6 +1338,7 @@ ENDCLASS.
                 "Form write_log",
                 "Submit ZREPORT",
                 "Transaction VA01",
+                "Constructor lcl_item.constructor resolved",
             ]
         );
         assert_eq!(c[13].options, ["DESTINATION 'NONE'"]);

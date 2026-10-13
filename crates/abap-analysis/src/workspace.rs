@@ -43,6 +43,14 @@ const MAX_CHECKED_IMPLEMENTATIONS: usize = 50;
 /// Includes may include each other in cycles; expansion stops here.
 const MAX_INCLUDES: usize = 500;
 
+/// The implicit superclass of all classes, `TYPE REF TO object`; it has no
+/// source, and an SAP system answers a request for it with an error.
+const ROOT_CLASS: &str = "OBJECT";
+
+fn is_root_class(r: &SourceRef) -> bool {
+    r.kind == ObjectKind::Clas && r.name.eq_ignore_ascii_case(ROOT_CLASS)
+}
+
 impl Workspace {
     pub fn new(provider: Box<dyn SourceProvider>) -> Self {
         Workspace {
@@ -89,6 +97,9 @@ impl Workspace {
     /// modules of function groups. `None` if the object itself is missing.
     pub fn object(&self, r: &SourceRef) -> Option<Arc<Object>> {
         let r = r.object();
+        if is_root_class(&r) {
+            return None;
+        }
         if let Some(o) = self.objects.lock().unwrap().get(&r) {
             return o.clone();
         }
@@ -358,7 +369,7 @@ impl Workspace {
     /// Whether a class or interface and all its superclasses and interfaces
     /// are in the sources; local classes are looked up in `from`.
     fn hierarchy_known(&self, class: &str, from: &Object, level: u32) -> bool {
-        if level > 10 {
+        if level > 10 || class.eq_ignore_ascii_case(ROOT_CLASS) {
             return true;
         }
         let object;
@@ -584,6 +595,43 @@ END-OF-DEFINITION.",
             .any(|c| c.kind == m::CallKind::Function && c.name == "Z_LOG"));
     }
 
+    /// Fails like an SAP system for the root class.
+    struct NoRootClass(MemoryProvider);
+
+    impl SourceProvider for NoRootClass {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            assert!(!is_root_class(r), "{r} requested");
+            self.0.fetch(r)
+        }
+
+        fn describe(&self) -> String {
+            self.0.describe()
+        }
+    }
+
+    #[test]
+    fn root_class_is_not_requested() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_ANY"),
+            "CLASS zcl_any DEFINITION PUBLIC INHERITING FROM object.
+  PUBLIC SECTION.
+    METHODS run IMPORTING io TYPE REF TO object.
+ENDCLASS.
+CLASS zcl_any IMPLEMENTATION.
+  METHOD run.
+    io->to_string( ).
+    CALL METHOD io->('RUN').
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(NoRootClass(p)));
+        let g = ws.call_graph(&[SourceRef::class("ZCL_ANY")], 2);
+        assert!(g.missing.is_empty(), "{:?}", g.missing);
+        assert!(g.errors.is_empty(), "{:?}", g.errors);
+        ws.logic(&SourceRef::class("ZCL_ANY"), 2);
+    }
+
     #[test]
     fn includes_and_parts() {
         let ws = workspace();
@@ -636,7 +684,7 @@ END-OF-DEFINITION.",
                 "PROG:ZREPORT Method zcl_app.run resolved",
                 "PROG:ZREPORT Form log resolved",
                 "PROG:ZREPORT Function Z_LOG",
-                "CLAS:ZCL_APP Constructor constructor",
+                "CLAS:ZCL_APP Constructor zcl_app.constructor resolved",
                 "CLAS:ZCL_APP Method zcl_app.get_repo resolved",
                 "CLAS:ZCL_APP Method zif_repo.save resolved",
                 "CLAS:ZCL_APP Method lcl_helper.help resolved",
