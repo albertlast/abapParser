@@ -154,7 +154,23 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 }, 2);
 ```
 
-The ADT provider only reads. It is tested against a local mock server, not yet against a live system.
+The ADT provider only reads. It is tested against the mock server below, not yet against a live system.
+
+### Testing without an SAP system
+
+`abap mock-adt` serves folders of ABAP code like an SAP system does through ADT. It covers:
+- programs and includes
+- classes with their includes, interfaces, function groups and modules
+- the repository search that finds a function module's group
+
+Requests need basic authentication, and with `--client` only that client is accepted. The logon comes from `ABAP_ADT_USER` and `ABAP_ADT_PASSWORD`, or is `DEVELOPER`/`mock`, so a client started with the same environment logs on. Your own projects can use it to test code that loads ABAP from a system: keep part of the code locally and let the rest come over ADT.
+
+```sh
+abap mock-adt --src ./abap-src --port 50000
+ABAP_ADT_USER=DEVELOPER ABAP_ADT_PASSWORD=mock abap graph CLAS:ZCL_ORDERS --src ./local --adt-url http://127.0.0.1:50000 --cache ./.abap-cache
+```
+
+In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `requests()` lists what was asked for. `crates/abap-analysis/tests/adt_mock.rs` uses it: one class is local, the classes it uses come over ADT into the cache, and a second run reads them from the cache.
 
 ## Logic
 
@@ -192,9 +208,9 @@ crates/abap-syntax    statements (splitting, chains, pragmas, macros, native SQL
                       operands read and written per statement
 crates/abap-model     serializable output model and its JSON Schema
 crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
-crates/abap-source    source providers: folders, disk cache, SAP ADT
+crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
 crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
-crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|fetch <object>`, `abap schema`
+crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|fetch <object>`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs)
 bindings/python       Python package (PyO3, maturin)
 tools/                corpus extraction, abaplint oracle, type generation, keyword documentation lookup

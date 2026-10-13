@@ -9,12 +9,14 @@
 mod adt;
 mod cache;
 mod fs;
+mod mock;
 mod options;
 
 #[cfg(feature = "adt")]
 pub use adt::{AdtConfig, AdtProvider};
 pub use cache::CachedProvider;
 pub use fs::FsProvider;
+pub use mock::{MockAdtConfig, MockAdtServer};
 pub use options::{AdtOptions, ProviderOptions};
 
 use std::fmt;
@@ -153,14 +155,18 @@ impl FromStr for SourceRef {
             "FUNC" => ObjectKind::Func,
             other => return Err(format!("unknown object kind {other:?}")),
         };
-        // names may contain namespaces like /ABC/ZCL_X; the part follows the last '/'
+        // names may contain namespaces like /ABC/ZCL_X; a part follows the
+        // last '/', and without one a name starting with '/' is a namespace
         let (name, part) = match rest.rsplit_once('/') {
             Some((n, p)) if kind == ObjectKind::Clas && !n.is_empty() && !n.ends_with('/') => {
-                let part = ClassPart::ALL
+                match ClassPart::ALL
                     .into_iter()
                     .find(|x| x.as_str().eq_ignore_ascii_case(p))
-                    .ok_or_else(|| format!("unknown class part {p:?}"))?;
-                (n, Some(part))
+                {
+                    Some(part) => (n, Some(part)),
+                    None if rest.trim_start().starts_with('/') => (rest, None),
+                    None => return Err(format!("unknown class part {p:?}")),
+                }
             }
             _ => (rest, None),
         };
@@ -318,6 +324,7 @@ mod tests {
             "CLAS:ZCL_X",
             "CLAS:ZCL_X/implementations",
             "CLAS:/ABC/CL_X/testclasses",
+            "CLAS:/ABC/CL_X",
             "INTF:/ABC/IF_X",
             "FUNC:Z_FM",
         ] {
@@ -327,5 +334,6 @@ mod tests {
         let r: SourceRef = "clas:zcl_x".parse().unwrap();
         assert_eq!(r, SourceRef::class("ZCL_X"));
         assert!("XYZ:A".parse::<SourceRef>().is_err());
+        assert!("CLAS:ZCL_X/nope".parse::<SourceRef>().is_err());
     }
 }

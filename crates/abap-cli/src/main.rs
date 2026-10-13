@@ -28,6 +28,12 @@ source options:
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
 
+testing:
+  mock-adt --src <dir>... [--port N] [--client nnn]
+                       serve the folders like an SAP system through ADT, for
+                       tests of loading sources; port 50000 by default, logon
+                       from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
+
 other:
   schema               JSON Schemas of all outputs";
 
@@ -35,6 +41,8 @@ struct Args {
     positional: Vec<String>,
     json: bool,
     depth: u32,
+    port: u16,
+    client: Option<String>,
     options: ProviderOptions,
 }
 
@@ -43,6 +51,8 @@ fn parse_args() -> Result<Args, String> {
         positional: Vec::new(),
         json: false,
         depth: 1,
+        port: 50000,
+        client: None,
         options: ProviderOptions::default(),
     };
     let mut adt_url = std::env::var("ABAP_ADT_URL").ok();
@@ -60,6 +70,11 @@ fn parse_args() -> Result<Args, String> {
             "--adt-url" => adt_url = Some(value("--adt-url")?),
             "--client" => client = Some(value("--client")?),
             "--language" => language = Some(value("--language")?),
+            "--port" => {
+                a.port = value("--port")?
+                    .parse()
+                    .map_err(|_| "--port needs a number".to_string())?
+            }
             "--depth" => {
                 a.depth = value("--depth")?
                     .parse()
@@ -69,6 +84,7 @@ fn parse_args() -> Result<Args, String> {
             _ => a.positional.push(arg),
         }
     }
+    a.client = client.clone();
     if let Some(url) = adt_url {
         a.options.adt = Some(AdtOptions {
             url,
@@ -111,6 +127,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "graph" | "fetch" => object_command(command, &args),
+        "mock-adt" => mock_adt(&args),
         "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" => {
             file_command(command, &args)
         }
@@ -170,6 +187,47 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
         _ => unreachable!(),
     }
     ExitCode::SUCCESS
+}
+
+fn mock_adt(args: &Args) -> ExitCode {
+    use abap_analysis::abap_source::{FsProvider, MockAdtConfig, MockAdtServer};
+    if args.options.src.is_empty() {
+        eprintln!("mock-adt needs --src folders\n\n{USAGE}");
+        return ExitCode::from(2);
+    }
+    let roots = args.options.src.iter().map(Into::into).collect();
+    let provider = match FsProvider::new(roots) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut config = MockAdtConfig::default();
+    if let Ok(user) = std::env::var("ABAP_ADT_USER") {
+        config.user = user;
+    }
+    if let Ok(password) = std::env::var("ABAP_ADT_PASSWORD") {
+        config.password = password;
+    }
+    config.client = args.client.clone();
+    let user = config.user.clone();
+    match MockAdtServer::start(provider, &format!("127.0.0.1:{}", args.port), config) {
+        Ok(server) => {
+            eprintln!(
+                "ADT mock at {} serving {} objects from {}, user {user}; stop with Ctrl+C",
+                server.url(),
+                server.objects(),
+                args.options.src.join(", ")
+            );
+            server.wait();
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn object_command(command: &str, args: &Args) -> ExitCode {
