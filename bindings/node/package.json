@@ -1,6 +1,6 @@
 {
   "name": "abap-parser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ABAP parser: symbols, database access, calls and logic of ABAP code, sources from folders or an SAP system",
   "keywords": [
     "abap",

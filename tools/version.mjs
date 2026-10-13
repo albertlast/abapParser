@@ -54,7 +54,8 @@ function set(version) {
   fs.writeFileSync(cargoToml, fs.readFileSync(cargoToml, "utf8").replace(WORKSPACE_VERSION, `$1${version}$3`));
   let lock = fs.readFileSync(cargoLock, "utf8");
   for (const name of MEMBERS) {
-    lock = lock.replace(new RegExp(`(name = "${name}"\\nversion = ")[^"]+(")`), `$1${version}$2`);
+    // a checkout on Windows may have CRLF line ends
+    lock = lock.replace(new RegExp(`(name = "${name}"\\r?\\nversion = ")[^"]+(")`), `$1${version}$2`);
   }
   fs.writeFileSync(cargoLock, lock);
   const pkg = JSON.parse(fs.readFileSync(packageJson, "utf8"));
@@ -65,10 +66,15 @@ function set(version) {
   fs.writeFileSync(packageJson, JSON.stringify(pkg, null, 2) + "\n");
 }
 
+/** CHANGELOG.md with LF line ends, also from a checkout with CRLF */
+function changelog() {
+  return fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8").replace(/\r\n/g, "\n");
+}
+
 const args = process.argv.slice(2);
 if (args[0] === "--notes") {
   const want = (args[1] ?? cargoVersion()).replace(/^v/, "");
-  const log = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
+  const log = changelog();
   const sections = log.split(/^## /m).slice(1);
   const section = sections.find((s) => s.split("\n")[0].trim() === want);
   if (!section) {
@@ -86,7 +92,7 @@ if (args[0] === "--notes") {
     process.exit(1);
   }
   // a release needs its notes
-  const log = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
+  const log = changelog();
   if (!log.includes(`\n## ${want}\n`)) {
     console.error(`CHANGELOG.md has no section "## ${want}"`);
     process.exit(1);

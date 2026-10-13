@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0
+
+Tested against a real SAP system (ABAP Cloud Developer Trial 2025), and the pieces for language models and for following data through code.
+
+- **MCP server:** `abap mcp` gives language models the analyses as tools over stdio: source, symbols, call graph, logic, database access, implementations, subclasses, and the analyses of pasted code. Sources come from folders, an SAP system and a cache.
+- **Compact text:** symbols written like ABAP definitions, one line per call or database access, and per procedure its effects with the statements writing them and their conditions. 6.7 times shorter than the JSON for symbols, 9 times for logic. CLI `--text`, the default of the MCP server, `text` and `objectText` in Node.js, `text` and `object_text` in Python.
+- **CDS views:** data definitions are parsed: sources with joins, associations, parameters, WHERE, and the fields each element is made of. Objects `DDLS:NAME`, CLI `cds`, `cds()` in both packages.
+- **Dictionary types:** structures, tables (`TABL:NAME`) and data elements (`DTEL:NAME`) from ADT and abapGit resolve receivers like `ls_node-ref->get( )` and parameters typed with a data element referring to a class.
+- **Logic:**
+  - `SUBMIT` is followed: the tables of the submitted program count for the caller, connected through the values passed with `WITH`.
+  - Data kept outside the program is handled like tables: ABAP memory, SAP memory (`SET/GET PARAMETER`), files, shared buffers; data clusters as accesses of their table. New effect scope `external` and `store` on table accesses.
+  - Calls of instance methods also reach their redefinitions in subclasses.
+- **Calls:** `x = NEW #( )` takes its class from `x`. Generated lock modules (`ENQUEUE_x`) are found through their lock object.
+- **SAP systems:** implementations of interfaces and subclasses come from the class relations through the data preview, the where-used list is the fallback. The root class `OBJECT` is no longer requested.
+- **Tools:** `tools/version.mjs` and `tools/gen-types.mjs --check` work on a checkout with CRLF line ends.
+
 ## 0.1.0
 
 First release: the Rust core with a command line tool, Node.js and Python packages.
