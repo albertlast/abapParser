@@ -28,6 +28,9 @@ options = {
 }
 graph = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], options, depth=2)
 logic = await abap_parser.logic_object_async("PROG:ZREPORT", options)
+# compact text, e.g. for a language model
+prompt = abap_parser.text("logic", source)
+outline = await abap_parser.object_text_async("symbols", ["CLAS:ZCL_ORDERS"], options)
 ```
 
-Every function has an `..._async` variant for asyncio; the native code releases the GIL. The results are dictionaries typed by the TypedDicts in `abap_parser.types`. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.
+Every function has an `..._async` variant for asyncio; the native code releases the GIL. The results are dictionaries typed by the TypedDicts in `abap_parser.types`. `text` and `object_text` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.

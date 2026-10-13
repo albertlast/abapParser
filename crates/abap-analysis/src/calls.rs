@@ -8,17 +8,32 @@ use abap_syntax::{File, Statement, StatementKind as K, Token, TokenKind};
 
 use crate::context::statement_blocks;
 
-/// Type information about classes and interfaces, possibly outside the file.
+/// The type of a value as far as calls need it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValueType {
+    /// `TYPE REF TO name`: a class or interface, or a data reference
+    Ref(String),
+    /// `TYPE name`: e.g. a structure or a data element, which may be typed
+    /// as a reference itself
+    Data(String),
+}
+
+/// Type information about classes, interfaces and other types, possibly
+/// outside the file.
 pub trait TypeResolver {
-    /// Class or interface of the RETURNING parameter, when typed `TYPE REF TO`.
-    fn returning_class(&self, class: &str, method: &str) -> Option<String>;
-    /// Class or interface of an attribute typed `TYPE REF TO`.
-    fn attribute_class(&self, class: &str, attribute: &str) -> Option<String>;
+    /// Type of the RETURNING parameter of a method.
+    fn returning_type(&self, class: &str, method: &str) -> Option<ValueType>;
+    /// Type of an attribute.
+    fn attribute_type(&self, class: &str, attribute: &str) -> Option<ValueType>;
     fn superclass(&self, class: &str) -> Option<String>;
-    /// Parameters typed `TYPE REF TO` of a method, as (name, class); `None`
-    /// when the method is unknown. Follows interfaces, aliases and, for
-    /// redefinitions, the superclass.
-    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, String)>>;
+    /// Typed parameters of a method; `None` when the method is unknown.
+    /// Follows interfaces, aliases and, for redefinitions, the superclass.
+    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, ValueType)>>;
+    /// Type of a component of a structure type, local or from the dictionary.
+    fn component_type(&self, structure: &str, component: &str) -> Option<ValueType>;
+    /// Class or interface a data element or type refers to, when it is
+    /// typed as a reference.
+    fn data_element_reference(&self, name: &str) -> Option<String>;
 }
 
 /// Resolves within one set of symbols, e.g. one file.
@@ -64,17 +79,47 @@ pub(crate) fn type_info<'a>(symbols: &'a m::FileSymbols, name: &str) -> Option<T
         })
 }
 
-fn ref_class(t: &Option<m::Typing>) -> Option<String> {
+fn value_type(t: &Option<m::Typing>) -> Option<ValueType> {
     match t {
-        Some(t) if t.kind == m::TypingKind::TypeRefTo => t.name.clone(),
+        Some(t) if t.kind == m::TypingKind::TypeRefTo => t.name.clone().map(ValueType::Ref),
+        Some(t) if t.kind == m::TypingKind::Type => t.name.clone().map(ValueType::Data),
         _ => None,
     }
 }
 
+/// A type declared with TYPES anywhere in the symbols.
+fn local_type<'a>(s: &'a m::FileSymbols, name: &str) -> Option<&'a m::Declaration> {
+    let is = |d: &&m::Declaration| {
+        d.kind == m::DeclarationKind::Type && d.name.eq_ignore_ascii_case(name)
+    };
+    let classes = s.classes.iter().flat_map(|c| {
+        c.types.iter().chain(&c.attributes).chain(
+            c.implementation
+                .iter()
+                .flat_map(|i| i.methods.iter().flat_map(|m| m.locals.iter())),
+        )
+    });
+    s.declarations
+        .iter()
+        .chain(classes)
+        .chain(
+            s.interfaces
+                .iter()
+                .flat_map(|i| i.types.iter().chain(&i.attributes)),
+        )
+        .chain(
+            s.forms
+                .iter()
+                .chain(&s.function_modules)
+                .flat_map(|f| f.locals.iter()),
+        )
+        .find(is)
+}
+
 impl TypeResolver for SymbolsResolver<'_> {
-    fn returning_class(&self, class: &str, method: &str) -> Option<String> {
+    fn returning_type(&self, class: &str, method: &str) -> Option<ValueType> {
         let Some(info) = type_info(self.symbols, class) else {
-            return self.fallback.and_then(|f| f.returning_class(class, method));
+            return self.fallback.and_then(|f| f.returning_type(class, method));
         };
         let (intf, meth) = match method.split_once('~') {
             Some((i, mth)) => (Some(i), mth),
@@ -90,7 +135,7 @@ impl TypeResolver for SymbolsResolver<'_> {
                     .parameters
                     .iter()
                     .find(|p| p.direction == m::Direction::Returning)
-                    .and_then(|p| ref_class(&p.typing));
+                    .and_then(|p| value_type(&p.typing));
             }
             if let Some(a) = info
                 .aliases
@@ -98,36 +143,40 @@ impl TypeResolver for SymbolsResolver<'_> {
                 .find(|a| a.name.eq_ignore_ascii_case(meth))
             {
                 if let Some((i, mth)) = a.component.split_once('~') {
-                    return self.returning_class(i, mth);
+                    return self.returning_type(i, mth);
                 }
             }
         }
         for i in &info.interfaces {
             if intf.is_none_or(|x| x.eq_ignore_ascii_case(i)) {
-                if let Some(c) = self.returning_class(i, meth) {
+                if let Some(c) = self.returning_type(i, meth) {
                     return Some(c);
                 }
             }
         }
         let superclass = info.superclass.map(str::to_string);
-        superclass.and_then(|s| self.returning_class(&s, method))
+        superclass.and_then(|s| self.returning_type(&s, method))
     }
 
-    fn attribute_class(&self, class: &str, attribute: &str) -> Option<String> {
+    fn attribute_type(&self, class: &str, attribute: &str) -> Option<ValueType> {
         let Some(info) = type_info(self.symbols, class) else {
+            // a reference to a structure: lr->component
+            if local_type(self.symbols, class).is_some() {
+                return self.component_type(class, attribute);
+            }
             return self
                 .fallback
-                .and_then(|f| f.attribute_class(class, attribute));
+                .and_then(|f| f.attribute_type(class, attribute));
         };
         if let Some(a) = info
             .attributes
             .iter()
             .find(|a| a.name.eq_ignore_ascii_case(attribute))
         {
-            return ref_class(&a.typing);
+            return value_type(&a.typing);
         }
         let superclass = info.superclass.map(str::to_string);
-        superclass.and_then(|s| self.attribute_class(&s, attribute))
+        superclass.and_then(|s| self.attribute_type(&s, attribute))
     }
 
     fn superclass(&self, class: &str) -> Option<String> {
@@ -137,7 +186,7 @@ impl TypeResolver for SymbolsResolver<'_> {
         }
     }
 
-    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, String)>> {
+    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, ValueType)>> {
         let Some(info) = type_info(self.symbols, class) else {
             return self
                 .fallback
@@ -155,7 +204,7 @@ impl TypeResolver for SymbolsResolver<'_> {
                 return Some(
                     md.parameters
                         .iter()
-                        .filter_map(|p| ref_class(&p.typing).map(|c| (p.name.clone(), c)))
+                        .filter_map(|p| value_type(&p.typing).map(|c| (p.name.clone(), c)))
                         .collect(),
                 );
             }
@@ -176,6 +225,32 @@ impl TypeResolver for SymbolsResolver<'_> {
         }
         let superclass = info.superclass.map(str::to_string);
         superclass.and_then(|sc| self.method_parameters(&sc, method))
+    }
+
+    fn component_type(&self, structure: &str, component: &str) -> Option<ValueType> {
+        match local_type(self.symbols, structure) {
+            Some(d) => d
+                .components
+                .iter()
+                .find(|c| c.name.eq_ignore_ascii_case(component))
+                .and_then(|c| value_type(&c.typing)),
+            None => self
+                .fallback
+                .and_then(|f| f.component_type(structure, component)),
+        }
+    }
+
+    fn data_element_reference(&self, name: &str) -> Option<String> {
+        match local_type(self.symbols, name) {
+            Some(d) => match value_type(&d.typing)? {
+                ValueType::Ref(c) => Some(c),
+                ValueType::Data(other) if !other.eq_ignore_ascii_case(name) => {
+                    self.data_element_reference(&other)
+                }
+                ValueType::Data(_) => None,
+            },
+            None => self.fallback.and_then(|f| f.data_element_reference(name)),
+        }
     }
 }
 
@@ -308,9 +383,9 @@ fn is_declaration(kind: K) -> bool {
     )
 }
 
-/// Variables with a known class or interface type, per processing block.
+/// Variables with a known type, per processing block.
 struct Scope {
-    vars: HashMap<String, String>,
+    vars: HashMap<String, ValueType>,
     class: Option<String>,
 }
 
@@ -443,7 +518,7 @@ impl<'a> CallExtractor<'a> {
 
     /// Declared variable types visible in a processing block.
     fn scope(&self, block: Option<&m::BlockRef>, blocks: &[Option<m::BlockRef>]) -> Scope {
-        let mut vars: HashMap<String, String> = HashMap::new();
+        let mut vars: HashMap<String, ValueType> = HashMap::new();
         add_declarations(&mut vars, &self.symbols.declarations);
         let mut class = None;
         if let Some(b) = block {
@@ -521,9 +596,10 @@ impl<'a> CallExtractor<'a> {
                     let declares = t.get(k + 1).is_some_and(|x| x.is("DATA") || x.is("FINAL"));
                     if declares && t.get(k + 2).is_some_and(|x| x.kind == TokenKind::ParenLeft) {
                         if let Some(var) = t.get(k + 3) {
-                            scope
-                                .vars
-                                .insert(var.text.to_ascii_lowercase(), class.text.clone());
+                            scope.vars.insert(
+                                var.text.to_ascii_lowercase(),
+                                ValueType::Ref(class.text.clone()),
+                            );
                         }
                     }
                 }
@@ -550,11 +626,11 @@ impl<'a> CallExtractor<'a> {
             let rhs = &t[5..t.len() - 1];
             let class =
                 if (rhs[0].is("NEW") || rhs[0].is("CAST")) && rhs.len() > 1 && rhs[1].text != "#" {
-                    Some(rhs[1].text.clone())
+                    Some(ValueType::Ref(rhs[1].text.clone()))
                 } else {
-                    // a call chain: the type of its result
-                    let end = rhs.len();
-                    self.chain_class(rhs, 0, end, &scope)
+                    // a call chain: the type of its result, resolved when used
+                    let end = operand_end(rhs, 0).min(rhs.len());
+                    self.units_type(&units(rhs, 0, end), &scope, None)
                 };
             if let Some(c) = class {
                 scope.vars.insert(var, c);
@@ -816,6 +892,13 @@ impl<'a> CallExtractor<'a> {
                 );
                 if name != "#" {
                     c.class = Some(name);
+                } else if let Some(eq) = start
+                    .checked_sub(2)
+                    .filter(|e| *e > 0 && matches!(t[*e].text.as_str(), "=" | "?="))
+                {
+                    // x = NEW #( ): the type of the target
+                    c.class = self.receiver_class(t, 0, eq, scope);
+                    c.receiver = Some(join(t, 0, eq, &self.file.lexed.source));
                 }
                 out.push(c);
                 continue;
@@ -933,57 +1016,114 @@ impl<'a> CallExtractor<'a> {
         scope: &Scope,
         next: Option<TokenKind>,
     ) -> Option<String> {
+        self.class_of(self.units_type(units, scope, next)?)
+    }
+
+    /// Type of the value of chain elements; `next` is the arrow after them.
+    fn units_type(
+        &self,
+        units: &[Unit],
+        scope: &Scope,
+        next: Option<TokenKind>,
+    ) -> Option<ValueType> {
         let first = units.first()?;
-        let name = first.name.to_ascii_lowercase();
+        // ls_x-ref: a component of a structure
+        let (head, path) = split_components(&first.name);
+        let name = head.to_ascii_lowercase();
         let first_is_class = match units.get(1) {
             Some(u) => u.arrow == Some(TokenKind::StaticArrow),
             None => next == Some(TokenKind::StaticArrow),
         };
-        let mut current: Option<String> = if first_is_class && !first.is_call {
-            Some(first.name.clone())
+        let mut current: Option<ValueType> = if first_is_class && !first.is_call {
+            Some(ValueType::Ref(first.name.clone()))
         } else if name == "me" {
-            scope.class.clone()
+            scope.class.clone().map(ValueType::Ref)
         } else if name == "super" {
             scope
                 .class
                 .as_deref()
                 .and_then(|c| self.resolver.superclass(c))
+                .map(ValueType::Ref)
         } else if first.is_call {
             scope
                 .class
                 .as_deref()
-                .and_then(|c| self.resolver.returning_class(c, &first.name))
+                .and_then(|c| self.resolver.returning_type(c, head))
         } else {
             scope.vars.get(&name).cloned().or_else(|| {
                 scope
                     .class
                     .as_deref()
-                    .and_then(|c| self.resolver.attribute_class(c, &first.name))
+                    .and_then(|c| self.resolver.attribute_type(c, head))
             })
         };
+        if let Some(p) = path {
+            current = self.components(current?, p);
+        }
         for u in &units[1..] {
-            let cls = current?;
+            let cls = self.class_of(current?)?;
+            let (head, path) = split_components(&u.name);
             current = if u.is_call {
-                self.resolver.returning_class(&cls, &u.name)
+                self.resolver.returning_type(&cls, head)
             } else {
-                self.resolver.attribute_class(&cls, &u.name)
+                self.resolver.attribute_type(&cls, head)
             };
+            if let Some(p) = path {
+                current = self.components(current?, p);
+            }
         }
         current
     }
+
+    /// Class or interface a value of the type refers to.
+    fn class_of(&self, ty: ValueType) -> Option<String> {
+        match ty {
+            ValueType::Ref(c) => Some(c),
+            ValueType::Data(d) => match d.split_once('-') {
+                // TYPE vbak-field
+                Some((s, path)) => self.class_of(self.components(ValueType::Data(s.into()), path)?),
+                None => self.resolver.data_element_reference(&d),
+            },
+        }
+    }
+
+    /// Type of the components `a-b` of a structure.
+    fn components(&self, mut ty: ValueType, path: &str) -> Option<ValueType> {
+        for component in path.split('-') {
+            let ValueType::Data(s) = ty else {
+                return None;
+            };
+            ty = match s.split_once('-') {
+                Some((head, rest)) => {
+                    let inner = self.components(ValueType::Data(head.into()), rest)?;
+                    self.components(inner, component)?
+                }
+                None => self.resolver.component_type(&s, component)?,
+            };
+        }
+        Some(ty)
+    }
 }
 
-fn add_declarations(vars: &mut HashMap<String, String>, decls: &[m::Declaration]) {
+/// `ls_x-a-b` into `ls_x` and the components `a-b`.
+fn split_components(name: &str) -> (&str, Option<&str>) {
+    match name.split_once('-') {
+        Some((head, path)) if !head.is_empty() && !path.is_empty() => (head, Some(path)),
+        _ => (name, None),
+    }
+}
+
+fn add_declarations(vars: &mut HashMap<String, ValueType>, decls: &[m::Declaration]) {
     for d in decls {
-        if let Some(c) = ref_class(&d.typing) {
+        if let Some(c) = value_type(&d.typing) {
             vars.insert(d.name.to_ascii_lowercase(), c);
         }
     }
 }
 
-fn params(vars: &mut HashMap<String, String>, parameters: &[m::Parameter]) {
+fn params(vars: &mut HashMap<String, ValueType>, parameters: &[m::Parameter]) {
     for p in parameters {
-        if let Some(c) = ref_class(&p.typing) {
+        if let Some(c) = value_type(&p.typing) {
             vars.insert(p.name.to_ascii_lowercase(), c);
         }
     }
@@ -1284,6 +1424,7 @@ CLASS lcl_main IMPLEMENTATION.
     PERFORM write_log IN PROGRAM zlog_prog IF FOUND.
     SUBMIT zreport AND RETURN.
     CALL TRANSACTION 'VA01'.
+    lo_item = NEW #( ).
   ENDMETHOD.
   METHOD helper.
   ENDMETHOD.
@@ -1330,6 +1471,7 @@ ENDCLASS.
                 "Form write_log",
                 "Submit ZREPORT",
                 "Transaction VA01",
+                "Constructor lcl_item.constructor resolved",
             ]
         );
         assert_eq!(c[13].options, ["DESTINATION 'NONE'"]);

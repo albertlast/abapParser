@@ -1,6 +1,9 @@
 use std::process::ExitCode;
 
+mod mcp;
+
 use abap_analysis::abap_source::{AdtOptions, ProviderOptions, SourceRef};
+use abap_analysis::text;
 
 const USAGE: &str = "usage: abap <command> [arguments]
 
@@ -20,7 +23,8 @@ across objects, sources from folders and/or an SAP system:
                                   other objects followed N hops (default 1)
   fetch <object>                  print the source of an object
   objects are written KIND:NAME, e.g. CLAS:ZCL_ORDERS, PROG:ZREPORT, FUNC:Z_FM,
-  INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations
+  INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations; dictionary types
+  TABL:BAPIRET2 (structures, tables) and DTEL:XUBNAME can be fetched
 
 source options:
   --src <dir>          folder with abapGit or .abap files, repeatable
@@ -31,11 +35,20 @@ source options:
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
 
+for language models:
+  mcp                  MCP server over stdio: the analyses as tools, sources
+                       from the source options
+
 testing:
   mock-adt --src <dir>... [--port N] [--client nnn]
                        serve the folders like an SAP system through ADT, for
                        tests of loading sources; port 50000 by default, logon
                        from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
+
+output:
+  JSON by default; --text for symbols, db, calls, logic and graph gives a
+  compact text: definitions written like ABAP, one line per call or access,
+  effects with their statements and conditions, rows to find them
 
 other:
   schema               JSON Schemas of all outputs";
@@ -43,6 +56,7 @@ other:
 struct Args {
     positional: Vec<String>,
     json: bool,
+    text: bool,
     depth: u32,
     port: u16,
     client: Option<String>,
@@ -53,6 +67,7 @@ fn parse_args() -> Result<Args, String> {
     let mut a = Args {
         positional: Vec::new(),
         json: false,
+        text: false,
         depth: 1,
         port: 50000,
         client: None,
@@ -67,6 +82,7 @@ fn parse_args() -> Result<Args, String> {
         let mut value = |name: &str| it.next().ok_or_else(|| format!("{name} needs a value"));
         match arg.as_str() {
             "--json" => a.json = true,
+            "--text" => a.text = true,
             "--insecure" => insecure = true,
             "--src" => a.options.src.push(value("--src")?),
             "--cache" => a.options.cache = Some(value("--cache")?),
@@ -139,6 +155,17 @@ fn main() -> ExitCode {
             object_command(command, &args)
         }
         "mock-adt" => mock_adt(&args),
+        "mcp" => {
+            let server = mcp::Server::new(args.options.build().map_err(|e| e.to_string()));
+            let stdin = std::io::stdin();
+            match server.run(stdin.lock(), std::io::stdout()) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" => {
             file_command(command, &args)
         }
@@ -191,6 +218,10 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
                 }
             }
         }
+        "symbols" if args.text => print!("{}", text::symbols(&abap_analysis::symbols(&source))),
+        "db" if args.text => print!("{}", text::db_access(&abap_analysis::db_access(&source))),
+        "calls" if args.text => print!("{}", text::calls(&abap_analysis::calls(&source))),
+        "logic" if args.text => print!("{}", text::logic(&abap_analysis::logic(&source))),
         "symbols" => print_json(&abap_analysis::symbols(&source)),
         "db" => print_json(&abap_analysis::db_access(&source)),
         "calls" => print_json(&abap_analysis::calls(&source)),
@@ -282,11 +313,19 @@ fn object_command(command: &str, args: &Args) -> ExitCode {
     let workspace = abap_analysis::Workspace::new(provider);
     let errors = if command == "logic" {
         let logic = workspace.logic(&refs[0], args.depth);
-        print_json(&logic);
+        if args.text {
+            print!("{}", text::logic(&logic));
+        } else {
+            print_json(&logic);
+        }
         logic.errors
     } else {
         let graph = workspace.call_graph(&refs, args.depth);
-        print_json(&graph);
+        if args.text {
+            print!("{}", text::call_graph(&graph));
+        } else {
+            print_json(&graph);
+        }
         graph.errors
     };
     if errors.is_empty() {

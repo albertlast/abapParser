@@ -136,14 +136,14 @@ Not covered: the data flow inside SQLScript in the logic API; dynamic SQL (`EXEC
 - constructors, from `NEW` and `CREATE OBJECT`
 - `CALL FUNCTION`, `PERFORM`, `SUBMIT`, transactions, `CALL TRANSFORMATION` and `INCLUDE`
 
-Each call has its processing block, receiver, target class, options like `DESTINATION` or `IN UPDATE TASK`, and a `dynamic` flag. Receiver types come from declarations, parameters, attributes and inline `DATA(x) = NEW ...`. Chains like `zcl_factory=>get( )->run( )` are typed through returning parameters. Dynamic names written as literals, `('CL_X')=>('METH')`, count as static.
+Each call has its processing block, receiver, target class, options like `DESTINATION` or `IN UPDATE TASK`, and a `dynamic` flag. Receiver types come from declarations, parameters, attributes and inline `DATA(x) = NEW ...` or `x = NEW #( )`. References inside structures are followed, `ls_node-idref->get( )` or `lr_node->idref->get( )`, with local types and dictionary structures. Data elements typed as a reference, `io_id TYPE zid_ref`, lead to their class or interface. Chains like `zcl_factory=>get( )->run( )` are typed through returning parameters. Dynamic names written as literals, `('CL_X')=>('METH')`, count as static.
 
 `call_graph` follows calls across objects. It loads them from source providers:
 
 | Provider | Reads |
 |---|---|
-| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files |
-| SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules. A function module's group is found through the repository search. Uses the operating system's certificate store, so corporate CAs work |
+| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml` |
+| SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
 | cache | sources fetched from the SAP system, one folder per system and client |
 
 Folders are asked first, then the SAP system. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
@@ -162,7 +162,7 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 }, 2);
 ```
 
-The ADT provider only reads. It is tested against the mock server below, not yet against a live system.
+The ADT provider only reads. It is tested against the mock server below and by hand against the SAP ABAP Cloud Developer Trial.
 
 ### Testing without an SAP system
 
@@ -221,17 +221,57 @@ ENDMETHOD.
 
 `total` has the effect `ev_total` with the input `iv_vbeln` and the table `VBAP`. `run` has the effects `ZLOG` (scope database) and `mv_count`, both through `write_log`, and both depend on `VBAP` because the IF decides on the result of `total`.
 
-For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
+For one source, the calls between its own procedures are followed. Through a workspace, `logic` works on a whole object: all class parts, the includes of a program or function group, and its function modules. Data declared in the TOP include is then global in every other include. Calls into other objects are followed up to `--depth` hops, default 1. A call of an instance method also reaches the redefinitions of the method in subclasses, since the object may be of a subclass; `super->m( )` reaches only the superclass's method. A call of an interface method reaches the implementations. Both are followed up to 10 candidates, and subclasses are looked at up to 50; beyond that the call says too little about what runs. Global data of another object is named with that object, like `(zgroup)gv_buffer` for function group ZGROUP. A procedure calling itself, directly or through others, is followed once.
 
 ```sh
 abap logic FUGR:ZORDERS --src ./src --depth 2
 ```
 
 Not covered yet:
-- A method redefined in a subclass is followed into the class the call names, not into the redefinitions.
 - Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
-- Implementations of global interfaces come from the source folders, or from the where-used list of an SAP system through ADT. The ADT request follows the API the ABAP Development Tools use, and is tested against the mock server only, not yet against a live system.
+- Implementations of global interfaces and subclasses of global classes come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview. Where that is not allowed, implementations come from the where-used list, whose index may be incomplete for SAP standard code, and subclasses are not found.
 - A field symbol or reference stored in a structure, table or attribute is not followed.
+
+## Language models (MCP)
+
+`abap mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio. It gives language models the analyses as tools, with sources from the same options as the other commands: folders, an SAP system, a cache. Loaded objects are kept for the session.
+
+| Tool | Answers |
+|---|---|
+| `get_source` | source of an object with row numbers, optionally a row range |
+| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP |
+| `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
+| `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
+| `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
+| `find_implementations` | global classes implementing an interface |
+| `find_subclasses` | global classes inheriting directly from a class |
+| `analyze_source` | the analyses of ABAP code given as text, without a system |
+
+Answers are in the compact text form unless `detail: "full"` asks for JSON, and are cut at 80,000 characters with a hint to ask for less.
+
+With Claude Code:
+
+```sh
+claude mcp add abap -e ABAP_ADT_URL=https://sap:44300 -e ABAP_ADT_CLIENT=100 \
+  -e ABAP_ADT_USER=me -e ABAP_ADT_PASSWORD=... -- abap mcp --src ./src --cache ~/.cache/abap
+```
+
+Other clients take the same as JSON:
+
+```json
+{
+  "mcpServers": {
+    "abap": {
+      "command": "abap",
+      "args": ["mcp", "--src", "./src", "--cache", ".abap-cache"],
+      "env": {"ABAP_ADT_URL": "https://sap:44300", "ABAP_ADT_CLIENT": "100",
+              "ABAP_ADT_USER": "me", "ABAP_ADT_PASSWORD": "..."}
+    }
+  }
+}
+```
+
+The `abap` binary is in the archives of the GitHub releases.
 
 ## Layout
 
@@ -243,8 +283,9 @@ crates/abap-syntax    statements (splitting, chains, pragmas, macros, native SQL
 crates/abap-model     serializable output model and its JSON Schema
 crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQL and AMDP
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
-crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
-crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mock-adt`, `abap schema`
+crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph,
+                      compact text forms
+crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mcp`, `abap mock-adt`, `abap schema`
 bindings/node         Node.js package (napi-rs); npm/ builds the per-platform packages of a release
 bindings/python       Python package (PyO3, maturin)
 tools/                corpus extraction, abaplint oracle, type generation, release version,
@@ -261,6 +302,22 @@ cargo run -p abap-cli -- calls zcl_demo.clas.abap
 cargo run -p abap-cli -- logic zcl_demo.clas.abap
 cargo run -p abap-cli -- logic PROG:ZREPORT --src ./src --depth 1
 cargo run -p abap-cli -- statements zprogram.prog.abap --json
+cargo run -p abap-cli -- logic zcl_demo.clas.abap --text
+```
+
+### Compact text
+
+The JSON is the complete form. For language models, and for reading, `--text` and the `text` functions of the packages give a compact form: definitions written like ABAP, one line per call or database access, and per procedure its effects with the statements writing them and the conditions they run under. Rows tell where to find things. Over the corpus it is 6.7 times shorter than the JSON for symbols and 9.2 times for logic. The MCP server answers in it by default.
+
+```
+zcl_orders->save 21-27
+  parameters: importing iv_id, importing iv_status, exporting ev_count
+  reads tables: ZORDERS
+  writes ZORDERS (database table) at 24; from iv_id, iv_status
+  writes ev_count (parameter) at 25; from iv_id, sy
+  statements:
+       24 UPDATE zorders SET status = @iv_status WHERE id = @iv_id.  when iv_id > 0
+       25 ev_count = sy-dbcnt.  when iv_id > 0
 ```
 
 Node.js (`npm install abap-parser`, or from this repository `cd bindings/node && npm run build`):
@@ -281,6 +338,10 @@ for (const p of abap.logic(source).procedures) {
 const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
 // the same as a promise, without blocking the event loop
 const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {src: ["./src"]}, 2);
+// compact text, e.g. for a prompt: "symbols", "calls", "db" or "logic"
+const prompt = abap.text("logic", source);
+// of objects: "symbols", "logic" or "graph"
+const outline = abap.objectText("symbols", ["CLAS:ZCL_ORDERS"], {src: ["./src"]});
 ```
 
 Every function has an `…Async` variant. It runs on the libuv thread pool, so loading sources from an SAP system or analyzing large files does not block the event loop, and several calls run in parallel.
@@ -299,6 +360,9 @@ for p in abap_parser.logic(source)["procedures"]:
 lg = abap_parser.logic_object("PROG:ZREPORT", {"src": ["./src"]}, depth=1)
 # in asyncio code
 graph = await abap_parser.call_graph_async(["CLAS:ZCL_ORDERS"], {"src": ["./src"]}, 2)
+# compact text, e.g. for a prompt
+prompt = abap_parser.text("logic", source)
+outline = abap_parser.object_text("symbols", ["CLAS:ZCL_ORDERS"], {"src": ["./src"]})
 ```
 
 Every function has an `..._async` variant for asyncio, running in a worker thread. The native code releases the GIL.

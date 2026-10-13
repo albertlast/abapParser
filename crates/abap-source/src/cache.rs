@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::{Result, Source, SourceProvider, SourceRef};
+use crate::{ObjectKind, Result, Source, SourceProvider, SourceRef};
 
 pub struct CachedProvider<P> {
     dir: PathBuf,
@@ -25,7 +25,14 @@ impl<P: SourceProvider> CachedProvider<P> {
             name.push('.');
             name.push_str(p.as_str());
         }
-        self.dir.join(r.kind.as_str()).join(format!("{name}.abap"))
+        let extension = match r.kind {
+            ObjectKind::Dtel => "xml",
+            ObjectKind::Tabl => "ddl",
+            _ => "abap",
+        };
+        self.dir
+            .join(r.kind.as_str())
+            .join(format!("{name}.{extension}"))
     }
 
     /// Removes a cached object, so the next fetch asks the inner provider.
@@ -69,6 +76,10 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
 
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
         self.inner.implementations(interface)
+    }
+
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        self.inner.subclasses(class)
     }
 
     fn describe(&self) -> String {

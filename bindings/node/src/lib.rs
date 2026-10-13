@@ -132,6 +132,39 @@ pub fn statements_json_async(source: String) -> AsyncTask<JsonTask> {
     JsonTask::new(move || Ok(abap_analysis::json::statements(&source)))
 }
 
+/// Compact text of one source: `symbols`, `calls`, `db` or `logic`.
+#[napi]
+pub fn text(analysis: String, source: String) -> Result<String> {
+    abap_analysis::json::text(&analysis, &source).map_err(Error::from_reason)
+}
+
+#[napi(ts_return_type = "Promise<string>")]
+pub fn text_async(analysis: String, source: String) -> AsyncTask<JsonTask> {
+    JsonTask::new(move || abap_analysis::json::text(&analysis, &source))
+}
+
+/// Blocking: compact text of objects, `symbols`, `logic` or `graph`.
+#[napi]
+pub fn object_text(
+    analysis: String,
+    objects: Vec<String>,
+    options: String,
+    depth: u32,
+) -> Result<String> {
+    abap_analysis::json::object_text(&analysis, &objects, &options, depth)
+        .map_err(Error::from_reason)
+}
+
+#[napi(ts_return_type = "Promise<string>")]
+pub fn object_text_async(
+    analysis: String,
+    objects: Vec<String>,
+    options: String,
+    depth: u32,
+) -> AsyncTask<JsonTask> {
+    JsonTask::new(move || abap_analysis::json::object_text(&analysis, &objects, &options, depth))
+}
+
 #[napi]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()

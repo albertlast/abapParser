@@ -9,7 +9,10 @@ use abap_model as m;
 use abap_source::{ClassPart, ObjectKind, SourceProvider, SourceRef};
 use abap_syntax::{File, StatementKind as K};
 
-use crate::calls::{method_defined, type_info, CallExtractor, SymbolsResolver, TypeResolver};
+use crate::calls::{
+    method_defined, type_info, CallExtractor, SymbolsResolver, TypeResolver, ValueType,
+};
+use crate::ddic;
 
 /// One parsed source.
 pub struct Unit {
@@ -33,6 +36,9 @@ pub struct Workspace {
     units: Mutex<HashMap<SourceRef, Option<Arc<Unit>>>>,
     objects: Mutex<HashMap<SourceRef, Option<Arc<Object>>>>,
     implementations: Mutex<HashMap<String, Vec<String>>>,
+    subclasses: Mutex<HashMap<String, Vec<String>>>,
+    structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
+    data_elements: Mutex<HashMap<String, Option<String>>>,
     errors: Mutex<Vec<String>>,
 }
 
@@ -43,6 +49,50 @@ const MAX_CHECKED_IMPLEMENTATIONS: usize = 50;
 /// Includes may include each other in cycles; expansion stops here.
 const MAX_INCLUDES: usize = 500;
 
+/// The implicit superclass of all classes, `TYPE REF TO object`; it has no
+/// source, and an SAP system answers a request for it with an error.
+const ROOT_CLASS: &str = "OBJECT";
+
+/// Built-in and generic types, never looked up in the dictionary.
+fn is_builtin_type(name: &str) -> bool {
+    const BUILTIN: &[&str] = &[
+        "ANY",
+        "B",
+        "C",
+        "CLIKE",
+        "CSEQUENCE",
+        "D",
+        "DATA",
+        "DECFLOAT",
+        "DECFLOAT16",
+        "DECFLOAT34",
+        "F",
+        "I",
+        "INT8",
+        "N",
+        "NUMERIC",
+        "OBJECT",
+        "P",
+        "S",
+        "SIMPLE",
+        "STRING",
+        "T",
+        "UTCLONG",
+        "X",
+        "XSEQUENCE",
+        "XSTRING",
+        "ABAP_BOOL",
+        "TABLE",
+        "INDEX",
+        "STANDARD",
+    ];
+    BUILTIN.contains(&name) || name.contains("=>") || name.contains('~')
+}
+
+fn is_root_class(r: &SourceRef) -> bool {
+    r.kind == ObjectKind::Clas && r.name.eq_ignore_ascii_case(ROOT_CLASS)
+}
+
 impl Workspace {
     pub fn new(provider: Box<dyn SourceProvider>) -> Self {
         Workspace {
@@ -50,6 +100,9 @@ impl Workspace {
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
             implementations: Mutex::new(HashMap::new()),
+            subclasses: Mutex::new(HashMap::new()),
+            structures: Mutex::new(HashMap::new()),
+            data_elements: Mutex::new(HashMap::new()),
             errors: Mutex::new(Vec::new()),
         }
     }
@@ -85,10 +138,58 @@ impl Workspace {
         unit
     }
 
+    /// The text of a dictionary type, `None` if no provider has it.
+    fn fetch_text(&self, r: &SourceRef) -> Option<String> {
+        match self.provider.fetch(r) {
+            Ok(s) => s.map(|s| s.text),
+            Err(e) => {
+                self.errors.lock().unwrap().push(format!("{r}: {e}"));
+                None
+            }
+        }
+    }
+
+    /// A dictionary structure or table.
+    pub fn structure(&self, name: &str) -> Option<Arc<ddic::Structure>> {
+        let key = name.to_ascii_uppercase();
+        if let Some(s) = self.structures.lock().unwrap().get(&key) {
+            return s.clone();
+        }
+        let s = if is_builtin_type(&key) {
+            None
+        } else {
+            self.fetch_text(&SourceRef::table(&key))
+                .and_then(|text| ddic::structure(&text))
+                .map(Arc::new)
+        };
+        self.structures.lock().unwrap().insert(key, s.clone());
+        s
+    }
+
+    /// The class or interface a dictionary data element refers to, when it
+    /// is typed as a reference.
+    pub fn data_element_reference(&self, name: &str) -> Option<String> {
+        let key = name.to_ascii_uppercase();
+        if let Some(r) = self.data_elements.lock().unwrap().get(&key) {
+            return r.clone();
+        }
+        let r = if is_builtin_type(&key) {
+            None
+        } else {
+            self.fetch_text(&SourceRef::data_element(&key))
+                .and_then(|text| ddic::data_element_reference(&text))
+        };
+        self.data_elements.lock().unwrap().insert(key, r.clone());
+        r
+    }
+
     /// All sources of an object: class parts, includes of programs, function
     /// modules of function groups. `None` if the object itself is missing.
     pub fn object(&self, r: &SourceRef) -> Option<Arc<Object>> {
         let r = r.object();
+        if is_root_class(&r) {
+            return None;
+        }
         if let Some(o) = self.objects.lock().unwrap().get(&r) {
             return o.clone();
         }
@@ -208,6 +309,24 @@ impl Workspace {
             .lock()
             .unwrap()
             .insert(key, classes.clone());
+        classes
+    }
+
+    /// Global classes inheriting directly from a class, as far as the
+    /// provider can list them, upper case.
+    pub fn subclasses(&self, class: &str) -> Vec<String> {
+        let key = class.to_ascii_uppercase();
+        if let Some(c) = self.subclasses.lock().unwrap().get(&key) {
+            return c.clone();
+        }
+        let classes = match self.provider.subclasses(&key) {
+            Ok(c) => c,
+            Err(e) => {
+                self.errors.lock().unwrap().push(format!("{key}: {e}"));
+                Vec::new()
+            }
+        };
+        self.subclasses.lock().unwrap().insert(key, classes.clone());
         classes
     }
 
@@ -358,7 +477,7 @@ impl Workspace {
     /// Whether a class or interface and all its superclasses and interfaces
     /// are in the sources; local classes are looked up in `from`.
     fn hierarchy_known(&self, class: &str, from: &Object, level: u32) -> bool {
-        if level > 10 {
+        if level > 10 || class.eq_ignore_ascii_case(ROOT_CLASS) {
             return true;
         }
         let object;
@@ -432,18 +551,43 @@ impl WorkspaceResolver<'_> {
     }
 }
 
+impl WorkspaceResolver<'_> {
+    /// A component of a dictionary structure, also in its includes.
+    fn dictionary_component(
+        &self,
+        structure: &str,
+        component: &str,
+        level: u32,
+    ) -> Option<ValueType> {
+        if level > 10 {
+            return None;
+        }
+        let s = self.workspace.structure(structure)?;
+        if let Some(ty) = s.component(component) {
+            return ty.clone();
+        }
+        s.includes
+            .iter()
+            .find_map(|i| self.dictionary_component(i, component, level + 1))
+    }
+}
+
 impl TypeResolver for WorkspaceResolver<'_> {
-    fn returning_class(&self, class: &str, method: &str) -> Option<String> {
+    fn returning_type(&self, class: &str, method: &str) -> Option<ValueType> {
         self.with(class, |r| {
             type_info(r.symbols, class)?;
-            r.returning_class(class, method)
+            r.returning_type(class, method)
         })
     }
 
-    fn attribute_class(&self, class: &str, attribute: &str) -> Option<String> {
+    fn attribute_type(&self, class: &str, attribute: &str) -> Option<ValueType> {
+        if self.workspace.type_object(class).is_none() {
+            // a reference to a structure: lr->component
+            return self.component_type(class, attribute);
+        }
         self.with(class, |r| {
             type_info(r.symbols, class)?;
-            r.attribute_class(class, attribute)
+            r.attribute_type(class, attribute)
         })
     }
 
@@ -453,11 +597,32 @@ impl TypeResolver for WorkspaceResolver<'_> {
         })
     }
 
-    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, String)>> {
+    fn method_parameters(&self, class: &str, method: &str) -> Option<Vec<(String, ValueType)>> {
         self.with(class, |r| {
             type_info(r.symbols, class)?;
             r.method_parameters(class, method)
         })
+    }
+
+    fn component_type(&self, structure: &str, component: &str) -> Option<ValueType> {
+        // a type of a class or interface: zcl_x=>ty_s
+        if let Some((class, ty)) = structure.split_once("=>") {
+            return self.with(class, |r| {
+                type_info(r.symbols, class)?;
+                r.component_type(ty, component)
+            });
+        }
+        self.dictionary_component(structure, component, 0)
+    }
+
+    fn data_element_reference(&self, name: &str) -> Option<String> {
+        if let Some((class, ty)) = name.split_once("=>") {
+            return self.with(class, |r| {
+                type_info(r.symbols, class)?;
+                r.data_element_reference(ty)
+            });
+        }
+        self.workspace.data_element_reference(name)
     }
 }
 
@@ -584,6 +749,158 @@ END-OF-DEFINITION.",
             .any(|c| c.kind == m::CallKind::Function && c.name == "Z_LOG"));
     }
 
+    /// Fails like an SAP system for the root class.
+    struct NoRootClass(MemoryProvider);
+
+    impl SourceProvider for NoRootClass {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            assert!(!is_root_class(r), "{r} requested");
+            self.0.fetch(r)
+        }
+
+        fn describe(&self) -> String {
+            self.0.describe()
+        }
+    }
+
+    #[test]
+    fn root_class_is_not_requested() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_ANY"),
+            "CLASS zcl_any DEFINITION PUBLIC INHERITING FROM object.
+  PUBLIC SECTION.
+    METHODS run IMPORTING io TYPE REF TO object.
+ENDCLASS.
+CLASS zcl_any IMPLEMENTATION.
+  METHOD run.
+    io->to_string( ).
+    CALL METHOD io->('RUN').
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(NoRootClass(p)));
+        let g = ws.call_graph(&[SourceRef::class("ZCL_ANY")], 2);
+        assert!(g.missing.is_empty(), "{:?}", g.missing);
+        assert!(g.errors.is_empty(), "{:?}", g.errors);
+        ws.logic(&SourceRef::class("ZCL_ANY"), 2);
+    }
+
+    #[test]
+    fn redefinitions_in_other_objects() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_BASE"),
+            "CLASS zcl_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    METHODS save.
+ENDCLASS.
+CLASS zcl_base IMPLEMENTATION.
+  METHOD save.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_DB"),
+            "CLASS zcl_db DEFINITION PUBLIC INHERITING FROM zcl_base.
+  PUBLIC SECTION.
+    METHODS save REDEFINITION.
+ENDCLASS.
+CLASS zcl_db IMPLEMENTATION.
+  METHOD save.
+    DELETE FROM zorders WHERE id = 1.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_OTHER"),
+            "CLASS zcl_other DEFINITION PUBLIC INHERITING FROM zcl_base.
+ENDCLASS.
+CLASS zcl_other IMPLEMENTATION.
+ENDCLASS.",
+        );
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.
+DATA go TYPE REF TO zcl_base.
+START-OF-SELECTION.
+  go->save( ).",
+        );
+        let ws = Workspace::new(Box::new(p));
+        assert_eq!(ws.subclasses("zcl_base"), ["ZCL_DB", "ZCL_OTHER"]);
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 1);
+        let effects: Vec<(&str, Option<&str>)> = l.procedures[0]
+            .effects
+            .iter()
+            .map(|e| (e.name.as_str(), e.via[0].class.as_deref()))
+            .collect();
+        assert_eq!(effects, [("ZORDERS", Some("zcl_db"))]);
+        // not followed into other objects: only the class the call names
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 0);
+        assert!(l.procedures[0].effects.is_empty());
+    }
+
+    #[test]
+    fn calls_through_dictionary_types() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::interface("ZIF_ID"),
+            "INTERFACE zif_id PUBLIC.\n  METHODS get_name.\nENDINTERFACE.",
+        );
+        // DDL as from an SAP system, with an include
+        p.insert(
+            SourceRef::table("ZS_NODE"),
+            "define structure zs_node {\n  include zs_key;\n  idref : zid_ref;\n}",
+        );
+        p.insert(
+            SourceRef::table("ZS_KEY"),
+            "define structure zs_key {\n  owner : reference to zif_id;\n}",
+        );
+        // abapGit data element typed as a reference
+        p.insert(
+            SourceRef::data_element("ZID_REF"),
+            "<DD04V><ROLLNAME>ZID_REF</ROLLNAME><DOMNAME>ZIF_ID</DOMNAME><DATATYPE>REF</DATATYPE><REFKIND>R</REFKIND><REFTYPE>I</REFTYPE></DD04V>",
+        );
+        p.insert(
+            SourceRef::class("ZCL_USE"),
+            "CLASS zcl_use DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_local,
+             id TYPE REF TO zif_id,
+           END OF ty_local.
+    METHODS run IMPORTING io_id TYPE zid_ref ir_node TYPE REF TO zs_node.
+ENDCLASS.
+CLASS zcl_use IMPLEMENTATION.
+  METHOD run.
+    DATA ls_node TYPE zs_node.
+    DATA ls_local TYPE ty_local.
+    io_id->get_name( ).
+    ir_node->idref->get_name( ).
+    ls_node-idref->get_name( ).
+    ls_node-owner->get_name( ).
+    ls_local-id->get_name( ).
+    DATA(lo_id) = ls_node-idref.
+    lo_id->get_name( ).
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let g = ws.call_graph(&[SourceRef::class("ZCL_USE")], 1);
+        let got: Vec<String> = g
+            .calls
+            .iter()
+            .map(|c| {
+                format!(
+                    "{:?} {}",
+                    c.class.as_deref().map(str::to_uppercase),
+                    c.resolved
+                )
+            })
+            .collect();
+        assert_eq!(got, vec!["Some(\"ZIF_ID\") true"; 6], "{:#?}", g.calls);
+        assert!(g.errors.is_empty(), "{:?}", g.errors);
+    }
+
     #[test]
     fn includes_and_parts() {
         let ws = workspace();
@@ -636,7 +953,7 @@ END-OF-DEFINITION.",
                 "PROG:ZREPORT Method zcl_app.run resolved",
                 "PROG:ZREPORT Form log resolved",
                 "PROG:ZREPORT Function Z_LOG",
-                "CLAS:ZCL_APP Constructor constructor",
+                "CLAS:ZCL_APP Constructor zcl_app.constructor resolved",
                 "CLAS:ZCL_APP Method zcl_app.get_repo resolved",
                 "CLAS:ZCL_APP Method zif_repo.save resolved",
                 "CLAS:ZCL_APP Method lcl_helper.help resolved",

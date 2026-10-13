@@ -30,6 +30,9 @@ const options = {
 };
 const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], options, 2);
 const logic = await abap.logicObjectAsync("PROG:ZREPORT", options);
+// compact text, e.g. for a language model
+const prompt = abap.text("logic", source);
+const outline = await abap.objectTextAsync("symbols", ["CLAS:ZCL_ORDERS"], options);
 ```
 
-Every function has an `…Async` variant returning a promise; it runs on the libuv thread pool. The result types are in `types.d.ts`. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.
+Every function has an `…Async` variant returning a promise; it runs on the libuv thread pool. The result types are in `types.d.ts`. `text` and `objectText` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.

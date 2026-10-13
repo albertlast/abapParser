@@ -13,3 +13,4 @@ __pycache__/
 *.pdb
 /bindings/python/dist/
 /npm-placeholders/
+.env

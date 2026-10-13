@@ -3,7 +3,8 @@
 //!
 //! Objects are addressed with [`SourceRef`], written like `PROG:ZREPORT`,
 //! `CLAS:ZCL_ORDERS`, `CLAS:ZCL_ORDERS/implementations`, `INTF:ZIF_X`,
-//! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`.
+//! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`; dictionary types as
+//! `TABL:BAPIRET2` (structures and tables) and `DTEL:XUBNAME`.
 
 #[cfg(feature = "adt")]
 mod adt;
@@ -34,6 +35,11 @@ pub enum ObjectKind {
     Fugr,
     /// function module
     Func,
+    /// dictionary structure or table: ADT gives its DDL source, abapGit
+    /// its `.tabl.xml`
+    Tabl,
+    /// dictionary data element: ADT and abapGit give XML
+    Dtel,
 }
 
 impl ObjectKind {
@@ -44,6 +50,8 @@ impl ObjectKind {
             ObjectKind::Intf => "INTF",
             ObjectKind::Fugr => "FUGR",
             ObjectKind::Func => "FUNC",
+            ObjectKind::Tabl => "TABL",
+            ObjectKind::Dtel => "DTEL",
         }
     }
 }
@@ -115,6 +123,14 @@ impl SourceRef {
         Self::new(ObjectKind::Func, name)
     }
 
+    pub fn table(name: &str) -> Self {
+        Self::new(ObjectKind::Tabl, name)
+    }
+
+    pub fn data_element(name: &str) -> Self {
+        Self::new(ObjectKind::Dtel, name)
+    }
+
     pub fn with_part(mut self, part: ClassPart) -> Self {
         self.part = Some(part);
         self
@@ -142,7 +158,7 @@ impl fmt::Display for SourceRef {
 impl FromStr for SourceRef {
     type Err = String;
 
-    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC
+    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -153,6 +169,8 @@ impl FromStr for SourceRef {
             "INTF" => ObjectKind::Intf,
             "FUGR" => ObjectKind::Fugr,
             "FUNC" => ObjectKind::Func,
+            "TABL" => ObjectKind::Tabl,
+            "DTEL" => ObjectKind::Dtel,
             other => return Err(format!("unknown object kind {other:?}")),
         };
         // names may contain namespaces like /ABC/ZCL_X; a part follows the
@@ -242,6 +260,12 @@ pub trait SourceProvider: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Global classes inheriting directly from a class, upper case, when the
+    /// provider can list them.
+    fn subclasses(&self, _class: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
     /// Short description for messages, e.g. the folder or URL.
     fn describe(&self) -> String;
 }
@@ -289,6 +313,18 @@ impl SourceProvider for ChainProvider {
         Ok(out)
     }
 
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        let mut out: Vec<String> = Vec::new();
+        for p in &self.providers {
+            for c in p.subclasses(class)? {
+                if !out.contains(&c) {
+                    out.push(c);
+                }
+            }
+        }
+        Ok(out)
+    }
+
     fn describe(&self) -> String {
         self.providers
             .iter()
@@ -312,6 +348,20 @@ impl MemoryProvider {
     pub fn insert(&mut self, reference: SourceRef, text: impl Into<String>) {
         self.sources.insert(reference, text.into());
     }
+
+    /// Global classes whose main source matches, sorted.
+    fn classes(&self, matches: impl Fn(&str, &str) -> bool) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .sources
+            .iter()
+            .filter(|(r, text)| {
+                r.kind == ObjectKind::Clas && r.part.is_none() && matches(text, &r.name)
+            })
+            .map(|(r, _)| r.name.clone())
+            .collect();
+        out.sort();
+        out
+    }
 }
 
 impl SourceProvider for MemoryProvider {
@@ -325,6 +375,17 @@ impl SourceProvider for MemoryProvider {
 
     fn function_modules(&self, _group: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
+    }
+
+    fn implementations(&self, interface: &str) -> Result<Vec<String>> {
+        Ok(self
+            .classes(|text, _| fs::interfaces_of(text).contains(&interface.to_ascii_uppercase())))
+    }
+
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        Ok(self.classes(|text, name| {
+            fs::superclass_of(text, name).is_some_and(|s| s.eq_ignore_ascii_case(class))
+        }))
     }
 
     fn describe(&self) -> String {

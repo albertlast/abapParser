@@ -48,6 +48,10 @@ pub struct AdtProvider {
     session: Mutex<Option<(String, String)>>,
     /// interface -> classes using it, from where-used lists
     usages: Mutex<HashMap<String, Vec<String>>>,
+    /// implementing classes per interface, upper case
+    implementers: Mutex<HashMap<String, Vec<String>>>,
+    /// subclasses per class, upper case
+    subclasses: Mutex<HashMap<String, Vec<String>>>,
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -109,6 +113,8 @@ impl AdtProvider {
             groups: Mutex::new(HashMap::new()),
             session: Mutex::new(None),
             usages: Mutex::new(HashMap::new()),
+            implementers: Mutex::new(HashMap::new()),
+            subclasses: Mutex::new(HashMap::new()),
         }
     }
 
@@ -264,6 +270,49 @@ impl AdtProvider {
         Ok(classes)
     }
 
+    /// Classes implementing an interface directly, from the class relations
+    /// through the data preview; `None` when the system has no data preview.
+    pub fn implementing_classes(&self, interface: &str) -> Result<Option<Vec<String>>> {
+        self.related_classes(interface, Relation::Implements)
+    }
+
+    /// Classes with a relation to `name` in the class relations (SEOMETAREL)
+    /// read through the data preview; `None` when the system has no data
+    /// preview.
+    fn related_classes(&self, name: &str, relation: Relation) -> Result<Option<Vec<String>>> {
+        let key = name.to_ascii_uppercase();
+        // the name goes into SQL: only what ABAP names consist of
+        if key.is_empty()
+            || !key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
+        {
+            return Ok(Some(Vec::new()));
+        }
+        let query = format!(
+            "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '{}' AND version = '1'",
+            relation as u8
+        );
+        let xml = self.post(
+            "/sap/bc/adt/datapreview/freestyle?rowNumber=1000",
+            "text/plain",
+            "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml",
+            &query,
+        )?;
+        Ok(xml.map(|xml| {
+            let mut classes: Vec<String> = xml
+                .split("<dataPreview:data>")
+                .skip(1)
+                .filter_map(|d| d.split('<').next())
+                .map(|d| d.trim().to_ascii_uppercase())
+                .filter(|d| !d.is_empty())
+                .collect();
+            classes.sort();
+            classes.dedup();
+            classes
+        }))
+    }
+
     fn source(&self, reference: &SourceRef, path: &str) -> Result<Option<Source>> {
         Ok(self.get(path, "text/plain")?.map(|text| Source {
             reference: reference.clone(),
@@ -283,13 +332,35 @@ impl AdtProvider {
             encode(&key).to_ascii_uppercase().replace("%2F", "%2f")
         );
         let xml = self.get(&path, "application/xml")?.unwrap_or_default();
-        let group = group_from_search(&xml, &key);
+        let mut group = group_from_search(&xml, &key);
+        // lock modules are generated and not in the search; their lock
+        // object names them with their group
+        if let (None, Some(lock_object)) = (
+            &group,
+            key.strip_prefix("ENQUEUE_")
+                .or_else(|| key.strip_prefix("DEQUEUE_")),
+        ) {
+            let path = format!(
+                "/sap/bc/adt/ddic/lockobjects/sources/{}",
+                encode(lock_object)
+            );
+            if let Some(xml) = self.get(&path, "application/vnd.sap.adt.lockobjects.v1+xml")? {
+                group = group_from_search(&xml, &key);
+            }
+        }
         self.groups.lock().unwrap().insert(key, group.clone());
         Ok(group)
     }
 }
 
 const USAGE_REQUEST: &str = r#"<?xml version="1.0" encoding="UTF-8"?><usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences"><usagereferences:affectedObjects/></usagereferences:usageReferenceRequest>"#;
+
+/// Relation types of the class relations, SEOMETAREL-RELTYPE.
+#[derive(Clone, Copy)]
+enum Relation {
+    Implements = 1,
+    Inherits = 2,
+}
 
 /// Percent encoding of a query parameter value.
 fn query_encode(value: &str) -> String {
@@ -388,13 +459,64 @@ impl SourceProvider for AdtProvider {
                     &format!("/sap/bc/adt/functions/groups/{group}/fmodules/{name}/source/main"),
                 )
             }
+            (ObjectKind::Tabl, _) => {
+                if let Some(s) = self.source(
+                    r,
+                    &format!("/sap/bc/adt/ddic/structures/{name}/source/main"),
+                )? {
+                    return Ok(Some(s));
+                }
+                self.source(r, &format!("/sap/bc/adt/ddic/tables/{name}/source/main"))
+            }
+            (ObjectKind::Dtel, _) => {
+                let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
+                Ok(self
+                    .get(&path, "application/vnd.sap.adt.dataelements.v2+xml")?
+                    .map(|text| Source {
+                        reference: r.clone(),
+                        text,
+                        origin: format!("{}{}", self.config.url, path),
+                    }))
+            }
         }
     }
 
-    /// The where-used list of the interface: a superset of its
-    /// implementations, which callers check against the class sources.
+    /// The classes the class relations (SEOMETAREL) name, read through the
+    /// data preview; where that is not allowed, the where-used list of the
+    /// interface, a superset which callers check against the class sources.
+    /// From the class relations through the data preview; nothing where
+    /// that is not allowed.
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        let key = class.to_ascii_uppercase();
+        if let Some(c) = self.subclasses.lock().unwrap().get(&key) {
+            return Ok(c.clone());
+        }
+        let classes = match self.related_classes(&key, Relation::Inherits) {
+            Ok(classes) => classes.unwrap_or_default(),
+            Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => Vec::new(),
+            Err(e) => return Err(e),
+        };
+        self.subclasses.lock().unwrap().insert(key, classes.clone());
+        Ok(classes)
+    }
+
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
-        self.interface_usages(interface)
+        let key = interface.to_ascii_uppercase();
+        if let Some(c) = self.implementers.lock().unwrap().get(&key) {
+            return Ok(c.clone());
+        }
+        let classes = match self.implementing_classes(&key) {
+            Ok(Some(classes)) => classes,
+            Ok(None) | Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => {
+                self.interface_usages(&key)?
+            }
+            Err(e) => return Err(e),
+        };
+        self.implementers
+            .lock()
+            .unwrap()
+            .insert(key, classes.clone());
+        Ok(classes)
     }
 
     fn describe(&self) -> String {
@@ -426,19 +548,23 @@ mod tests {
                 let mut request = String::new();
                 reader.read_line(&mut request).unwrap();
                 let mut auth = false;
+                let mut length = 0;
                 loop {
                     let mut line = String::new();
                     reader.read_line(&mut line).unwrap();
-                    if line
-                        .to_ascii_lowercase()
-                        .starts_with("authorization: basic ")
-                    {
+                    let lower = line.to_ascii_lowercase();
+                    if lower.starts_with("authorization: basic ") {
                         auth = true;
+                    }
+                    if let Some(n) = lower.strip_prefix("content-length:") {
+                        length = n.trim().parse().unwrap_or(0);
                     }
                     if line == "\r\n" || line.is_empty() {
                         break;
                     }
                 }
+                let mut body = vec![0; length];
+                std::io::Read::read_exact(&mut reader, &mut body).unwrap();
                 let path = request.split_whitespace().nth(1).unwrap_or("").to_string();
                 let _ = tx.send(path.clone());
                 let (status, body) = if !auth {
@@ -488,6 +614,16 @@ mod tests {
                 200,
                 "FUNCTION z_fm.",
             ),
+            (
+                "/sap/bc/adt/ddic/lockobjects/sources/ez_order",
+                200,
+                r#"<enqu:lockModules><enqu:lockModule adtcore:uri="/sap/bc/adt/functions/groups/%2f1bcdwben%2fsen0001/fmodules/enqueue_ez_order" adtcore:name="ENQUEUE_EZ_ORDER"/></enqu:lockModules>"#,
+            ),
+            (
+                "/sap/bc/adt/functions/groups/%2f1bcdwben%2fsen0001/fmodules/enqueue_ez_order/source/main",
+                200,
+                "FUNCTION enqueue_ez_order.",
+            ),
         ]);
         let mut config = AdtConfig::new(&url, "user", "secret");
         config.client = Some("100".to_string());
@@ -516,10 +652,48 @@ mod tests {
             .unwrap();
         assert_eq!(fm.text, "FUNCTION z_fm.");
 
+        // generated lock module, not in the search: group from its lock object
+        let lock = adt
+            .fetch(&SourceRef::function_module("ENQUEUE_EZ_ORDER"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(lock.text, "FUNCTION enqueue_ez_order.");
+
         assert!(adt
             .fetch(&SourceRef::class("ZCL_MISSING"))
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn implementations_from_the_class_relations() {
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            (
+                "/sap/bc/adt/datapreview/freestyle",
+                200,
+                "<dataPreview:tableData><dataPreview:dataSet><dataPreview:data>CL_IDENTITY</dataPreview:data><dataPreview:data>CL_OTHER</dataPreview:data></dataPreview:dataSet></dataPreview:tableData>",
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        assert_eq!(
+            adt.implementations("if_identity").unwrap(),
+            ["CL_IDENTITY", "CL_OTHER"]
+        );
+        // names that are no ABAP names are not put into SQL
+        assert!(adt.implementations("X' OR '1' = '1").unwrap().is_empty());
+        // subclasses the same way, answers cached
+        assert_eq!(
+            adt.subclasses("cl_base").unwrap(),
+            ["CL_IDENTITY", "CL_OTHER"]
+        );
+        adt.subclasses("CL_BASE").unwrap();
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert_eq!(
+            paths.iter().filter(|p| p.contains("freestyle")).count(),
+            2,
+            "{paths:?}"
+        );
     }
 
     #[test]

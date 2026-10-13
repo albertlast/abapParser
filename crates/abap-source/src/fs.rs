@@ -1,6 +1,7 @@
 //! Source files on disk: abapGit layout (`zcl_x.clas.abap`,
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
-//! namespaces), or plain `name.abap` files taken as programs.
+//! namespaces), or plain `name.abap` files taken as programs; dictionary
+//! types from `name.tabl.xml` and `name.dtel.xml`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -13,19 +14,26 @@ pub struct FsProvider {
     index: HashMap<SourceRef, PathBuf>,
     /// function group (upper case) -> function modules
     groups: HashMap<String, Vec<String>>,
-    /// interface -> global classes implementing it, upper case; read from
-    /// the class sources on first use
-    implementers: OnceLock<HashMap<String, Vec<String>>>,
+    /// interface -> global classes implementing it, and superclass ->
+    /// global classes inheriting from it, upper case; read from the class
+    /// sources on first use
+    relations: OnceLock<Relations>,
+}
+
+#[derive(Default)]
+struct Relations {
+    implementers: HashMap<String, Vec<String>>,
+    subclasses: HashMap<String, Vec<String>>,
 }
 
 impl FsProvider {
-    /// Indexes all `.abap` files below the given folders.
+    /// Indexes all `.abap` files and dictionary types below the given folders.
     pub fn new(roots: Vec<PathBuf>) -> Result<Self> {
         let mut p = FsProvider {
             roots: roots.clone(),
             index: HashMap::new(),
             groups: HashMap::new(),
-            implementers: OnceLock::new(),
+            relations: OnceLock::new(),
         };
         for root in &roots {
             p.scan(root)?;
@@ -61,7 +69,7 @@ impl FsProvider {
                 self.scan(&path)?;
             } else if path
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("abap"))
+                .is_some_and(|e| e.eq_ignore_ascii_case("abap") || e.eq_ignore_ascii_case("xml"))
             {
                 self.add_file(&path);
             }
@@ -88,14 +96,71 @@ impl FsProvider {
     }
 }
 
-/// Interfaces named by the INTERFACES statements of a source, upper case.
-fn interfaces_of(text: &str) -> Vec<String> {
-    let code: String = text
-        .lines()
+/// The code without comments, statements separated by '.'.
+fn code_of(text: &str) -> String {
+    text.lines()
         .filter(|l| !l.starts_with('*'))
         .map(|l| l.split('"').next().unwrap_or_default())
         .collect::<Vec<_>>()
-        .join(" ");
+        .join(" ")
+}
+
+/// The superclass in the definition of a class, upper case.
+pub(crate) fn superclass_of(text: &str, class: &str) -> Option<String> {
+    for statement in code_of(text).split('.') {
+        let words: Vec<&str> = statement.split_whitespace().collect();
+        let defines = words.len() > 2
+            && words[0].eq_ignore_ascii_case("CLASS")
+            && words[1].eq_ignore_ascii_case(class)
+            && words[2].eq_ignore_ascii_case("DEFINITION");
+        if !defines {
+            continue;
+        }
+        let at = words.windows(2).position(|w| {
+            w[0].eq_ignore_ascii_case("INHERITING") && w[1].eq_ignore_ascii_case("FROM")
+        })?;
+        return words.get(at + 2).map(|s| s.to_ascii_uppercase());
+    }
+    None
+}
+
+impl FsProvider {
+    fn relations(&self) -> &Relations {
+        self.relations.get_or_init(|| {
+            let mut index = Relations::default();
+            for (r, path) in &self.index {
+                if r.kind != ObjectKind::Clas || r.part.is_some() {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                for i in interfaces_of(&text) {
+                    index
+                        .implementers
+                        .entry(i)
+                        .or_default()
+                        .push(r.name.clone());
+                }
+                if let Some(s) = superclass_of(&text, &r.name) {
+                    index.subclasses.entry(s).or_default().push(r.name.clone());
+                }
+            }
+            for classes in index
+                .implementers
+                .values_mut()
+                .chain(index.subclasses.values_mut())
+            {
+                classes.sort();
+            }
+            index
+        })
+    }
+}
+
+/// Interfaces named by the INTERFACES statements of a source, upper case.
+pub(crate) fn interfaces_of(text: &str) -> Vec<String> {
+    let code = code_of(text);
     let mut out = Vec::new();
     for statement in code.split('.') {
         let statement = statement.trim();
@@ -139,6 +204,13 @@ fn local_name(name: &str) -> &str {
 /// The object of a file name, and for function modules their group.
 fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
     let lower = file.to_ascii_lowercase();
+    if let Some(stem) = lower.strip_suffix(".xml") {
+        return match stem.split('.').collect::<Vec<_>>().as_slice() {
+            [name, "tabl"] => Some((SourceRef::table(&decode(name)), None)),
+            [name, "dtel"] => Some((SourceRef::data_element(&decode(name)), None)),
+            _ => None,
+        };
+    }
     let stem = lower.strip_suffix(".abap")?;
     let parts: Vec<&str> = stem.split('.').collect();
     let r = match parts.as_slice() {
@@ -210,26 +282,19 @@ impl SourceProvider for FsProvider {
     }
 
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
-        let index = self.implementers.get_or_init(|| {
-            let mut index: HashMap<String, Vec<String>> = HashMap::new();
-            for (r, path) in &self.index {
-                if r.kind != ObjectKind::Clas || r.part.is_some() {
-                    continue;
-                }
-                let Ok(text) = std::fs::read_to_string(path) else {
-                    continue;
-                };
-                for i in interfaces_of(&text) {
-                    index.entry(i).or_default().push(r.name.clone());
-                }
-            }
-            for classes in index.values_mut() {
-                classes.sort();
-            }
-            index
-        });
-        Ok(index
+        Ok(self
+            .relations()
+            .implementers
             .get(&interface.to_ascii_uppercase())
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn subclasses(&self, class: &str) -> Result<Vec<String>> {
+        Ok(self
+            .relations()
+            .subclasses
+            .get(&class.to_ascii_uppercase())
             .cloned()
             .unwrap_or_default())
     }
@@ -278,6 +343,9 @@ mod tests {
             Some(("PROG:/ABC/LGRPTOP".into(), None))
         );
         assert_eq!(p("ZPLAIN.abap"), Some(("PROG:ZPLAIN".into(), None)));
+        assert_eq!(p("zs_x.tabl.xml"), Some(("TABL:ZS_X".into(), None)));
+        assert_eq!(p("#abc#d.dtel.xml"), Some(("DTEL:/ABC/D".into(), None)));
+        assert_eq!(p("zcl_a.clas.xml"), None);
         assert_eq!(p("zcl_a.clas.xml"), None);
     }
 
@@ -319,5 +387,27 @@ mod tests {
     INTERFACES zif_d DATA VALUES x = 1.
 ENDCLASS.";
         assert_eq!(interfaces_of(src), ["ZIF_A", "ZIF_B", "/ABC/IF_C", "ZIF_D"]);
+    }
+
+    #[test]
+    fn superclass_of_the_definition() {
+        let src = "\"! docs
+CLASS zcl_x DEFINITION
+  PUBLIC
+  INHERITING FROM /abc/cl_base
+  FINAL.
+  PUBLIC SECTION.
+ENDCLASS.
+CLASS lcl_local DEFINITION INHERITING FROM zcl_other.
+ENDCLASS.";
+        assert_eq!(superclass_of(src, "ZCL_X").as_deref(), Some("/ABC/CL_BASE"));
+        assert_eq!(
+            superclass_of(src, "lcl_local").as_deref(),
+            Some("ZCL_OTHER")
+        );
+        assert_eq!(
+            superclass_of("CLASS zcl_y DEFINITION PUBLIC.", "zcl_y"),
+            None
+        );
     }
 }

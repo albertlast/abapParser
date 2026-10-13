@@ -108,6 +108,16 @@ test("a real abapGit class", {skip: !fs.existsSync(path.join(corpus, "abapgit", 
   assert.ok(s.classes[0].methods.length > 5);
 });
 
+test("compact text", async () => {
+  const t = abap.text("symbols", SOURCE);
+  assert.match(t, /^CLASS zcl_demo DEFINITION PUBLIC FINAL\.  " 2-7\n/);
+  assert.match(t, /    METHODS run IMPORTING iv_id TYPE i RETURNING VALUE\(rv_ok\) TYPE abap_bool\.  " 4\n/);
+  assert.match(abap.text("logic", SOURCE), /zcl_demo->run 9-11\n.*\n  writes rv_ok \(parameter\) at 10/);
+  assert.equal(await abap.textAsync("symbols", SOURCE), t);
+  assert.throws(() => abap.text("nope", SOURCE), /unknown analysis/);
+  await assert.rejects(abap.objectTextAsync("graph", ["CLAS:X"], {}), /no source/);
+});
+
 test("async variants give the same results", async () => {
   assert.deepEqual(await abap.symbolsAsync(SOURCE), abap.symbols(SOURCE));
   assert.deepEqual(await abap.logicAsync(SOURCE), abap.logic(SOURCE));
