@@ -54,3 +54,16 @@ export function statements(source: string): StatementInfo[];
 
 /** Version of the native module. */
 export function version(): string;
+
+// The same functions on the libuv thread pool, returning promises: loading
+// sources from an SAP system or analyzing large files does not block the
+// event loop, and several calls run in parallel.
+
+export function symbolsAsync(source: string): Promise<FileSymbols>;
+export function dbAccessAsync(source: string): Promise<DbAccess[]>;
+export function callsAsync(source: string): Promise<Call[]>;
+export function callGraphAsync(roots: string[], options: SourceOptions, depth?: number): Promise<CallGraph>;
+export function fetchSourceAsync(reference: string, options: SourceOptions): Promise<string | null>;
+export function logicAsync(source: string): Promise<FileLogic>;
+export function logicObjectAsync(reference: string, options: SourceOptions, depth?: number): Promise<FileLogic>;
+export function statementsAsync(source: string): Promise<StatementInfo[]>;

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   test:
@@ -27,6 +28,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Versions and license copies agree
+        run: |
+          node tools/version.mjs --check "$(node tools/version.mjs)"
+          cmp LICENSE bindings/node/LICENSE
+          cmp LICENSE bindings/python/LICENSE
+
       - name: Generate abaplint golden data
         run: |
           npm ci --prefix tools
@@ -45,10 +52,46 @@ jobs:
           node build.mjs
           npm test
 
-      - name: Python binding
+      - name: Python binding, as an installed wheel
         working-directory: bindings/python
         run: |
-          python -m venv .venv
-          .venv/bin/pip install maturin==1.15.0
-          .venv/bin/maturin develop --release
-          .venv/bin/python -m unittest discover -s tests -v
+          pip install maturin==1.15.0
+          maturin build --release --out dist
+          pip install --no-index --find-links dist abap-parser
+          python -m unittest discover -s tests -v
+
+  # the same without the abaplint comparisons, which are skipped without
+  # golden data
+  platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: cargo test --release
+      - name: Node.js binding
+        working-directory: bindings/node
+        run: |
+          node build.mjs
+          npm test
+      - name: Python binding, as an installed wheel
+        working-directory: bindings/python
+        run: |
+          pip install maturin==1.15.0
+          maturin build --release --out dist
+          pip install --no-index --find-links dist abap-parser
+          python -m unittest discover -s tests -v

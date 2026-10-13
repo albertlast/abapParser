@@ -8,7 +8,14 @@ The goal is to answer structured questions about ABAP code, so tools don't have 
 - **Call graph**: CALL FUNCTION, method calls, PERFORM, INCLUDE, SUBMIT
 - **Logic**: conditions, assignments, data flow
 
-Includes and referenced objects that are missing locally are meant to be fetched from the SAP system through the ADT REST API.
+Includes and referenced objects that are missing locally are fetched from the SAP system through the ADT REST API.
+
+```sh
+npm install @abap-parser/core     # Node.js 18+, prebuilt for Windows x64, macOS, Linux x64/arm64
+pip install abap-parser           # Python 3.9+, wheels for the same platforms
+```
+
+The command line tool `abap` is attached to each [GitHub release](https://github.com/albertlast/abapPaser/releases). See [Usage](#usage).
 
 ## Status
 
@@ -238,9 +245,10 @@ crates/abap-sql       Open SQL parser; HANA SQL and SQLScript parser for EXEC SQ
 crates/abap-source    source providers: folders, disk cache, SAP ADT; ADT mock server
 crates/abap-analysis  symbols, database access, calls, logic, workspace and call graph
 crates/abap-cli       `abap tokens|statements|symbols|db|calls|logic <file>`, `abap graph|logic|fetch <object>`, `abap mock-adt`, `abap schema`
-bindings/node         Node.js package (napi-rs)
+bindings/node         Node.js package (napi-rs); npm/ builds the per-platform packages of a release
 bindings/python       Python package (PyO3, maturin)
-tools/                corpus extraction, abaplint oracle, type generation, keyword documentation lookup
+tools/                corpus extraction, abaplint oracle, type generation, release version,
+                      keyword documentation lookup
 tests/corpus/         test corpus, see tests/corpus/README.md
 ```
 
@@ -255,7 +263,7 @@ cargo run -p abap-cli -- logic PROG:ZREPORT --src ./src --depth 1
 cargo run -p abap-cli -- statements zprogram.prog.abap --json
 ```
 
-Node.js (`cd bindings/node && npm run build`):
+Node.js (`npm install @abap-parser/core`, or from this repository `cd bindings/node && npm run build`):
 
 ```js
 const abap = require("@abap-parser/core");
@@ -271,9 +279,13 @@ for (const p of abap.logic(source).procedures) {
 }
 // a whole object with its includes, calls into other objects followed 1 hop
 const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
+// the same as a promise, without blocking the event loop
+const graph = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {src: ["./src"]}, 2);
 ```
 
-Python (`cd bindings/python && maturin develop --release`):
+Every function has an `…Async` variant. It runs on the libuv thread pool, so loading sources from an SAP system or analyzing large files does not block the event loop, and several calls run in parallel.
+
+Python (`pip install abap-parser`, or from this repository `cd bindings/python && maturin develop --release`):
 
 ```python
 import abap_parser
@@ -285,7 +297,11 @@ for a in abap_parser.db_access(source):
 for p in abap_parser.logic(source)["procedures"]:
     print(p["block"]["name"], [(e["name"], e["inputs"]) for e in p["effects"]])
 lg = abap_parser.logic_object("PROG:ZREPORT", {"src": ["./src"]}, depth=1)
+# in asyncio code
+graph = await abap_parser.call_graph_async(["CLAS:ZCL_ORDERS"], {"src": ["./src"]}, 2)
 ```
+
+Every function has an `..._async` variant for asyncio, running in a worker thread. The native code releases the GIL.
 
 Rust:
 
@@ -308,3 +324,27 @@ cargo test --release -- --nocapture             # prints the coverage reports
 node tools/gen-types.mjs                          # after changing crates/abap-model
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation
 ```
+
+### Releasing
+
+The version is kept in the Cargo workspace; `bindings/node/package.json` follows it and the Python package reads it through maturin.
+
+```sh
+node tools/version.mjs 0.2.0          # set it in Cargo.toml, Cargo.lock, package.json
+# add a "## 0.2.0" section to CHANGELOG.md, commit, then
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:
+- the native Node.js module per platform, tested where the runner can load it;
+- Python wheels and the source distribution;
+- the command line tool per platform.
+
+It then publishes:
+- `@abap-parser/core` and its platform packages to npm, using the `NPM_TOKEN` secret, with provenance;
+- `abap-parser` to PyPI through trusted publishing, which needs a PyPI trusted publisher for this repository and the environment `pypi`;
+- a GitHub release with the command line tool and the changelog section.
+
+Started by hand from the Actions tab, the workflow builds and tests everything and keeps the results as artifacts, without publishing.
+
+`schema_version` in the JSON results changes only when a result changes in a way that breaks readers. New optional fields leave it unchanged.

@@ -2,8 +2,13 @@
 
 The returned dictionaries follow the JSON model of the Rust core, see the
 TypedDicts in ``abap_parser.types``.
+
+Every function has an ``..._async`` variant for asyncio. It runs in a worker
+thread; the native code releases the GIL, so loading sources from an SAP
+system does not block the event loop and several calls run in parallel.
 """
 
+import asyncio
 import json
 from typing import List, Optional, TypedDict
 
@@ -20,6 +25,14 @@ __all__ = [
     "logic_object",
     "statements",
     "version",
+    "symbols_async",
+    "db_access_async",
+    "calls_async",
+    "call_graph_async",
+    "fetch_source_async",
+    "logic_async",
+    "logic_object_async",
+    "statements_async",
     "AdtOptions",
     "SourceOptions",
     "Call",
@@ -107,3 +120,43 @@ def statements(source: str) -> List[StatementInfo]:
 def version() -> str:
     """Version of the native module."""
     return _native.version()
+
+
+async def symbols_async(source: str) -> FileSymbols:
+    """:func:`symbols` in a worker thread."""
+    return await asyncio.to_thread(symbols, source)
+
+
+async def db_access_async(source: str) -> List[DbAccess]:
+    """:func:`db_access` in a worker thread."""
+    return await asyncio.to_thread(db_access, source)
+
+
+async def calls_async(source: str) -> List[Call]:
+    """:func:`calls` in a worker thread."""
+    return await asyncio.to_thread(calls, source)
+
+
+async def call_graph_async(roots: List[str], options: SourceOptions, depth: int = 1) -> CallGraph:
+    """:func:`call_graph` in a worker thread."""
+    return await asyncio.to_thread(call_graph, roots, options, depth)
+
+
+async def fetch_source_async(reference: str, options: SourceOptions) -> Optional[str]:
+    """:func:`fetch_source` in a worker thread."""
+    return await asyncio.to_thread(fetch_source, reference, options)
+
+
+async def logic_async(source: str) -> FileLogic:
+    """:func:`logic` in a worker thread."""
+    return await asyncio.to_thread(logic, source)
+
+
+async def logic_object_async(reference: str, options: SourceOptions, depth: int = 1) -> FileLogic:
+    """:func:`logic_object` in a worker thread."""
+    return await asyncio.to_thread(logic_object, reference, options, depth)
+
+
+async def statements_async(source: str) -> List[StatementInfo]:
+    """:func:`statements` in a worker thread."""
+    return await asyncio.to_thread(statements, source)

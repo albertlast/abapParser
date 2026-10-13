@@ -107,3 +107,32 @@ test("a real abapGit class", {skip: !fs.existsSync(path.join(corpus, "abapgit", 
   assert.equal(s.classes[0].name.toLowerCase(), "zcl_abapgit_apack_migration");
   assert.ok(s.classes[0].methods.length > 5);
 });
+
+test("async variants give the same results", async () => {
+  assert.deepEqual(await abap.symbolsAsync(SOURCE), abap.symbols(SOURCE));
+  assert.deepEqual(await abap.logicAsync(SOURCE), abap.logic(SOURCE));
+  assert.deepEqual(await abap.statementsAsync(SOURCE), abap.statements(SOURCE));
+  assert.deepEqual(await abap.callsAsync(SOURCE), abap.calls(SOURCE));
+  assert.deepEqual(await abap.dbAccessAsync(SOURCE), abap.dbAccess(SOURCE));
+  await assert.rejects(abap.callGraphAsync(["CLAS:X"], {}), /no source/);
+  await assert.rejects(abap.logicObjectAsync("NOPE", {}), /KIND:NAME/);
+});
+
+test("loading objects does not block the event loop", {skip: !fs.existsSync(path.join(corpus, "abapgit", "src"))}, async () => {
+  const src = path.join(corpus, "abapgit", "src");
+  let ticks = 0;
+  const timer = setInterval(() => ticks++, 1);
+  const [graph, text, missing, l] = await Promise.all([
+    abap.callGraphAsync(["CLAS:ZCL_ABAPGIT_REPO_ONLINE"], {src: [src]}, 2),
+    abap.fetchSourceAsync("CLAS:ZCL_ABAPGIT_APACK_MIGRATION", {src: [src]}),
+    abap.fetchSourceAsync("CLAS:ZCL_NOPE", {src: [src]}),
+    abap.logicObjectAsync("CLAS:ZCL_ABAPGIT_REPO_ONLINE", {src: [src]}),
+  ]);
+  clearInterval(timer);
+  assert.ok(graph.calls.length > 100);
+  assert.ok(text.toLowerCase().includes("zcl_abapgit_apack_migration"));
+  assert.equal(missing, null);
+  assert.ok(l.procedures.length > 10);
+  // the timer ran while the native work was going on
+  assert.ok(ticks > 0, `${ticks} ticks`);
+});

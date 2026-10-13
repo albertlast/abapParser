@@ -15,6 +15,7 @@ doctest = false
 [dependencies]
 abap-analysis.workspace = true
 napi = "=3.13.0"
+serde_json.workspace = true
 napi-derive = "=3.6.9"
 
 [build-dependencies]

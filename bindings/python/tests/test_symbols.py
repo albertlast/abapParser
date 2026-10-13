@@ -112,3 +112,37 @@ class SymbolsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AsyncTest(unittest.IsolatedAsyncioTestCase):
+    async def test_same_results(self):
+        self.assertEqual(await abap_parser.symbols_async(SOURCE), abap_parser.symbols(SOURCE))
+        self.assertEqual(await abap_parser.logic_async(SOURCE), abap_parser.logic(SOURCE))
+        self.assertEqual(await abap_parser.statements_async(SOURCE), abap_parser.statements(SOURCE))
+        with self.assertRaises(RuntimeError):
+            await abap_parser.call_graph_async(["CLAS:X"], {})
+
+    @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
+    async def test_event_loop_keeps_running(self):
+        import asyncio
+
+        src = str(CORPUS / "abapgit" / "src")
+        ticks = 0
+
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.001)
+                ticks += 1
+
+        task = asyncio.create_task(ticker())
+        graph, text, logic = await asyncio.gather(
+            abap_parser.call_graph_async(["CLAS:ZCL_ABAPGIT_REPO_ONLINE"], {"src": [src]}, 2),
+            abap_parser.fetch_source_async("CLAS:ZCL_ABAPGIT_APACK_MIGRATION", {"src": [src]}),
+            abap_parser.logic_object_async("CLAS:ZCL_ABAPGIT_REPO_ONLINE", {"src": [src]}),
+        )
+        task.cancel()
+        self.assertGreater(len(graph["calls"]), 100)
+        self.assertIn("zcl_abapgit_apack_migration", text.lower())
+        self.assertGreater(len(logic["procedures"]), 10)
+        self.assertGreater(ticks, 0)
