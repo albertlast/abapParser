@@ -35,6 +35,8 @@ export interface BlockRef {
 
 /** A call from one processing block to another, or a dependency on an include. */
 export interface Call {
+  /** BAdI called with `CALL BADI`, when its definition is known; `class` is then its interface */
+  badi?: string;
   /** class or interface of a method or constructor, when known */
   class?: string;
   /** target known only at runtime */

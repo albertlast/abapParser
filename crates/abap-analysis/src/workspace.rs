@@ -2,11 +2,13 @@
 //! across the parts of an object, type resolution across objects and the
 //! call graph.
 
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::cell::Cell;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use abap_model as m;
-use abap_source::{ClassPart, ObjectKind, SourceProvider, SourceRef};
+use abap_source::{Badi, ClassPart, ObjectKind, SourceProvider, SourceRef};
 use abap_syntax::{File, StatementKind as K};
 
 use crate::calls::{
@@ -29,17 +31,155 @@ pub struct Object {
     pub symbols: m::FileSymbols,
     /// INCLUDEs no provider had
     pub missing_includes: Vec<SourceRef>,
+    /// enhancement implementations whose code was put into the sources, with
+    /// where the code came from
+    pub enhancements: Vec<(String, String)>,
 }
 
 pub struct Workspace {
     provider: Box<dyn SourceProvider>,
-    units: Mutex<HashMap<SourceRef, Option<Arc<Unit>>>>,
-    objects: Mutex<HashMap<SourceRef, Option<Arc<Object>>>>,
+    units: Mutex<HashMap<SourceRef, Slot<Unit>>>,
+    objects: Mutex<HashMap<SourceRef, Slot<Object>>>,
+    /// calls of each object, worked out once
+    calls: Mutex<HashMap<SourceRef, Slot<Vec<m::Call>>>>,
     implementations: Mutex<HashMap<String, Vec<String>>>,
     subclasses: Mutex<HashMap<String, Vec<String>>>,
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     errors: Mutex<Vec<String>>,
+}
+
+/// Requests to an SAP system mostly wait on the network: this many loads
+/// run at once.
+const PARALLEL_LOADS: usize = 8;
+
+/// Loads once: threads asking for the same source wait for one load.
+type Slot<T> = Arc<OnceLock<Option<Arc<T>>>>;
+
+fn slot<T>(cache: &Mutex<HashMap<SourceRef, Slot<T>>>, r: &SourceRef) -> Slot<T> {
+    cache.lock().unwrap().entry(r.clone()).or_default().clone()
+}
+
+thread_local! {
+    /// Set in the threads of [`parallel_map`]: work started there runs in
+    /// that thread, so no more than [`PARALLEL_LOADS`] requests are open.
+    static IN_PARALLEL: Cell<bool> = const { Cell::new(false) };
+}
+
+/// `f` of each item in up to [`PARALLEL_LOADS`] threads, results in order.
+fn parallel_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    if items.len() < 2 || IN_PARALLEL.with(Cell::get) {
+        return items.iter().map(f).collect();
+    }
+    let next = AtomicUsize::new(0);
+    let results: Mutex<Vec<Option<R>>> = Mutex::new(items.iter().map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..PARALLEL_LOADS.min(items.len()) {
+            scope.spawn(|| {
+                IN_PARALLEL.with(|p| p.set(true));
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(item) = items.get(i) else {
+                        break;
+                    };
+                    let r = f(item);
+                    results.lock().unwrap()[i] = Some(r);
+                }
+            });
+        }
+    });
+    results
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|r| r.expect("every item is done"))
+        .collect()
+}
+
+/// Classes and interfaces the code of an object names, upper case: after
+/// `REF TO`, `INTERFACES`, `INHERITING FROM`, `NEW`, `CAST`, and before `=>`;
+/// without its own classes.
+fn named_types(object: &Object) -> Vec<String> {
+    use abap_syntax::TokenKind as T;
+    let own = |n: &str| {
+        object
+            .symbols
+            .classes
+            .iter()
+            .any(|c| c.name.eq_ignore_ascii_case(n))
+            || object
+                .symbols
+                .interfaces
+                .iter()
+                .any(|i| i.name.eq_ignore_ascii_case(n))
+    };
+    let mut out = Vec::new();
+    for u in &object.units {
+        let t: Vec<&abap_syntax::Token> = u
+            .file
+            .tokens()
+            .iter()
+            .filter(|t| t.kind != T::Comment)
+            .collect();
+        for i in 0..t.len() {
+            let after = |k: usize, words: &[&str]| {
+                k >= words.len()
+                    && words
+                        .iter()
+                        .enumerate()
+                        .all(|(n, w)| t[k - words.len() + n].is(w))
+            };
+            let named = (after(i, &["REF", "TO"])
+                || after(i, &["INTERFACES"])
+                || after(i, &["INHERITING", "FROM"])
+                || after(i, &["NEW"])
+                || after(i, &["CAST"]))
+                || t.get(i + 1).is_some_and(|n| n.kind == T::StaticArrow);
+            let x = t[i];
+            if named && x.kind == T::Identifier && x.text != "#" && !own(&x.text) {
+                out.push(x.text.to_ascii_uppercase());
+            }
+        }
+    }
+    out
+}
+
+/// The program name SAP gives a source: the main program `SAPL<group>` of a
+/// function group, the class pool and its includes for a class.
+fn program_name(r: &SourceRef) -> String {
+    match (r.kind, r.part) {
+        (ObjectKind::Fugr, _) => main_program_of_group(&r.name),
+        (ObjectKind::Clas, None) => abap_source::class_pool(&r.name),
+        (ObjectKind::Clas, Some(part)) => {
+            let pool = abap_source::class_pool(&r.name);
+            let suffix = match part {
+                ClassPart::Definitions => "CCDEF",
+                ClassPart::Implementations => "CCIMP",
+                ClassPart::Macros => "CCMAC",
+                ClassPart::TestClasses => "CCAU",
+            };
+            format!("{}{suffix}", &pool[..pool.len() - 2])
+        }
+        _ => r.name.clone(),
+    }
+}
+
+/// `SAPL<group>`, after the namespace of the group: `/ABC/SAPLGRP`.
+pub(crate) fn main_program_of_group(group: &str) -> String {
+    match group.strip_prefix('/').and_then(|g| g.split_once('/')) {
+        Some((ns, name)) => format!("/{ns}/SAPL{name}"),
+        None => format!("SAPL{group}"),
+    }
+}
+
+/// Classes a BAdI runs: those of its active implementations, else its
+/// fallback class.
+pub(crate) fn badi_classes(b: &Badi) -> Vec<String> {
+    if b.implementations.is_empty() {
+        b.fallback.iter().cloned().collect()
+    } else {
+        b.implementations.clone()
+    }
 }
 
 /// Implementations of an interface named by a provider are checked against
@@ -99,6 +239,7 @@ impl Workspace {
             provider,
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
+            calls: Mutex::new(HashMap::new()),
             implementations: Mutex::new(HashMap::new()),
             subclasses: Mutex::new(HashMap::new()),
             structures: Mutex::new(HashMap::new()),
@@ -114,10 +255,12 @@ impl Workspace {
 
     /// One source, parsed; `None` if no provider has it or fetching failed.
     pub fn unit(&self, r: &SourceRef) -> Option<Arc<Unit>> {
-        if let Some(u) = self.units.lock().unwrap().get(r) {
-            return u.clone();
-        }
-        let unit = match self.provider.fetch(r) {
+        let slot = slot(&self.units, r);
+        slot.get_or_init(|| self.load_unit(r)).clone()
+    }
+
+    fn load_unit(&self, r: &SourceRef) -> Option<Arc<Unit>> {
+        match self.provider.fetch(r) {
             Ok(Some(source)) => {
                 let file = abap_syntax::parse(&source.text);
                 let symbols = crate::symbols_of(&file);
@@ -133,9 +276,7 @@ impl Workspace {
                 self.errors.lock().unwrap().push(format!("{r}: {e}"));
                 None
             }
-        };
-        self.units.lock().unwrap().insert(r.clone(), unit.clone());
-        unit
+        }
     }
 
     /// The text of a dictionary type, `None` if no provider has it.
@@ -190,12 +331,51 @@ impl Workspace {
         if is_root_class(&r) {
             return None;
         }
-        if let Some(o) = self.objects.lock().unwrap().get(&r) {
-            return o.clone();
+        // another thread loading it is waited for
+        let slot = slot(&self.objects, &r);
+        slot.get_or_init(|| self.load_object(&r).map(Arc::new))
+            .clone()
+    }
+
+    /// Loads the objects calls lead to, up to `depth` hops from the roots,
+    /// several at once: an SAP system answers each request on its own.
+    /// Analyses after it find them loaded.
+    pub fn preload(&self, roots: &[SourceRef], depth: u32) {
+        let mut level: Vec<SourceRef> = roots.iter().map(SourceRef::object).collect();
+        let mut seen: BTreeSet<SourceRef> = level.iter().cloned().collect();
+        for d in 0..=depth {
+            let objects: Vec<Arc<Object>> = parallel_map(&level, |r| self.object(r))
+                .into_iter()
+                .flatten()
+                .collect();
+            self.load_named_types(&objects);
+            let calls: Vec<m::Call> = parallel_map(&objects, |o| self.object_calls(o))
+                .into_iter()
+                .flatten()
+                .collect();
+            // the calls of the last level are not followed
+            if d == depth {
+                break;
+            }
+            level = parallel_map(&calls, |c| self.logic_targets(c))
+                .into_iter()
+                .flatten()
+                .filter(|t| seen.insert(t.clone()))
+                .collect();
         }
-        let object = self.load_object(&r).map(Arc::new);
-        self.objects.lock().unwrap().insert(r, object.clone());
-        object
+    }
+
+    /// Working out the calls of an object loads the classes they are of,
+    /// one by one; with fewer objects than threads, the classes their code
+    /// names are loaded before, several at once.
+    fn load_named_types(&self, objects: &[Arc<Object>]) {
+        if objects.len() >= PARALLEL_LOADS {
+            return;
+        }
+        let mut names: Vec<String> = objects.iter().flat_map(|o| named_types(o)).collect();
+        names.sort();
+        names.dedup();
+        parallel_map(&names, |n| self.type_object(n));
     }
 
     fn load_object(&self, r: &SourceRef) -> Option<Object> {
@@ -204,41 +384,29 @@ impl Workspace {
         let mut missing_includes = Vec::new();
         match r.kind {
             ObjectKind::Clas => {
-                for part in ClassPart::ALL {
-                    if let Some(u) = self.unit(&r.clone().with_part(part)) {
-                        units.push(u);
-                    }
-                }
+                let parts: Vec<SourceRef> = ClassPart::ALL
+                    .iter()
+                    .map(|p| r.clone().with_part(*p))
+                    .collect();
+                units.extend(parallel_map(&parts, |p| self.unit(p)).into_iter().flatten());
             }
             ObjectKind::Fugr => {
                 if let Ok(fms) = self.provider.function_modules(&r.name) {
-                    for fm in fms {
-                        if let Some(u) = self.unit(&SourceRef::function_module(&fm)) {
-                            units.push(u);
-                        }
-                    }
+                    let fms: Vec<SourceRef> =
+                        fms.iter().map(|f| SourceRef::function_module(f)).collect();
+                    units.extend(parallel_map(&fms, |f| self.unit(f)).into_iter().flatten());
                 }
             }
             _ => {}
         }
         // INCLUDE statements, recursively
-        let mut queue: VecDeque<Arc<Unit>> = units.iter().cloned().collect();
         let mut seen: BTreeSet<SourceRef> = units.iter().map(|u| u.reference.clone()).collect();
-        while let Some(u) = queue.pop_front() {
-            for name in includes(&u.file) {
-                let inc = SourceRef::program(&name);
-                if seen.len() >= MAX_INCLUDES || !seen.insert(inc.clone()) {
-                    continue;
-                }
-                match self.unit(&inc) {
-                    Some(iu) => {
-                        units.push(iu.clone());
-                        queue.push_back(iu);
-                    }
-                    None => missing_includes.push(inc),
-                }
-            }
-        }
+        let all = units.clone();
+        self.add_includes(all, &mut units, &mut seen, &mut missing_includes);
+        let (enhancements, enhanced) = self.enhance(r, &mut units);
+        // enhancement code may include more
+        let enhanced: Vec<Arc<Unit>> = enhanced.iter().map(|i| units[*i].clone()).collect();
+        self.add_includes(enhanced, &mut units, &mut seen, &mut missing_includes);
         // macros of one part (class macros include, TOP include) are usable in
         // the others: parse again where a call of such a macro was not expanded
         let macros: Vec<abap_syntax::MacroDef> =
@@ -271,15 +439,137 @@ impl Workspace {
             units,
             symbols,
             missing_includes,
+            enhancements,
+        })
+    }
+
+    /// Adds the units the INCLUDE statements of `level` name, recursively;
+    /// the includes of one level are loaded at once.
+    fn add_includes(
+        &self,
+        mut level: Vec<Arc<Unit>>,
+        units: &mut Vec<Arc<Unit>>,
+        seen: &mut BTreeSet<SourceRef>,
+        missing: &mut Vec<SourceRef>,
+    ) {
+        while !level.is_empty() {
+            let mut names = Vec::new();
+            for u in &level {
+                for name in includes(&u.file) {
+                    let inc = SourceRef::program(&name);
+                    if seen.len() < MAX_INCLUDES && seen.insert(inc.clone()) {
+                        names.push(inc);
+                    }
+                }
+            }
+            let loaded = parallel_map(&names, |inc| self.unit(inc));
+            level = Vec::new();
+            for (inc, u) in names.into_iter().zip(loaded) {
+                match u {
+                    Some(u) => {
+                        units.push(u.clone());
+                        level.push(u);
+                    }
+                    None => missing.push(inc),
+                }
+            }
+        }
+    }
+
+    /// Puts the code of active enhancement implementations into the units
+    /// where it runs; returns the implementations with their origin, and
+    /// the units changed.
+    fn enhance(
+        &self,
+        r: &SourceRef,
+        units: &mut [Arc<Unit>],
+    ) -> (Vec<(String, String)>, Vec<usize>) {
+        if !matches!(
+            r.kind,
+            ObjectKind::Prog | ObjectKind::Fugr | ObjectKind::Func | ObjectKind::Clas
+        ) {
+            return (Vec::new(), Vec::new());
+        }
+        let names: Vec<String> = units.iter().map(|u| program_name(&u.reference)).collect();
+        let mut programs = Vec::new();
+        let mut functions = Vec::new();
+        for (u, name) in units.iter().zip(&names) {
+            if u.reference.kind == ObjectKind::Func {
+                functions.push(name.clone());
+            } else {
+                programs.push(name.clone());
+            }
+        }
+        let hooks = match self.provider.enhancements(&programs, &functions) {
+            Ok(h) => h,
+            Err(e) => {
+                self.errors.lock().unwrap().push(format!("{r}: {e}"));
+                return (Vec::new(), Vec::new());
+            }
+        };
+        if hooks.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+        let files: Vec<(&str, &File)> = names
+            .iter()
+            .zip(units.iter())
+            .map(|(n, u)| (n.as_str(), &u.file))
+            .collect();
+        let (texts, applied) = crate::enhance::apply(&files, &hooks);
+        let mut out: Vec<(String, String)> = Vec::new();
+        for h in applied {
+            if !out.iter().any(|(n, _)| *n == h.enhancement) {
+                out.push((h.enhancement.clone(), h.origin.clone()));
+            }
+        }
+        let changed: Vec<usize> = texts.iter().map(|(i, _)| *i).collect();
+        for (i, text) in texts {
+            let file = abap_syntax::parse(&text);
+            let symbols = crate::symbols_of(&file);
+            units[i] = Arc::new(Unit {
+                reference: units[i].reference.clone(),
+                origin: units[i].origin.clone(),
+                file,
+                symbols,
+            });
+        }
+        (out, changed)
+    }
+
+    /// A BAdI of an enhancement spot by its name, as far as the provider
+    /// knows it.
+    pub fn badi(&self, name: &str) -> Option<Badi> {
+        let key = name.to_ascii_uppercase();
+        self.provider.badi(&key).unwrap_or_else(|e| {
+            self.errors.lock().unwrap().push(format!("{key}: {e}"));
+            None
+        })
+    }
+
+    /// A classic BAdI by its interface, as far as the provider knows it.
+    pub fn classic_badi(&self, interface: &str) -> Option<Badi> {
+        let key = interface.to_ascii_uppercase();
+        self.provider.classic_badi(&key).unwrap_or_else(|e| {
+            self.errors.lock().unwrap().push(format!("{key}: {e}"));
+            None
         })
     }
 
     /// Global classes implementing an interface, as far as the provider can
-    /// list them, upper case.
+    /// list them, upper case. For the interface of a classic BAdI the
+    /// classes of its active implementations, else its default class.
     pub fn implementations(&self, interface: &str) -> Vec<String> {
         let key = interface.to_ascii_uppercase();
         if let Some(c) = self.implementations.lock().unwrap().get(&key) {
             return c.clone();
+        }
+        if let Some(b) = self.classic_badi(&key) {
+            let classes = badi_classes(&b);
+            self.implementations
+                .lock()
+                .unwrap()
+                .insert(key, classes.clone());
+            return classes;
         }
         let candidates = match self.provider.implementations(&key) {
             Ok(c) => c,
@@ -294,15 +584,16 @@ impl Workspace {
         let classes = if candidates.len() > MAX_CHECKED_IMPLEMENTATIONS {
             candidates
         } else {
+            let implements = parallel_map(&candidates, |c| {
+                self.object(&SourceRef::class(c)).is_some_and(|o| {
+                    type_info(&o.symbols, c)
+                        .is_some_and(|i| i.interfaces.iter().any(|x| x.eq_ignore_ascii_case(&key)))
+                })
+            });
             candidates
                 .into_iter()
-                .filter(|c| {
-                    self.object(&SourceRef::class(c)).is_some_and(|o| {
-                        type_info(&o.symbols, c).is_some_and(|i| {
-                            i.interfaces.iter().any(|x| x.eq_ignore_ascii_case(&key))
-                        })
-                    })
-                })
+                .zip(implements)
+                .filter_map(|(c, yes)| yes.then_some(c))
                 .collect()
         };
         self.implementations
@@ -338,25 +629,55 @@ impl Workspace {
 
     /// Calls of an object, types resolved through the workspace.
     pub fn object_calls(&self, object: &Object) -> Vec<m::Call> {
+        let slot = slot(&self.calls, &object.reference);
+        let calls = slot.get_or_init(|| Some(Arc::new(self.find_calls(object))));
+        calls.as_deref().cloned().unwrap_or_default()
+    }
+
+    fn find_calls(&self, object: &Object) -> Vec<m::Call> {
         let resolver = WorkspaceResolver { workspace: self };
         let local = SymbolsResolver {
             symbols: &object.symbols,
             fallback: Some(&resolver),
         };
+        // a program without REPORT is an include: the object is the program
+        let program =
+            crate::calls::main_program(&object.symbols).or_else(|| match object.reference.kind {
+                ObjectKind::Prog => Some(object.reference.name.clone()),
+                ObjectKind::Fugr => Some(main_program_of_group(&object.reference.name)),
+                _ => None,
+            });
         let mut out = Vec::new();
         for u in &object.units {
             let calls = CallExtractor {
                 file: &u.file,
                 symbols: &object.symbols,
                 resolver: &local,
+                program: program.clone(),
             }
             .calls();
             for mut c in calls {
                 c.unit = Some(u.reference.to_string());
+                self.badi_call(&mut c);
                 out.push(c);
             }
         }
         out
+    }
+
+    /// `CALL BADI` names the BAdI where a class goes: its interface has the
+    /// method.
+    fn badi_call(&self, c: &mut m::Call) {
+        if c.kind != m::CallKind::Method || !c.options.iter().any(|o| o == "BADI") {
+            return;
+        }
+        let Some(name) = c.class.clone() else {
+            return;
+        };
+        if let Some(interface) = self.badi(&name).and_then(|b| b.interface) {
+            c.badi = Some(name.to_ascii_uppercase());
+            c.class = Some(interface);
+        }
     }
 
     /// Calls reachable from the roots: roots are analyzed, called objects are
@@ -371,43 +692,102 @@ impl Workspace {
             missing: Vec::new(),
             errors: Vec::new(),
         };
-        let mut queue: VecDeque<(SourceRef, u32)> = roots.iter().map(|r| (r.object(), 0)).collect();
-        let mut seen: BTreeSet<SourceRef> = queue.iter().map(|(r, _)| r.clone()).collect();
+        let mut level: Vec<SourceRef> = Vec::new();
+        let mut seen: BTreeSet<SourceRef> = BTreeSet::new();
+        for r in roots {
+            if seen.insert(r.object()) {
+                level.push(r.object());
+            }
+        }
         let mut missing: BTreeSet<String> = BTreeSet::new();
-        while let Some((r, d)) = queue.pop_front() {
-            let Some(object) = self.object(&r) else {
-                missing.insert(r.to_string());
-                continue;
-            };
-            for u in &object.units {
-                graph.units.push(m::GraphUnit {
-                    reference: u.reference.to_string(),
-                    origin: u.origin.clone(),
-                    depth: d,
-                });
+        let mut d = 0;
+        // one level after the other; within a level, objects, their calls and
+        // what the calls need are loaded several at once
+        while !level.is_empty() {
+            let objects = parallel_map(&level, |r| self.object(r));
+            if d < depth {
+                let loaded: Vec<Arc<Object>> = objects.iter().flatten().cloned().collect();
+                self.load_named_types(&loaded);
             }
-            missing.extend(object.missing_includes.iter().map(|i| i.to_string()));
-            if d >= depth {
-                continue;
-            }
-            for mut c in self.object_calls(&object) {
-                for target in self.targets(&c) {
-                    if seen.insert(target.clone()) {
-                        queue.push_back((target, d + 1));
-                    }
+            let calls: Vec<Vec<m::Call>> = parallel_map(&objects, |o| match o {
+                Some(o) if d < depth => self.object_calls(o),
+                _ => Vec::new(),
+            });
+            let each: Vec<(usize, usize)> = calls
+                .iter()
+                .enumerate()
+                .flat_map(|(i, c)| (0..c.len()).map(move |k| (i, k)))
+                .collect();
+            let facts = parallel_map(&each, |(i, k)| {
+                let (Some(object), c) = (&objects[*i], &calls[*i][*k]) else {
+                    return (Vec::new(), false, false);
+                };
+                let resolved = self.resolved(c, object);
+                let incomplete = !resolved
+                    && matches!(c.kind, m::CallKind::Method | m::CallKind::Constructor)
+                    && c.class
+                        .as_deref()
+                        .is_some_and(|class| !self.hierarchy_known(class, object, 0));
+                (self.targets(c), resolved, incomplete)
+            });
+            let mut facts = facts.into_iter();
+            let mut next = Vec::new();
+            for ((r, object), calls) in level.iter().zip(&objects).zip(calls) {
+                let Some(object) = object else {
+                    missing.insert(r.to_string());
+                    continue;
+                };
+                for u in &object.units {
+                    graph.units.push(m::GraphUnit {
+                        reference: u.reference.to_string(),
+                        origin: u.origin.clone(),
+                        depth: d,
+                    });
                 }
-                c.resolved = self.resolved(&c, &object);
-                if !c.resolved && matches!(c.kind, m::CallKind::Method | m::CallKind::Constructor) {
-                    if let Some(class) = c.class.as_deref() {
-                        c.hierarchy_incomplete = !self.hierarchy_known(class, &object, 0);
-                    }
+                // code of enhancement implementations in the sources
+                for (name, origin) in &object.enhancements {
+                    graph.units.push(m::GraphUnit {
+                        reference: format!("ENHO:{name}"),
+                        origin: origin.clone(),
+                        depth: d,
+                    });
                 }
-                graph.calls.push(c);
+                missing.extend(object.missing_includes.iter().map(|i| i.to_string()));
+                for mut c in calls {
+                    let (targets, resolved, incomplete) = facts.next().unwrap_or_default();
+                    for target in targets {
+                        if seen.insert(target.clone()) {
+                            next.push(target);
+                        }
+                    }
+                    c.resolved = resolved;
+                    c.hierarchy_incomplete = incomplete;
+                    graph.calls.push(c);
+                }
             }
+            level = next;
+            d += 1;
         }
         graph.missing = missing.into_iter().collect();
         graph.errors = self.errors();
         graph
+    }
+
+    /// Objects a call leads to in the logic, which follows calls of an
+    /// interface method into the implementations too.
+    fn logic_targets(&self, c: &m::Call) -> Vec<SourceRef> {
+        let mut out = self.targets(c);
+        let dispatched = c.kind == m::CallKind::Method && !c.is_static && c.badi.is_none();
+        let interface = out.first().is_some_and(|r| r.kind == ObjectKind::Intf);
+        if dispatched && interface {
+            if let Some(class) = &c.class {
+                let classes = self.implementations(class);
+                if classes.len() <= crate::logic::MAX_IMPLEMENTATIONS {
+                    out.extend(classes.iter().map(|c| SourceRef::class(c)));
+                }
+            }
+        }
+        out
     }
 
     /// Objects a call leads to.
@@ -419,12 +799,28 @@ impl Workspace {
             m::CallKind::Function => vec![SourceRef::function_module(&c.name)],
             m::CallKind::Submit => vec![SourceRef::program(&c.name)],
             m::CallKind::Form => c.program.iter().map(|p| SourceRef::program(p)).collect(),
-            m::CallKind::Method | m::CallKind::Constructor => c
-                .class
-                .as_deref()
-                .and_then(|cls| self.type_object(cls))
-                .map(|o| vec![o.reference.clone()])
-                .unwrap_or_default(),
+            m::CallKind::Method | m::CallKind::Constructor => {
+                let mut out: Vec<SourceRef> = c
+                    .class
+                    .as_deref()
+                    .and_then(|cls| self.type_object(cls))
+                    .map(|o| vec![o.reference.clone()])
+                    .unwrap_or_default();
+                // a BAdI runs the classes of its active implementations
+                let badi = match (&c.badi, c.class.as_deref()) {
+                    (Some(name), _) => self.badi(name),
+                    (None, Some(cls))
+                        if out.first().is_some_and(|r| r.kind == ObjectKind::Intf) =>
+                    {
+                        self.classic_badi(cls)
+                    }
+                    _ => None,
+                };
+                if let Some(b) = badi {
+                    out.extend(badi_classes(&b).iter().map(|cls| SourceRef::class(cls)));
+                }
+                out
+            }
             _ => Vec::new(),
         }
     }
@@ -684,7 +1080,7 @@ pub fn merge_symbols<'a>(parts: impl Iterator<Item = &'a m::FileSymbols>) -> m::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use abap_source::MemoryProvider;
+    use abap_source::{Hook, MemoryProvider};
 
     fn workspace() -> Workspace {
         let mut p = MemoryProvider::new();
@@ -908,6 +1304,229 @@ ENDFORM.",
             .procedures
             .iter()
             .all(|p| p.effects.iter().all(|e| e.name != "ZTOTALS")));
+    }
+
+    /// A class implementing an interface method by writing a table.
+    fn implementation(class: &str, interface: &str, method: &str, table: &str) -> String {
+        format!(
+            "CLASS {class} DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES {interface}.
+ENDCLASS.
+CLASS {class} IMPLEMENTATION.
+  METHOD {interface}~{method}.
+    DELETE FROM {table} WHERE id = 1.
+  ENDMETHOD.
+ENDCLASS."
+        )
+    }
+
+    fn hook(position: &str, code: &str) -> Hook {
+        Hook {
+            enhancement: "ZENH_ORDERS".into(),
+            position: position.into(),
+            code: code.into(),
+            origin: "memory:ZENH_ORDERS".into(),
+        }
+    }
+
+    #[test]
+    fn parallel_loads_keep_their_order() {
+        let items: Vec<usize> = (0..100).collect();
+        let open = AtomicUsize::new(0);
+        let most = AtomicUsize::new(0);
+        let out = parallel_map(&items, |i| {
+            let now = open.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(now, Ordering::SeqCst);
+            // work started in a thread stays in it
+            let inner = parallel_map(&[1, 2, 3], |x| x * 2);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            open.fetch_sub(1, Ordering::SeqCst);
+            i * 10 + inner.len()
+        });
+        assert_eq!(out, (0..100).map(|i| i * 10 + 3).collect::<Vec<_>>());
+        assert!(most.load(Ordering::SeqCst) <= PARALLEL_LOADS);
+        assert!(most.load(Ordering::SeqCst) > 1);
+    }
+
+    #[test]
+    fn objects_load_once_across_threads() {
+        let mut p = MemoryProvider::new();
+        p.insert(SourceRef::program("ZREPORT"), "REPORT zreport.");
+        let ws = Workspace::new(Box::new(p));
+        let refs: Vec<SourceRef> = (0..20).map(|_| SourceRef::program("ZREPORT")).collect();
+        let objects = parallel_map(&refs, |r| ws.object(r).unwrap());
+        assert!(objects.iter().all(|o| Arc::ptr_eq(o, &objects[0])));
+    }
+
+    #[test]
+    fn enhancements_run_where_they_are() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZORDERS"),
+            "REPORT zorders.
+INCLUDE zorders_f01.
+START-OF-SELECTION.
+  PERFORM save USING 1.",
+        );
+        p.insert(
+            SourceRef::program("ZORDERS_F01"),
+            "FORM save USING iv_id TYPE i.
+  ENHANCEMENT-POINT ep_save SPOTS zes_orders.
+  UPDATE zorders SET status = 'S' WHERE id = iv_id.
+ENDFORM.",
+        );
+        p.insert_hook(hook(
+            r"\PR:ZORDERS\EX:EP_SAVE\EI",
+            "ENHANCEMENT 1 ZENH_ORDERS.    \"active version
+  DELETE FROM zorder_log WHERE id = iv_id.
+  CALL FUNCTION 'Z_NOTIFY'.
+ENDENHANCEMENT.",
+        ));
+        p.insert_hook(hook(
+            r"\PR:ZORDERS\FO:SAVE\SE:END\EI",
+            "ENHANCEMENT 2 ZENH_ORDERS.
+  INSERT zorder_audit FROM @( VALUE #( id = iv_id ) ).
+ENDENHANCEMENT.",
+        ));
+        // of another program
+        p.insert_hook(hook(
+            r"\PR:ZOTHER\FO:SAVE\SE:END\EI",
+            "ENHANCEMENT 3 ZENH_ORDERS.
+  DELETE FROM zother.
+ENDENHANCEMENT.",
+        ));
+        let ws = Workspace::new(Box::new(p));
+
+        let graph = ws.call_graph(&[SourceRef::program("ZORDERS")], 1);
+        let notify = graph.calls.iter().find(|c| c.name == "Z_NOTIFY").unwrap();
+        // on the row of the enhancement point
+        assert_eq!(notify.span.start.row, 2);
+        assert_eq!(notify.unit.as_deref(), Some("PROG:ZORDERS_F01"));
+        assert!(graph
+            .units
+            .iter()
+            .any(|u| u.reference == "ENHO:ZENH_ORDERS" && u.origin == "memory:ZENH_ORDERS"));
+
+        let l = ws.logic(&SourceRef::program("ZORDERS"), 1);
+        let save = l
+            .procedures
+            .iter()
+            .find(|p| p.block.name.eq_ignore_ascii_case("save"))
+            .unwrap();
+        let effects: Vec<&str> = save
+            .effects
+            .iter()
+            .filter(|e| e.scope == m::DataScope::Database)
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(
+            effects,
+            ["ZORDERS", "ZORDER_AUDIT", "ZORDER_LOG"],
+            "{:#?}",
+            save.effects
+        );
+    }
+
+    #[test]
+    fn badis_and_customer_exits() {
+        let mut p = MemoryProvider::new();
+        // a BAdI of an enhancement spot: one active implementation, one
+        // class implementing the interface without being active
+        p.insert(
+            SourceRef::interface("ZIF_BADI_CHECK"),
+            "INTERFACE zif_badi_check PUBLIC.\n  METHODS check.\nENDINTERFACE.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_CHECK_ACTIVE"),
+            implementation("zcl_check_active", "zif_badi_check", "check", "zactive"),
+        );
+        p.insert(
+            SourceRef::class("ZCL_CHECK_INACTIVE"),
+            implementation("zcl_check_inactive", "zif_badi_check", "check", "zinactive"),
+        );
+        p.insert_badi(Badi {
+            name: "ZBADI_CHECK".into(),
+            interface: Some("ZIF_BADI_CHECK".into()),
+            implementations: vec!["ZCL_CHECK_ACTIVE".into()],
+            fallback: None,
+            classic: false,
+        });
+        // a classic BAdI: the generated adapter class implements the
+        // interface too, but runs no code of its own
+        p.insert(
+            SourceRef::interface("ZIF_EX_OLD"),
+            "INTERFACE zif_ex_old PUBLIC.\n  METHODS run.\nENDINTERFACE.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_IM_OLD"),
+            implementation("zcl_im_old", "zif_ex_old", "run", "zold"),
+        );
+        p.insert(
+            SourceRef::class("ZCL_EX_OLD"),
+            implementation("zcl_ex_old", "zif_ex_old", "run", "zadapter"),
+        );
+        p.insert_badi(Badi {
+            name: "ZOLD".into(),
+            interface: Some("ZIF_EX_OLD".into()),
+            implementations: vec!["ZCL_IM_OLD".into()],
+            fallback: None,
+            classic: true,
+        });
+        // a customer exit of the program, in its function group
+        p.insert(
+            SourceRef::function_module("EXIT_ZREPORT_001"),
+            "FUNCTION exit_zreport_001.\n  DELETE FROM zexit WHERE id = 1.\nENDFUNCTION.",
+        );
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.
+DATA lo_badi TYPE REF TO zbadi_check.
+DATA lo_old TYPE REF TO zif_ex_old.
+START-OF-SELECTION.
+  GET BADI lo_badi.
+  CALL BADI lo_badi->check.
+  CALL METHOD cl_exithandler=>get_instance CHANGING instance = lo_old.
+  lo_old->run( ).
+  CALL CUSTOMER-FUNCTION '001'.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        assert_eq!(ws.implementations("zif_ex_old"), ["ZCL_IM_OLD"]);
+
+        let graph = ws.call_graph(&[SourceRef::program("ZREPORT")], 1);
+        let badi = graph.calls.iter().find(|c| c.name == "check").unwrap();
+        assert_eq!(badi.badi.as_deref(), Some("ZBADI_CHECK"));
+        assert_eq!(badi.class.as_deref(), Some("ZIF_BADI_CHECK"));
+        assert!(badi.resolved);
+        let exit = graph
+            .calls
+            .iter()
+            .find(|c| c.kind == m::CallKind::Function)
+            .unwrap();
+        assert_eq!(exit.name, "EXIT_ZREPORT_001");
+        assert!(exit.resolved);
+        let units: Vec<&str> = graph.units.iter().map(|u| u.reference.as_str()).collect();
+        for loaded in [
+            "CLAS:ZCL_CHECK_ACTIVE",
+            "CLAS:ZCL_IM_OLD",
+            "FUNC:EXIT_ZREPORT_001",
+        ] {
+            assert!(units.contains(&loaded), "{units:?}");
+        }
+        for not_run in ["CLAS:ZCL_CHECK_INACTIVE", "CLAS:ZCL_EX_OLD"] {
+            assert!(!units.contains(&not_run), "{units:?}");
+        }
+
+        // only the active implementations run
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 1);
+        let mut tables: Vec<&str> = l.procedures[0]
+            .effects
+            .iter()
+            .filter(|e| e.scope == m::DataScope::Database)
+            .map(|e| e.name.as_str())
+            .collect();
+        tables.sort();
+        assert_eq!(tables, ["ZACTIVE", "ZEXIT", "ZOLD"]);
     }
 
     #[test]

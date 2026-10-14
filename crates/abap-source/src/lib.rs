@@ -9,6 +9,7 @@
 
 #[cfg(feature = "adt")]
 mod adt;
+mod badi;
 mod cache;
 mod fs;
 mod mock;
@@ -16,6 +17,7 @@ mod options;
 
 #[cfg(feature = "adt")]
 pub use adt::{AdtConfig, AdtProvider};
+pub use badi::Badi;
 pub use cache::CachedProvider;
 pub use fs::FsProvider;
 pub use mock::{MockAdtConfig, MockAdtServer};
@@ -208,6 +210,33 @@ impl FromStr for SourceRef {
     }
 }
 
+/// Code an enhancement implementation adds to a program: at an
+/// enhancement point, or implicitly at the begin or end of a form, function
+/// module, method or include.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Hook {
+    /// the enhancement implementation, upper case
+    pub enhancement: String,
+    /// where the code goes, as SAP writes it, like
+    /// `\PR:ZREPORT\EX:ZPOINT\EI` or `\PR:ZREPORT\FO:SAVE\SE:END\EI`
+    pub position: String,
+    /// `ENHANCEMENT n ...` to `ENDENHANCEMENT.`
+    pub code: String,
+    /// file path or URL the code came from
+    pub origin: String,
+}
+
+impl Hook {
+    /// A part of the position by its key, like `FO` for the form; upper case.
+    pub fn part(&self, key: &str) -> Option<String> {
+        self.position.split('\\').find_map(|p| {
+            p.split_once(':')
+                .filter(|(k, _)| k.eq_ignore_ascii_case(key))
+                .map(|(_, v)| v.trim().to_ascii_uppercase())
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Source {
     pub reference: SourceRef,
@@ -275,6 +304,28 @@ pub trait SourceProvider: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Code of enhancement implementations active in the programs named
+    /// (main programs, includes, class pools like `ZCL_X=====...CP`) and in
+    /// the function modules named, when the provider knows them.
+    fn enhancements(
+        &self,
+        _programs: &[String],
+        _function_modules: &[String],
+    ) -> Result<Vec<Hook>> {
+        Ok(Vec::new())
+    }
+
+    /// A BAdI of an enhancement spot by its name, when the provider knows it.
+    fn badi(&self, _name: &str) -> Result<Option<Badi>> {
+        Ok(None)
+    }
+
+    /// A classic BAdI by its interface, like `IF_EX_<name>`, when the
+    /// provider knows it.
+    fn classic_badi(&self, _interface: &str) -> Result<Option<Badi>> {
+        Ok(None)
+    }
+
     /// Short description for messages, e.g. the folder or URL.
     fn describe(&self) -> String;
 }
@@ -334,6 +385,29 @@ impl SourceProvider for ChainProvider {
         Ok(out)
     }
 
+    fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
+        let mut out: Vec<Hook> = Vec::new();
+        for p in &self.providers {
+            for h in p.enhancements(programs, function_modules)? {
+                let known = out
+                    .iter()
+                    .any(|o| o.enhancement == h.enhancement && o.position == h.position);
+                if !known {
+                    out.push(h);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn badi(&self, name: &str) -> Result<Option<Badi>> {
+        merged(self.providers.iter().map(|p| p.badi(name)))
+    }
+
+    fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        merged(self.providers.iter().map(|p| p.classic_badi(interface)))
+    }
+
     fn describe(&self) -> String {
         self.providers
             .iter()
@@ -343,10 +417,53 @@ impl SourceProvider for ChainProvider {
     }
 }
 
+/// Whether a hook is in one of the programs or function modules: by the
+/// program, include, function module or, for class pools, class of its
+/// position.
+pub(crate) fn hook_matches(h: &Hook, programs: &[String], function_modules: &[String]) -> bool {
+    let named = |names: &[String], value: Option<String>| {
+        value.is_some_and(|v| names.iter().any(|n| n.eq_ignore_ascii_case(&v)))
+    };
+    let classes: Vec<String> = programs.iter().filter_map(|p| class_of_pool(p)).collect();
+    named(programs, h.part("PR"))
+        || named(programs, h.part("IC"))
+        || named(function_modules, h.part("FU"))
+        || named(&classes, h.part("TY"))
+}
+
+/// The class of a class pool name like `ZCL_X=========================CP`.
+pub fn class_of_pool(program: &str) -> Option<String> {
+    let name = program.strip_suffix("CP")?;
+    name.ends_with('=')
+        .then(|| name.trim_end_matches('=').to_ascii_uppercase())
+}
+
+/// The name of the class pool of a class, its main program.
+pub fn class_pool(class: &str) -> String {
+    format!("{:=<30}CP", class.to_ascii_uppercase())
+}
+
+/// What all providers know of a BAdI, e.g. the definition from an SAP
+/// system and more implementations from a folder.
+fn merged(answers: impl Iterator<Item = Result<Option<Badi>>>) -> Result<Option<Badi>> {
+    let mut out: Option<Badi> = None;
+    for b in answers {
+        if let Some(b) = b? {
+            match &mut out {
+                Some(o) => o.merge(b),
+                None => out = Some(b),
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// A provider with fixed sources, for tests and for sources passed in by callers.
 #[derive(Default)]
 pub struct MemoryProvider {
     sources: std::collections::HashMap<SourceRef, String>,
+    badis: Vec<Badi>,
+    hooks: Vec<Hook>,
 }
 
 impl MemoryProvider {
@@ -356,6 +473,16 @@ impl MemoryProvider {
 
     pub fn insert(&mut self, reference: SourceRef, text: impl Into<String>) {
         self.sources.insert(reference, text.into());
+    }
+
+    /// A BAdI, classic or of an enhancement spot.
+    pub fn insert_badi(&mut self, badi: Badi) {
+        self.badis.push(badi);
+    }
+
+    /// Code of an enhancement implementation.
+    pub fn insert_hook(&mut self, hook: Hook) {
+        self.hooks.push(hook);
     }
 
     /// Global classes whose main source matches, sorted.
@@ -395,6 +522,36 @@ impl SourceProvider for MemoryProvider {
         Ok(self.classes(|text, name| {
             fs::superclass_of(text, name).is_some_and(|s| s.eq_ignore_ascii_case(class))
         }))
+    }
+
+    fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
+        Ok(self
+            .hooks
+            .iter()
+            .filter(|h| hook_matches(h, programs, function_modules))
+            .cloned()
+            .collect())
+    }
+
+    fn badi(&self, name: &str) -> Result<Option<Badi>> {
+        Ok(self
+            .badis
+            .iter()
+            .find(|b| !b.classic && b.name.eq_ignore_ascii_case(name))
+            .cloned())
+    }
+
+    fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        Ok(self
+            .badis
+            .iter()
+            .find(|b| {
+                b.classic
+                    && b.interface
+                        .as_deref()
+                        .is_some_and(|i| i.eq_ignore_ascii_case(interface))
+            })
+            .cloned())
     }
 
     fn describe(&self) -> String {
