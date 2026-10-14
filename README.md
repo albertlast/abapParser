@@ -33,6 +33,8 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 | 8. Tested against a real SAP system (ABAP Cloud Developer Trial 2025) | done |
 | 9. MCP server and compact text for language models | done |
 | 10. CDS data definitions | done |
+| 11. BAdIs, enhancements, customer exits | done |
+| 12. Parallel loading from SAP systems, cached lookups | done |
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
@@ -458,9 +460,9 @@ ADT is then at `http://localhost:50000`, client 001, user `DEVELOPER` with the p
 The version is kept in the Cargo workspace; `bindings/node/package.json` follows it and the Python package reads it through maturin.
 
 ```sh
-node tools/version.mjs 0.3.0          # set it in Cargo.toml, Cargo.lock, package.json
-# add a "## 0.3.0" section to CHANGELOG.md, commit, then
-git tag v0.3.0 && git push origin v0.3.0
+node tools/version.mjs 0.4.0          # set it in Cargo.toml, Cargo.lock, package.json
+# add a "## 0.4.0" section to CHANGELOG.md, commit, then
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
 The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:

@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
+
+BAdIs, enhancements and customer exits are followed to the code that runs; loading from an SAP system is faster.
 
 - **BAdIs:** `CALL BADI` resolves to the interface of the BAdI, and calls through the interface of a classic BAdI (`IF_EX_...`) reach only its active implementations, not the adapter class. The call graph loads the classes that run, logic follows them. They come from the BAdI tables of an SAP system or from abapGit `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml` files. New `badi` on calls, MCP tool `find_badi_implementations`.
 - **Enhancements:** code of enhancement implementations is put where it runs when an object is loaded: at enhancement points, in place of enhancement sections, and at the begin or end of forms, function modules, methods and includes. It is on the line of its position, so rows stay. From an SAP system through the index of enhancement includes, without implementations switched off, or from abapGit `.enho.<hash>.abap` files. The call graph lists them as units `ENHO:<name>`.
 - **Parallel loading:** objects, class parts and includes are loaded up to 8 at once; the call graph works level by level, logic loads the objects its calls reach before. From an SAP system with an empty cache, the call graph of `BAPI_USER_GET_DETAIL` two hops deep takes 3 s instead of 14 s, its logic 6.3 s instead of 8.2 s; results are the same.
-- **Cache:** the cache also keeps the answers of lookups, under `lookups/`: enhancements, implementations, subclasses and BAdIs. A second call graph of `BAPI_USER_GET_DETAIL` two hops deep takes 1.3 s instead of 14 s.
+- **Cache:** the cache also keeps the answers of lookups, under `lookups/`: enhancements, implementations, subclasses and BAdIs. A second call graph of `BAPI_USER_GET_DETAIL` two hops deep takes 0.6 s.
 - **Customer exits:** `CALL CUSTOMER-FUNCTION '001'` calls `EXIT_<program>_001`, named by the program; it was a dynamic call of `-FUNCTION` before.
 
 ## 0.2.0

@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "abap-analysis"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-model",
  "abap-source",
@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "abap-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-analysis",
  "abap-lexer",
@@ -28,14 +28,14 @@ dependencies = [
 
 [[package]]
 name = "abap-lexer"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "abap-model"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "schemars",
  "serde",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "abap-node"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-analysis",
  "napi",
@@ -55,7 +55,7 @@ dependencies = [
 
 [[package]]
 name = "abap-python"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-analysis",
  "pyo3",
@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "abap-source"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "abap-sql"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-model",
  "abap-syntax",
@@ -83,7 +83,7 @@ dependencies = [
 
 [[package]]
 name = "abap-syntax"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "abap-lexer",
  "serde",
