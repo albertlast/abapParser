@@ -193,7 +193,9 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 }, 2);
 ```
 
-The ADT provider only reads. It is tested against the mock server below and by hand against the SAP ABAP Cloud Developer Trial.
+The ADT provider only reads. It is tested against the mock server below, and by hand against the SAP ABAP Cloud Developer Trial (SAP_BASIS 816) and an ERP on SAP_BASIS 750.
+
+Systems differ in what ADT offers. The provider reads the system's ADT discovery once and uses only what it lists. Data preview queries the system rejects are sent again through the table preview, as single-table queries. A lookup a system cannot do is reported in `notes` of the result; the analysis goes on without it. On SAP_BASIS 750, for example, ADT cannot read the code of enhancement implementations, so enhancements are left out there. `ABAP_ADT_LOG=1` writes every request to stderr, with the SQL of data preview queries but never credentials, to see what a system answers.
 
 ### BAdIs
 

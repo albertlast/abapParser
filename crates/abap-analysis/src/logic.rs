@@ -65,6 +65,7 @@ pub fn logic_of(file: &File) -> m::FileLogic {
         procedures: engine.finish(0),
         missing: Vec::new(),
         errors: Vec::new(),
+        notes: Vec::new(),
     }
 }
 
@@ -87,6 +88,7 @@ impl Workspace {
             procedures,
             missing: engine.missing.into_iter().collect(),
             errors: self.errors(),
+            notes: self.notes(),
         }
     }
 }

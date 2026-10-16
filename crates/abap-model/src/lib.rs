@@ -671,6 +671,10 @@ pub struct CallGraph {
     pub missing: Vec<String>,
     /// provider errors, e.g. authorization failures
     pub errors: Vec<String>,
+    /// lookups the system could not do, like `enhancements: not available
+    /// (...)`; the graph is complete apart from them
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub notes: Vec<String>,
 }
 
 /// One statement, as listed by the statements API.
@@ -1007,6 +1011,10 @@ pub struct FileLogic {
     /// provider errors, e.g. authorization failures
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<String>,
+    /// lookups the system could not do, like `enhancements: not available
+    /// (...)`; the result is complete apart from them
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub notes: Vec<String>,
 }
 
 /// A CDS definition, from its DDL source: what it reads and what its

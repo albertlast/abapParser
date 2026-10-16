@@ -326,6 +326,13 @@ pub trait SourceProvider: Send + Sync {
         Ok(None)
     }
 
+    /// Lookups this provider could not do on its system, like
+    /// `enhancements: not available (...)`. Not errors: the analysis goes on
+    /// without them.
+    fn notes(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Short description for messages, e.g. the folder or URL.
     fn describe(&self) -> String;
 }
@@ -406,6 +413,10 @@ impl SourceProvider for ChainProvider {
 
     fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
         merged(self.providers.iter().map(|p| p.classic_badi(interface)))
+    }
+
+    fn notes(&self) -> Vec<String> {
+        self.providers.iter().flat_map(|p| p.notes()).collect()
     }
 
     fn describe(&self) -> String {

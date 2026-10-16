@@ -37,6 +37,8 @@ source options:
   --cache <dir>        cache folder for sources from the SAP system
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
+  ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,
+  duration, the SQL of data preview queries; never credentials
 
 for language models:
   mcp                  MCP server over stdio: the analyses as tools, sources

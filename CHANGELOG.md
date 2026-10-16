@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Older SAP systems:** tested against an ERP on SAP_BASIS 750 SP35.
+  - What a system offers is read from its ADT discovery, not assumed from its release.
+  - Data preview queries the system rejects fall back to the table preview, with single-table queries.
+  - The enhancement lookup no longer filters on `ENHINCINX-FULL_NAME`, a long string that SAP_BASIS 750 rejects in a condition. This was the HTTP 400 for every function module.
+  - Data elements are requested in the version the system lists.
+- **Notes:** a lookup the system cannot do is no longer an error. It is a note in the new `notes` of call graph and logic results, like `enhancements: not available (the ADT discovery has no enhancements/enhoxhh to read their code, SAP_BASIS 750 SP 0035)`. Answers that could not be given are not cached.
+- **Request log:** `ABAP_ADT_LOG=1` writes every ADT request to stderr: method, path, status, duration, and the SQL of data preview queries. It never writes headers, cookies, tokens or credentials.
+- **Fix:** two parallel loads of the same object could make a cache write fail.
 - **Corpus:** three HR projects with logical database PNP, `INFOTYPES` and payroll clusters. The oracle reads plain `NAME.abap` files as programs.
 
 ## 0.3.0

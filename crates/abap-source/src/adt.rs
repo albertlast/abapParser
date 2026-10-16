@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use base64::Engine;
 
@@ -59,6 +59,83 @@ pub struct AdtProvider {
     /// enhancement implementation -> its code, URL and whether it is
     /// switched off
     hook_sources: Mutex<HashMap<String, Option<HookSource>>>,
+    /// what the system offers, from the discovery, read once
+    capabilities: Mutex<Option<Capabilities>>,
+    /// lookups the system cannot do, each once, for the result
+    notes: Mutex<Vec<String>>,
+    /// `SAP_BASIS 750 SP 0035`, read once, for messages only
+    release: Mutex<Option<String>>,
+    /// write method, path, status, duration and SQL of every request to
+    /// stderr, set by `ABAP_ADT_LOG=1`; never headers or credentials
+    log: bool,
+}
+
+/// The collections of the ADT discovery with the content types they accept.
+/// Empty when the discovery could not be read: then everything is assumed.
+#[derive(Clone, Default)]
+struct Capabilities {
+    collections: Vec<(String, Vec<String>)>,
+}
+
+impl Capabilities {
+    fn from_discovery(xml: &str) -> Self {
+        let collections = xml
+            .split("<app:collection ")
+            .skip(1)
+            .filter_map(|chunk| {
+                let href = chunk.split("href=\"").nth(1)?.split('"').next()?;
+                let body = chunk.split("</app:collection>").next()?;
+                let accepts = body
+                    .split("<app:accept>")
+                    .skip(1)
+                    .filter_map(|a| a.split('<').next())
+                    .map(str::to_string)
+                    .collect();
+                Some((href.to_string(), accepts))
+            })
+            .collect();
+        Capabilities { collections }
+    }
+
+    fn known(&self) -> bool {
+        !self.collections.is_empty()
+    }
+
+    /// Whether the collection exists; true when the discovery is unknown.
+    fn offers(&self, href: &str) -> bool {
+        !self.known() || self.collections.iter().any(|(h, _)| h == href)
+    }
+
+    fn accepts(&self, href: &str) -> Vec<&str> {
+        self.collections
+            .iter()
+            .filter(|(h, _)| h == href)
+            .flat_map(|(_, a)| a.iter().map(String::as_str))
+            .collect()
+    }
+}
+
+const FREESTYLE: &str = "/sap/bc/adt/datapreview/freestyle";
+const PREVIEW_ACCEPT: &str = "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml";
+
+const TABLE_PREVIEW: &str = "/sap/bc/adt/datapreview/ddic";
+const ENHANCEMENT_IMPLEMENTATIONS: &str = "/sap/bc/adt/enhancements/enhoxhh";
+const DATA_ELEMENTS: &str = "/sap/bc/adt/ddic/dataelements";
+
+/// The message of a rejected data preview query, on one line.
+fn rejection(xml: &str) -> String {
+    let message = xml
+        .split("<message")
+        .nth(1)
+        .and_then(|m| m.split_once('>'))
+        .and_then(|(_, m)| m.split("</message>").next())
+        .unwrap_or(xml);
+    let line = message.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut cut: String = line.chars().take(160).collect();
+    if cut.len() < line.len() {
+        cut.push_str("...");
+    }
+    cut
 }
 
 #[derive(Clone)]
@@ -95,6 +172,44 @@ fn hook_block(source: &str, id: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// The newest XML version of data elements the system lists, like
+/// `application/vnd.sap.adt.dataelements.v2+xml`; the system also lists
+/// `text/html`. v2 where the discovery says nothing.
+fn data_element_type(accepts: &[&str]) -> String {
+    const PREFIX: &str = "application/vnd.sap.adt.dataelements.v";
+    accepts
+        .iter()
+        .filter_map(|a| {
+            let version = a.strip_prefix(PREFIX)?.strip_suffix("+xml")?;
+            Some((version.parse::<u32>().ok()?, a))
+        })
+        .max_by_key(|(version, _)| *version)
+        .map_or_else(|| format!("{PREFIX}2+xml"), |(_, a)| a.to_string())
+}
+
+/// The hooks in the given programs. FULL_NAME is a long string and not
+/// allowed in a condition on SAP_BASIS 750, so it is only read.
+fn enhancement_query(programs: &[String]) -> String {
+    // the data preview takes lines up to 255 characters
+    let list = programs
+        .iter()
+        .map(|p| format!("'{p}'"))
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!(
+        "SELECT enhname, id, enhmode, full_name, programname FROM enhincinx \
+         WHERE version = 'A' AND programname IN ( {list} )"
+    )
+}
+
+/// The main program of a function group, `SAPL<group>` or `/NS/SAPL<group>`.
+fn group_program(group: &str) -> String {
+    match group.strip_prefix('/').and_then(|g| g.split_once('/')) {
+        Some((ns, name)) => format!("/{ns}/SAPL{name}").to_ascii_uppercase(),
+        None => format!("SAPL{group}").to_ascii_uppercase(),
+    }
 }
 
 /// Whether a name may go into SQL: only what ABAP names consist of.
@@ -216,6 +331,91 @@ impl AdtProvider {
             subclasses: Mutex::new(HashMap::new()),
             badis: Mutex::new(HashMap::new()),
             hook_sources: Mutex::new(HashMap::new()),
+            capabilities: Mutex::new(None),
+            notes: Mutex::new(Vec::new()),
+            release: Mutex::new(None),
+            log: std::env::var("ABAP_ADT_LOG").is_ok_and(|v| !v.is_empty() && v != "0"),
+        }
+    }
+
+    fn log_request(
+        &self,
+        method: &str,
+        path: &str,
+        status: u16,
+        since: Instant,
+        sql: Option<&str>,
+    ) {
+        if self.log {
+            let ms = since.elapsed().as_millis();
+            let sql = sql
+                .map(|q| format!(" sql: {}", q.replace('\n', " ")))
+                .unwrap_or_default();
+            eprintln!("adt {method} {path} {status} {ms}ms{sql}");
+        }
+    }
+
+    /// The discovery, once. A system that does not answer it is assumed to
+    /// offer everything, as before.
+    fn capabilities(&self) -> Capabilities {
+        if let Some(c) = self.capabilities.lock().unwrap().clone() {
+            return c;
+        }
+        // the discovery that opens the session also tells what is offered
+        {
+            let mut session = self.session.lock().unwrap();
+            if session.is_none() {
+                if let Ok(opened) = self.fetch_session() {
+                    *session = Some(opened);
+                }
+            }
+        }
+        self.capabilities
+            .lock()
+            .unwrap()
+            .get_or_insert_with(Capabilities::default)
+            .clone()
+    }
+
+    /// `SAP_BASIS 750 SP 0035`, for messages only; empty when unknown.
+    fn release(&self) -> String {
+        let mut slot = self.release.lock().unwrap();
+        if let Some(r) = slot.as_ref() {
+            return r.clone();
+        }
+        let xml = self
+            .get("/sap/bc/adt/system/components", "*/*")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let release = xml
+            .split("<atom:entry>")
+            .find(|e| e.contains("<atom:id>SAP_BASIS</atom:id>"))
+            .and_then(|e| e.split("<atom:title>").nth(1))
+            .and_then(|t| t.split('<').next())
+            .map(|t| {
+                let mut parts = t.split(';');
+                let release = parts.next().unwrap_or_default();
+                let level = parts.nth(1).unwrap_or_default();
+                format!("SAP_BASIS {release} SP {level}")
+            })
+            .unwrap_or_default();
+        *slot = Some(release.clone());
+        release
+    }
+
+    /// Remembers that a lookup is not available, and says why.
+    fn note(&self, lookup: &str, reason: &str) {
+        let release = self.release();
+        let suffix = if release.is_empty() {
+            String::new()
+        } else {
+            format!(", {release}")
+        };
+        let text = format!("{lookup}: not available ({reason}{suffix})");
+        let mut notes = self.notes.lock().unwrap();
+        if !notes.contains(&text) {
+            notes.push(text);
         }
     }
 
@@ -238,6 +438,7 @@ impl AdtProvider {
     /// GET returning the body, `None` on 404.
     fn get(&self, path: &str, accept: &str) -> Result<Option<String>> {
         let url = self.url(path);
+        let started = Instant::now();
         let mut response = self
             .agent
             .get(&url)
@@ -246,6 +447,7 @@ impl AdtProvider {
             .call()
             .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
         let status = response.status().as_u16();
+        self.log_request("GET", path, status, started, None);
         match status {
             200 => response
                 .body_mut()
@@ -261,7 +463,8 @@ impl AdtProvider {
     /// A CSRF token and the cookies of its session.
     fn fetch_session(&self) -> Result<(String, String)> {
         let url = self.url("/sap/bc/adt/discovery");
-        let response = self
+        let started = Instant::now();
+        let mut response = self
             .agent
             .get(&url)
             .header("Authorization", &self.authorization)
@@ -270,6 +473,7 @@ impl AdtProvider {
             .call()
             .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
         let status = response.status().as_u16();
+        self.log_request("GET", "/sap/bc/adt/discovery", status, started, None);
         match status {
             200 => {}
             401 | 403 => return Err(SourceError::Auth { url }),
@@ -289,6 +493,12 @@ impl AdtProvider {
             .map(str::trim)
             .collect::<Vec<_>>()
             .join("; ");
+        // the same answer tells what the system offers
+        let xml = response.body_mut().read_to_string().unwrap_or_default();
+        self.capabilities
+            .lock()
+            .unwrap()
+            .get_or_insert_with(|| Capabilities::from_discovery(&xml));
         Ok((token, cookies))
     }
 
@@ -301,7 +511,33 @@ impl AdtProvider {
         accept: &str,
         body: &str,
     ) -> Result<Option<String>> {
+        let (status, text) = self.post_reply(path, content_type, accept, body)?;
+        match status {
+            200 => Ok(Some(text)),
+            404 => Ok(None),
+            401 | 403 => Err(SourceError::Auth {
+                url: self.url(path),
+            }),
+            _ => Err(SourceError::Http {
+                status,
+                url: self.url(path),
+            }),
+        }
+    }
+
+    /// The status and body of a POST, whatever the status; the token is
+    /// renewed once when the system asks for it.
+    fn post_reply(
+        &self,
+        path: &str,
+        content_type: &str,
+        accept: &str,
+        body: &str,
+    ) -> Result<(u16, String)> {
         let url = self.url(path);
+        let started = Instant::now();
+        // the data preview logs its SQL
+        let sql = path.starts_with("/sap/bc/adt/datapreview/").then_some(body);
         for attempt in 0..2 {
             let (token, cookies) = {
                 let mut session = self.session.lock().unwrap();
@@ -324,24 +560,20 @@ impl AdtProvider {
                 .send(body)
                 .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
             let status = response.status().as_u16();
+            self.log_request("POST", path, status, started, sql);
             let renew = response
                 .headers()
                 .get("x-csrf-token")
                 .and_then(|v| v.to_str().ok())
                 .is_some_and(|v| v.eq_ignore_ascii_case("required"));
-            match status {
-                200 => {
-                    return response
-                        .body_mut()
-                        .read_to_string()
-                        .map(Some)
-                        .map_err(|e| SourceError::Other(format!("{url}: {e}")))
-                }
-                404 => return Ok(None),
-                403 if renew && attempt == 0 => continue,
-                401 | 403 => return Err(SourceError::Auth { url }),
-                _ => return Err(SourceError::Http { status, url }),
+            if status == 403 && renew && attempt == 0 {
+                continue;
             }
+            let text = response
+                .body_mut()
+                .read_to_string()
+                .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+            return Ok((status, text));
         }
         Err(SourceError::Auth { url })
     }
@@ -385,32 +617,83 @@ impl AdtProvider {
         if !is_name(&key) {
             return Ok(Some(Vec::new()));
         }
-        let rows = self.select(&format!(
+        let query = format!(
             "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '{}' AND version = '1'",
             relation as u8
-        ))?;
+        );
+        let rows = self.select("class relations", &query, || {
+            self.table_select("SEOMETAREL", &query)
+        })?;
         Ok(rows.map(first_column))
     }
 
-    /// Rows of an ABAP SQL query through the data preview; `None` when the
-    /// system has no data preview.
-    fn select(&self, query: &str) -> Result<Option<Vec<Vec<String>>>> {
-        let xml = self.post(
-            "/sap/bc/adt/datapreview/freestyle?rowNumber=1000",
-            "text/plain",
-            "application/xml, application/vnd.sap.adt.datapreview.table.v1+xml",
-            query,
-        )?;
-        Ok(xml.map(|xml| preview_rows(&xml)))
+    /// Rows of an ABAP SQL query through the data preview. When the system
+    /// has no free-form SQL or rejects the query, `fallback` gets a try,
+    /// usually the same lookup as single-table queries through the table
+    /// preview. `None` and a note in the result when nothing works.
+    fn select(
+        &self,
+        lookup: &str,
+        query: &str,
+        fallback: impl FnOnce() -> Result<Option<Vec<Vec<String>>>>,
+    ) -> Result<Option<Vec<Vec<String>>>> {
+        let mut reason = "the system has no data preview".to_string();
+        if self.capabilities().offers(FREESTYLE) {
+            let path = format!("{FREESTYLE}?rowNumber=1000");
+            let (status, text) = self.post_reply(&path, "text/plain", PREVIEW_ACCEPT, query)?;
+            match status {
+                200 => return Ok(Some(preview_rows(&text))),
+                401 | 403 => {
+                    return Err(SourceError::Auth {
+                        url: self.url(&path),
+                    })
+                }
+                400 => {
+                    reason = format!("the data preview rejects the query: {}", rejection(&text));
+                }
+                404 => {}
+                _ => {
+                    return Err(SourceError::Http {
+                        status,
+                        url: self.url(&path),
+                    })
+                }
+            }
+        }
+        if let Some(rows) = fallback()? {
+            return Ok(Some(rows));
+        }
+        self.note(lookup, &reason);
+        Ok(None)
+    }
+
+    /// Rows of a full `SELECT` on one table through the table preview;
+    /// `None` when the system has none or does not answer.
+    fn table_select(&self, table: &str, query: &str) -> Result<Option<Vec<Vec<String>>>> {
+        if !self.capabilities().offers(TABLE_PREVIEW) || !is_name(table) {
+            return Ok(None);
+        }
+        let path = format!("{TABLE_PREVIEW}?rowNumber=1000&ddicEntityName={table}");
+        let (status, text) = self.post_reply(&path, "text/plain", PREVIEW_ACCEPT, query)?;
+        match status {
+            200 => Ok(Some(preview_rows(&text))),
+            401 | 403 => Err(SourceError::Auth {
+                url: self.url(&path),
+            }),
+            _ => Ok(None),
+        }
     }
 
     /// A BAdI of an enhancement spot: interface and fallback class from its
     /// definition, the classes of its active implementations.
     fn spot_badi(&self, name: &str) -> Result<Option<Badi>> {
+        let query = format!(
+            "SELECT interface_name, default_class FROM badi_main WHERE badi_name = '{name}'"
+        );
         let definition = self
-            .select(&format!(
-                "SELECT interface_name, default_class FROM badi_main WHERE badi_name = '{name}'"
-            ))?
+            .select("BAdI definitions", &query, || {
+                self.table_select("BADI_MAIN", &query)
+            })?
             .unwrap_or_default();
         let Some(row) = definition.first() else {
             return Ok(None);
@@ -427,10 +710,11 @@ impl AdtProvider {
     /// Classes of the active implementations of a BAdI of an enhancement
     /// spot: the runtime table only has those.
     fn badi_implementations(&self, name: &str) -> Result<Vec<String>> {
+        let query = format!("SELECT class_name FROM badi_impl WHERE badi_name = '{name}'");
         Ok(self
-            .select(&format!(
-                "SELECT class_name FROM badi_impl WHERE badi_name = '{name}'"
-            ))?
+            .select("BAdI implementations", &query, || {
+                self.table_select("BADI_IMPL", &query)
+            })?
             .map(first_column)
             .unwrap_or_default())
     }
@@ -438,21 +722,27 @@ impl AdtProvider {
     /// A classic BAdI by its interface with its active implementations;
     /// those of the BAdI it was migrated to count too.
     fn exit_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        let joined = format!(
+            "SELECT x~exit_name, a~def_clname, a~mig_badi_name FROM sxs_inter AS x \
+             INNER JOIN sxs_attr AS a ON a~exit_name = x~exit_name \
+             WHERE x~inter_name = '{interface}'"
+        );
         let definition = self
-            .select(&format!(
-                "SELECT x~exit_name, a~def_clname, a~mig_badi_name FROM sxs_inter AS x \
-                 INNER JOIN sxs_attr AS a ON a~exit_name = x~exit_name \
-                 WHERE x~inter_name = '{interface}'"
-            ))?
+            .select("classic BAdI definitions", &joined, || {
+                self.exit_definition_by_tables(interface)
+            })?
             .unwrap_or_default();
         let Some(row) = definition.first() else {
             return Ok(None);
         };
+        let joined = format!(
+            "SELECT c~imp_class FROM sxc_class AS c INNER JOIN sxc_attr AS a \
+             ON a~imp_name = c~imp_name WHERE c~inter_name = '{interface}' AND a~active = 'X'"
+        );
         let mut implementations = self
-            .select(&format!(
-                "SELECT c~imp_class FROM sxc_class AS c INNER JOIN sxc_attr AS a \
-                 ON a~imp_name = c~imp_name WHERE c~inter_name = '{interface}' AND a~active = 'X'"
-            ))?
+            .select("classic BAdI implementations", &joined, || {
+                self.exit_implementations_by_tables(interface)
+            })?
             .map(first_column)
             .unwrap_or_default();
         if let Some(migrated) = non_empty(row.get(2)).filter(|m| is_name(m)) {
@@ -467,6 +757,56 @@ impl AdtProvider {
             fallback: non_empty(row.get(1)),
             classic: true,
         }))
+    }
+
+    /// The join of the classic BAdI definition as two single-table queries
+    /// through the table preview.
+    fn exit_definition_by_tables(&self, interface: &str) -> Result<Option<Vec<Vec<String>>>> {
+        let Some(exits) = self.table_select(
+            "SXS_INTER",
+            &format!("SELECT exit_name FROM sxs_inter WHERE inter_name = '{interface}'"),
+        )?
+        else {
+            return Ok(None);
+        };
+        let Some(exit) = first_column(exits).into_iter().find(|e| is_name(e)) else {
+            return Ok(Some(Vec::new()));
+        };
+        self.table_select(
+            "SXS_ATTR",
+            &format!(
+                "SELECT exit_name, def_clname, mig_badi_name FROM sxs_attr WHERE exit_name = '{exit}'"
+            ),
+        )
+    }
+
+    /// The join of the active classic BAdI implementations as single-table
+    /// queries through the table preview.
+    fn exit_implementations_by_tables(&self, interface: &str) -> Result<Option<Vec<Vec<String>>>> {
+        let Some(classes) = self.table_select(
+            "SXC_CLASS",
+            &format!("SELECT imp_name, imp_class FROM sxc_class WHERE inter_name = '{interface}'"),
+        )?
+        else {
+            return Ok(None);
+        };
+        let mut out = Vec::new();
+        for row in classes {
+            let (Some(imp), Some(class)) = (non_empty(row.first()), non_empty(row.get(1))) else {
+                continue;
+            };
+            if !is_name(&imp) {
+                continue;
+            }
+            let active = self.table_select(
+                "SXC_ATTR",
+                &format!("SELECT imp_name FROM sxc_attr WHERE imp_name = '{imp}' AND active = 'X'"),
+            )?;
+            if active.is_some_and(|rows| !rows.is_empty()) {
+                out.push(vec![class]);
+            }
+        }
+        Ok(Some(out))
     }
 
     /// The code of an enhancement implementation with its URL and whether
@@ -680,13 +1020,12 @@ impl SourceProvider for AdtProvider {
             ),
             (ObjectKind::Dtel, _) => {
                 let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
-                Ok(self
-                    .get(&path, "application/vnd.sap.adt.dataelements.v2+xml")?
-                    .map(|text| Source {
-                        reference: r.clone(),
-                        text,
-                        origin: format!("{}{}", self.config.url, path),
-                    }))
+                let accept = data_element_type(&self.capabilities().accepts(DATA_ELEMENTS));
+                Ok(self.get(&path, &accept)?.map(|text| Source {
+                    reference: r.clone(),
+                    text,
+                    origin: format!("{}{}", self.config.url, path),
+                }))
             }
         }
     }
@@ -732,50 +1071,69 @@ impl SourceProvider for AdtProvider {
     /// From the index of enhancement includes (ENHINCINX) through the data
     /// preview, the code from each enhancement implementation.
     fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
+        // without the code of the implementations the hooks are of no use
+        if !self.capabilities().offers(ENHANCEMENT_IMPLEMENTATIONS) {
+            self.note(
+                "enhancements",
+                "the ADT discovery has no enhancements/enhoxhh to read their code",
+            );
+            return Ok(Vec::new());
+        }
         // names go into SQL: ABAP names, class pools and their includes
         let valid = |n: &&String| {
             !n.is_empty()
                 && n.chars()
                     .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '='))
         };
-        let programs: Vec<String> = programs
+        let mut wanted: Vec<String> = programs
             .iter()
             .filter(valid)
-            .map(|p| format!("'{}'", p.to_ascii_uppercase()))
+            .map(|p| p.to_ascii_uppercase())
             .collect();
-        let modules: Vec<String> = function_modules
-            .iter()
-            .filter(valid)
-            .map(|f| f.to_ascii_uppercase())
-            .collect();
-        let mut conditions: Vec<String> = programs
-            .chunks(50)
-            // the data preview takes lines up to 255 characters
-            .map(|c| format!("programname IN ( {} )", c.join(",\n")))
-            .collect();
-        conditions.extend(
-            modules
-                .iter()
-                .map(|f| format!("full_name LIKE '\\FU:{f}\\%'")),
-        );
-        let mut rows = Vec::new();
-        for c in conditions.chunks(20) {
-            let query = format!(
-                "SELECT enhname, id, enhmode, full_name FROM enhincinx WHERE version = 'A' AND ( {} )",
-                c.join("\nOR ")
-            );
-            match self.select(&query) {
-                Ok(r) => rows.extend(r.unwrap_or_default()),
-                // a query the system rejects is a mistake here; other answers
-                // mean the system has no data preview for us
-                Err(SourceError::Http { status, .. }) if status != 400 => return Ok(Vec::new()),
+        let named = wanted.clone();
+        // Hooks of a function module sit under the main program of its
+        // function group. FULL_NAME is a long string, which ABAP SQL does
+        // not allow in WHERE on SAP_BASIS 750, so the module is matched here.
+        let mut prefixes: Vec<String> = Vec::new();
+        for module in function_modules.iter().filter(valid) {
+            let module = module.to_ascii_uppercase();
+            match self.function_group(&module) {
+                Ok(Some(group)) => {
+                    wanted.push(group_program(&group));
+                    prefixes.push(format!("\\FU:{module}\\"));
+                }
+                Ok(None) | Err(SourceError::Http { .. }) => {}
                 Err(SourceError::Auth { .. }) => return Ok(Vec::new()),
                 Err(e) => return Err(e),
             }
         }
+        wanted.sort();
+        wanted.dedup();
+        let mut rows = Vec::new();
+        for chunk in wanted.chunks(50) {
+            let query = enhancement_query(chunk);
+            match self.select("enhancements", &query, || {
+                self.table_select("ENHINCINX", &query)
+            }) {
+                Ok(r) => rows.extend(r.unwrap_or_default()),
+                // other answers mean the system has no data preview for us
+                Err(SourceError::Http { .. }) | Err(SourceError::Auth { .. }) => {
+                    return Ok(Vec::new())
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        rows.retain(|row| {
+            let (Some(position), Some(program)) = (row.get(3), row.get(4)) else {
+                return false;
+            };
+            let position = position.trim().to_ascii_uppercase();
+            named.iter().any(|n| n.eq_ignore_ascii_case(program.trim()))
+                || prefixes.iter().any(|p| position.starts_with(p.as_str()))
+        });
         let mut out: Vec<Hook> = Vec::new();
         for row in rows {
-            let [name, id, mode, position] = &row[..] else {
+            let [name, id, mode, position, _program] = &row[..] else {
                 continue;
             };
             let name = name.trim().to_ascii_uppercase();
@@ -819,6 +1177,10 @@ impl SourceProvider for AdtProvider {
         self.cached_badi(format!("if:{}", interface.to_ascii_uppercase()), |n| {
             self.exit_badi(n)
         })
+    }
+
+    fn notes(&self) -> Vec<String> {
+        self.notes.lock().unwrap().clone()
     }
 
     fn describe(&self) -> String {
@@ -1076,5 +1438,155 @@ mod tests {
             Some("/ABC/GRP")
         );
         assert_eq!(group_from_search(xml, "OTHER"), None);
+    }
+
+    /// The columns of a data preview answer, each with its values.
+    fn preview(columns: &[&[&str]]) -> &'static str {
+        let mut xml = String::from("<dataPreview:tableData>");
+        for values in columns {
+            xml.push_str("<dataPreview:columns><dataPreview:dataSet>");
+            for v in *values {
+                xml.push_str(&format!("<dataPreview:data>{v}</dataPreview:data>"));
+            }
+            xml.push_str("</dataPreview:dataSet></dataPreview:columns>");
+        }
+        xml.push_str("</dataPreview:tableData>");
+        Box::leak(xml.into_boxed_str())
+    }
+
+    const REJECTED: &str = "<exc:exception><message lang=\"EN\">Field FULL_NAME is a long string</message></exc:exception>";
+
+    #[test]
+    fn rejected_free_form_sql_falls_back_to_the_table_preview() {
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            ("/sap/bc/adt/datapreview/freestyle", 400, REJECTED),
+            ("/sap/bc/adt/datapreview/ddic", 200, preview(&[&["ZCL_A"]])),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        assert_eq!(
+            adt.implementing_classes("zif_x").unwrap(),
+            Some(vec!["ZCL_A".to_string()])
+        );
+        assert!(adt.notes().is_empty());
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert!(
+            paths
+                .iter()
+                .any(|p| p.contains("ddicEntityName=SEOMETAREL")),
+            "{paths:?}"
+        );
+    }
+
+    #[test]
+    fn unavailable_lookups_become_notes_not_errors() {
+        let (url, _) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            ("/sap/bc/adt/datapreview/freestyle", 400, REJECTED),
+            (
+                "/sap/bc/adt/system/components",
+                200,
+                "<atom:entry><atom:id>SAP_BASIS</atom:id><atom:title>750;SAPK-75035INSAPBASIS;0035;SAP Basis Component</atom:title></atom:entry>",
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        assert_eq!(adt.implementing_classes("zif_x").unwrap(), None);
+        assert_eq!(
+            adt.notes(),
+            ["class relations: not available (the data preview rejects the query: Field FULL_NAME is a long string, SAP_BASIS 750 SP 0035)"]
+        );
+    }
+
+    #[test]
+    fn discovery_tells_which_lookups_exist() {
+        let discovery = "<app:collection href=\"/sap/bc/adt/datapreview/freestyle\"><atom:title>x</atom:title></app:collection><app:collection href=\"/sap/bc/adt/ddic/dataelements\"><app:accept>application/vnd.sap.adt.dataelements.v1+xml</app:accept></app:collection>";
+        let c = Capabilities::from_discovery(discovery);
+        assert!(c.offers(FREESTYLE));
+        assert!(!c.offers(TABLE_PREVIEW));
+        assert!(!c.offers(ENHANCEMENT_IMPLEMENTATIONS));
+        assert_eq!(
+            c.accepts(DATA_ELEMENTS),
+            ["application/vnd.sap.adt.dataelements.v1+xml"]
+        );
+        // a discovery that could not be read assumes everything
+        assert!(Capabilities::default().offers(ENHANCEMENT_IMPLEMENTATIONS));
+
+        let (url, requests) = serve(vec![("/sap/bc/adt/discovery", 200, discovery)]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        assert!(adt
+            .enhancements(&["ZPROG".to_string()], &[])
+            .unwrap()
+            .is_empty());
+        assert!(adt.notes()[0].starts_with(
+            "enhancements: not available (the ADT discovery has no enhancements/enhoxhh"
+        ));
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert!(
+            !paths.iter().any(|p| p.contains("datapreview")),
+            "{paths:?}"
+        );
+    }
+
+    #[test]
+    fn enhancement_query_never_filters_on_the_long_string() {
+        let query = enhancement_query(&["SAPLZGRP".to_string(), "ZPROG".to_string()]);
+        let condition = query.split("WHERE").nth(1).unwrap();
+        assert!(!condition.to_ascii_lowercase().contains("full_name"));
+        assert!(!query.contains("LIKE"));
+        assert!(query.lines().all(|l| l.len() < 255));
+        assert_eq!(group_program("ZGRP"), "SAPLZGRP");
+        assert_eq!(group_program("/abc/grp"), "/ABC/SAPLGRP");
+    }
+
+    #[test]
+    fn function_module_hooks_are_matched_on_the_client() {
+        let (url, _) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            (
+                "/sap/bc/adt/repository/informationsystem/search",
+                200,
+                r#"<x adtcore:uri="/sap/bc/adt/functions/groups/zgrp/fmodules/zfm"/>"#,
+            ),
+            // the hook of ZFM, and one of another module of the same group
+            (
+                "/sap/bc/adt/datapreview/freestyle",
+                200,
+                preview(&[
+                    &["ZENH", "ZOTHER"],
+                    &["1", "1"],
+                    &["D", "D"],
+                    &["\\FU:ZFM\\EI", "\\FU:OTHER\\EI"],
+                    &["SAPLZGRP", "SAPLZGRP"],
+                ]),
+            ),
+            (
+                "/sap/bc/adt/enhancements/enhoxhh/zenh/source/main",
+                200,
+                "ENHANCEMENT 1  .\n  x = 1.\nENDENHANCEMENT.",
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        let hooks = adt.enhancements(&[], &["ZFM".to_string()]).unwrap();
+        assert_eq!(hooks.len(), 1, "{:?}", adt.notes());
+        assert_eq!(hooks[0].enhancement, "ZENH");
+        assert!(hooks[0].code.contains("x = 1."));
+    }
+
+    #[test]
+    fn data_elements_in_the_newest_xml_version() {
+        let v1 = "application/vnd.sap.adt.dataelements.v1+xml";
+        let v2 = "application/vnd.sap.adt.dataelements.v2+xml";
+        // SAP_BASIS 816 lists HTML too, which sorts after the XML types
+        assert_eq!(data_element_type(&[v2, "text/html"]), v2);
+        assert_eq!(data_element_type(&[v1]), v1);
+        assert_eq!(data_element_type(&[v1, v2]), v2);
+        assert_eq!(data_element_type(&["text/html"]), v2);
+        assert_eq!(data_element_type(&[]), v2);
+    }
+
+    #[test]
+    fn rejection_message_on_one_line() {
+        assert_eq!(rejection(REJECTED), "Field FULL_NAME is a long string");
+        assert_eq!(rejection("no xml\n here"), "no xml here");
     }
 }

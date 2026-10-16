@@ -78,8 +78,7 @@ class Call(_CallRequired, _CallOptional):
     """A call from one processing block to another, or a dependency on an include."""
 
 
-class CallGraph(TypedDict):
-    """Calls across objects, loaded through the source providers."""
+class _CallGraphRequired(TypedDict):
     calls: List[Call]
     errors: List[str]
     """provider errors, e.g. authorization failures"""
@@ -88,6 +87,12 @@ class CallGraph(TypedDict):
     roots: List[str]
     schema_version: int
     units: List[GraphUnit]
+
+
+class CallGraph(_CallGraphRequired, total=False):
+    """Calls across objects, loaded through the source providers."""
+    notes: List[str]
+    """lookups the system could not do, like `enhancements: not available (...)`; the graph is complete apart from them"""
 
 
 class _CdsAssociationRequired(TypedDict):
@@ -477,6 +482,8 @@ class FileLogic(_FileLogicRequired, total=False):
     """provider errors, e.g. authorization failures"""
     missing: List[str]
     """objects no provider had: includes, and called objects"""
+    notes: List[str]
+    """lookups the system could not do, like `enhancements: not available (...)`; the result is complete apart from them"""
     object: str
     """the object, like `PROG:ZREPORT`; for objects loaded through a workspace"""
 

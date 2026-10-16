@@ -253,6 +253,15 @@ impl Workspace {
         self.errors.lock().unwrap().clone()
     }
 
+    /// Lookups the system could not do, once each, like
+    /// `enhancements: not available (...)`. Not errors.
+    pub fn notes(&self) -> Vec<String> {
+        let mut notes = self.provider.notes();
+        notes.sort();
+        notes.dedup();
+        notes
+    }
+
     /// One source, parsed; `None` if no provider has it or fetching failed.
     pub fn unit(&self, r: &SourceRef) -> Option<Arc<Unit>> {
         let slot = slot(&self.units, r);
@@ -691,6 +700,7 @@ impl Workspace {
             calls: Vec::new(),
             missing: Vec::new(),
             errors: Vec::new(),
+            notes: Vec::new(),
         };
         let mut level: Vec<SourceRef> = Vec::new();
         let mut seen: BTreeSet<SourceRef> = BTreeSet::new();
@@ -770,6 +780,7 @@ impl Workspace {
         }
         graph.missing = missing.into_iter().collect();
         graph.errors = self.errors();
+        graph.notes = self.notes();
         graph
     }
 
@@ -1328,6 +1339,43 @@ ENDCLASS."
             code: code.into(),
             origin: "memory:ZENH_ORDERS".into(),
         }
+    }
+
+    /// A provider whose system cannot answer the enhancement lookup.
+    struct WithoutEnhancements(MemoryProvider);
+
+    impl SourceProvider for WithoutEnhancements {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            self.0.fetch(r)
+        }
+
+        fn notes(&self) -> Vec<String> {
+            vec!["enhancements: not available (no enhancements/enhoxhh)".to_string()]
+        }
+
+        fn describe(&self) -> String {
+            "test".to_string()
+        }
+    }
+
+    #[test]
+    fn notes_of_the_provider_are_in_the_results() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.
+WRITE 1.",
+        );
+        let ws = Workspace::new(Box::new(WithoutEnhancements(p)));
+        let graph = ws.call_graph(&[SourceRef::program("ZREPORT")], 1);
+        assert_eq!(
+            graph.notes,
+            ["enhancements: not available (no enhancements/enhoxhh)"]
+        );
+        assert!(graph.errors.is_empty());
+        let logic = ws.logic(&SourceRef::program("ZREPORT"), 0);
+        assert_eq!(logic.notes, graph.notes);
+        assert!(crate::text::call_graph(&graph).contains("notes: enhancements: not available"));
     }
 
     #[test]

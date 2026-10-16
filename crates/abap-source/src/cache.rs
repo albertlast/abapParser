@@ -59,9 +59,14 @@ impl<P: SourceProvider> CachedProvider<P> {
         {
             return Ok(answer);
         }
+        let notes = self.inner.notes().len();
         let answer = ask()?;
-        let text = serde_json::to_string(&answer).map_err(|e| SourceError::Other(e.to_string()))?;
-        write_atomic(&path, &text)?;
+        // an answer the system could not give is no answer to keep
+        if self.inner.notes().len() == notes {
+            let text =
+                serde_json::to_string(&answer).map_err(|e| SourceError::Other(e.to_string()))?;
+            write_atomic(&path, &text)?;
+        }
         Ok(answer)
     }
 
@@ -96,7 +101,11 @@ fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let tmp = path.with_extension("tmp");
+    // objects load in parallel: a temp file of its own, or two loads of the
+    // same object rename each other's file away
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = path.with_extension(format!("{}.{n}.tmp", std::process::id()));
     std::fs::write(&tmp, text)?;
     std::fs::rename(&tmp, path)
 }
@@ -152,6 +161,10 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
     fn subclasses(&self, class: &str) -> Result<Vec<String>> {
         let key = class.to_ascii_uppercase();
         self.lookup("subclasses", &key, || self.inner.subclasses(&key))
+    }
+
+    fn notes(&self) -> Vec<String> {
+        self.inner.notes()
     }
 
     fn describe(&self) -> String {

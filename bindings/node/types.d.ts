@@ -71,6 +71,8 @@ export interface CallGraph {
   errors: string[];
   /** referenced objects no provider had */
   missing: string[];
+  /** lookups the system could not do, like `enhancements: not available (...)`; the graph is complete apart from them */
+  notes?: string[];
   roots: string[];
   schema_version: number;
   units: GraphUnit[];
@@ -428,6 +430,8 @@ export interface FileLogic {
   errors?: string[];
   /** objects no provider had: includes, and called objects */
   missing?: string[];
+  /** lookups the system could not do, like `enhancements: not available (...)`; the result is complete apart from them */
+  notes?: string[];
   /** the object, like `PROG:ZREPORT`; for objects loaded through a workspace */
   object?: string;
   procedures: Procedure[];
