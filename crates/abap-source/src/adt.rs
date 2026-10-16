@@ -2,7 +2,7 @@
 //! the same endpoints Eclipse ADT and vscode_abap_remote_fs use. Only reads.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use base64::Engine;
@@ -54,8 +54,10 @@ pub struct AdtProvider {
     implementers: Mutex<HashMap<String, Vec<String>>>,
     /// subclasses per class, upper case
     subclasses: Mutex<HashMap<String, Vec<String>>>,
-    /// BAdIs by name, classic ones by interface with a leading `if:`
-    badis: Mutex<HashMap<String, Option<Badi>>>,
+    /// BAdIs by name, classic ones by interface with a leading `if:`; one
+    /// slot per key, so parallel loads asking for the same BAdI wait for
+    /// one lookup
+    badis: Mutex<HashMap<String, BadiSlot>>,
     /// enhancement implementation -> its code, URL and whether it is
     /// switched off
     hook_sources: Mutex<HashMap<String, Option<HookSource>>>,
@@ -69,6 +71,9 @@ pub struct AdtProvider {
     /// stderr, set by `ABAP_ADT_LOG=1`; never headers or credentials
     log: bool,
 }
+
+/// A BAdI looked up or being looked up: empty until the lookup is done.
+type BadiSlot = Arc<Mutex<Option<Option<Badi>>>>;
 
 /// The collections of the ADT discovery with the content types they accept.
 /// Empty when the discovery could not be read: then everything is assumed.
@@ -842,7 +847,16 @@ impl AdtProvider {
         key: String,
         lookup: impl Fn(&str) -> Result<Option<Badi>>,
     ) -> Result<Option<Badi>> {
-        if let Some(b) = self.badis.lock().unwrap().get(&key) {
+        let slot = self
+            .badis
+            .lock()
+            .unwrap()
+            .entry(key.clone())
+            .or_default()
+            .clone();
+        // held during the lookup: others asking for the same key wait
+        let mut slot = slot.lock().unwrap();
+        if let Some(b) = slot.as_ref() {
             return Ok(b.clone());
         }
         let name = key.trim_start_matches("if:");
@@ -855,7 +869,7 @@ impl AdtProvider {
                 Err(e) => return Err(e),
             }
         };
-        self.badis.lock().unwrap().insert(key, badi.clone());
+        *slot = Some(badi.clone());
         Ok(badi)
     }
 
@@ -1570,6 +1584,29 @@ mod tests {
         assert_eq!(hooks.len(), 1, "{:?}", adt.notes());
         assert_eq!(hooks[0].enhancement, "ZENH");
         assert!(hooks[0].code.contains("x = 1."));
+    }
+
+    #[test]
+    fn parallel_lookups_of_a_badi_ask_once() {
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, ""),
+            ("/sap/bc/adt/datapreview/freestyle", 200, preview(&[])),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| {
+                    barrier.wait();
+                    assert_eq!(adt.classic_badi("ZIF_EX_X").unwrap(), None);
+                });
+            }
+        });
+        let previews = requests
+            .try_iter()
+            .filter(|p| p.contains("datapreview"))
+            .count();
+        assert_eq!(previews, 1);
     }
 
     #[test]

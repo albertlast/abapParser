@@ -11,6 +11,7 @@
 - **Mock of SAP_BASIS 750:** `abap mock-adt --release 750` (`MockRelease::Basis750` in Rust) acts like the ERP measured. It has that system's discovery and component list, and serves data elements only in XML version 1 (406 otherwise), structures but no tables, and no enhancement code. Its data preview answers the queries of the ADT provider from the class relations, BAdIs and enhancements of the served folders. It rejects what 7.50 rejects: long strings in `WHERE` and lines over 255 characters. A test checks that the call graph over it matches the one read from the folder, with one note.
 - **Request log:** `ABAP_ADT_LOG=1` writes every ADT request to stderr: method, path, status, duration, and the SQL of data preview queries. It never writes headers, cookies, tokens or credentials.
 - **Fix:** two parallel loads of the same object could make a cache write fail.
+- **Fix:** parallel loads asking for the same BAdI each sent the lookup to the system; now one asks and the others wait. The 7.50 mock showed it: one query went out six times in one call graph.
 - **Corpus:** three HR projects with logical database PNP, `INFOTYPES` and payroll clusters. The oracle reads plain `NAME.abap` files as programs.
 
 ## 0.3.0
