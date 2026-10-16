@@ -20,7 +20,7 @@ pub use adt::{AdtConfig, AdtProvider};
 pub use badi::Badi;
 pub use cache::CachedProvider;
 pub use fs::FsProvider;
-pub use mock::{MockAdtConfig, MockAdtServer};
+pub use mock::{MockAdtConfig, MockAdtServer, MockRelease};
 pub use options::{AdtOptions, ProviderOptions};
 
 use std::fmt;

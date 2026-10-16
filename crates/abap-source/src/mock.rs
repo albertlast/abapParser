@@ -8,6 +8,17 @@
 //! Requests need basic authentication. A CSRF token with a session cookie is
 //! handed out on request; POST requests need both. Only the standard
 //! library is used.
+//!
+//! With [`MockRelease::Basis750`] it acts like an ERP on SAP_BASIS 750 as
+//! measured on one: its discovery and component list, data elements in XML
+//! version 1 only (406 for others), structures but no tables or lock
+//! objects, no enhancement implementations, and the data preview answering
+//! ABAP SQL on the class relations, BAdI tables and enhancement index of the
+//! folders, rejecting what 7.50 rejects: long strings in `WHERE` and lines
+//! over 255 characters. Dictionary sources come as abapGit XML, which the
+//! analysis reads like the system's formats.
+
+mod tables;
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -16,7 +27,31 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use crate::badi::field;
 use crate::{ClassPart, FsProvider, ObjectKind, Result, SourceProvider, SourceRef};
+use tables::Tables;
+
+/// Which system the mock acts like.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MockRelease {
+    /// sources only: an empty discovery, no data preview, no dictionary
+    #[default]
+    Plain,
+    /// an ERP on SAP_BASIS 750 SP 35
+    Basis750,
+}
+
+impl std::str::FromStr for MockRelease {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, String> {
+        match s {
+            "plain" => Ok(MockRelease::Plain),
+            "750" => Ok(MockRelease::Basis750),
+            _ => Err(format!("unknown release {s}, known: plain, 750")),
+        }
+    }
+}
 
 /// Who may log on to the mock server.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +60,7 @@ pub struct MockAdtConfig {
     pub password: String,
     /// when set, requests for another `sap-client` are rejected
     pub client: Option<String>,
+    pub release: MockRelease,
 }
 
 impl Default for MockAdtConfig {
@@ -33,6 +69,7 @@ impl Default for MockAdtConfig {
             user: "DEVELOPER".to_string(),
             password: "mock".to_string(),
             client: None,
+            release: MockRelease::Plain,
         }
     }
 }
@@ -52,6 +89,9 @@ struct State {
     groups: HashMap<String, String>,
     authorization: String,
     client: Option<String>,
+    release: MockRelease,
+    /// the tables the data preview reads, for releases that have one
+    tables: Option<Tables>,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -78,9 +118,12 @@ impl MockAdtServer {
         let objects = provider.len();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
+        let tables = (config.release != MockRelease::Plain).then(|| Tables::of(&provider, &groups));
         let state = Arc::new(State {
             provider,
             groups,
+            release: config.release,
+            tables,
             authorization: format!(
                 "Basic {}",
                 base64(format!("{}:{}", config.user, config.password).as_bytes())
@@ -182,6 +225,7 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
     let mut authorization = String::new();
     let mut token = String::new();
     let mut cookie = String::new();
+    let mut accept = String::new();
     let mut length = 0usize;
     loop {
         let mut line = String::new();
@@ -194,6 +238,7 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
                 "authorization" => authorization = value.to_string(),
                 "x-csrf-token" => token = value.to_string(),
                 "cookie" => cookie = value.to_string(),
+                "accept" => accept = value.to_string(),
                 "content-length" => length = value.parse().unwrap_or(0),
                 _ => {}
             }
@@ -231,19 +276,30 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
                 ..Response::status(403)
             }
         }
+    } else if method == "POST" && state.tables.is_some() && path.starts_with(PREVIEW) {
+        if session {
+            preview(state, path, &params, &String::from_utf8_lossy(&body))
+        } else {
+            Response {
+                token_required: true,
+                ..Response::status(403)
+            }
+        }
     } else if method != "GET" && method != "HEAD" {
         Response::status(405)
     } else {
-        route(state, path, &params)
+        route(state, path, &params, &accept)
     };
     response.csrf = csrf && response.status != 401;
 
     let reason = match response.status {
         200 => "OK",
+        400 => "Bad Request",
         401 => "Unauthorized",
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        406 => "Not Acceptable",
         _ => "Error",
     };
     let mut out = stream;
@@ -271,12 +327,17 @@ fn handle(state: &State, stream: TcpStream) -> std::io::Result<()> {
     out.flush()
 }
 
-fn route(state: &State, path: &str, params: &HashMap<String, String>) -> Response {
+fn route(state: &State, path: &str, params: &HashMap<String, String>, accept: &str) -> Response {
     let Some(rest) = path.strip_prefix("/sap/bc/adt/") else {
         return Response::status(404);
     };
     let seg: Vec<String> = rest.split('/').map(percent_decode).collect();
     let seg: Vec<&str> = seg.iter().map(String::as_str).collect();
+    if state.release == MockRelease::Basis750 {
+        if let Some(response) = route_750(state, &seg, accept) {
+            return response;
+        }
+    }
     let source = |r: SourceRef, accept: &dyn Fn(&str) -> bool| match state.provider.fetch(&r) {
         Ok(Some(s)) if accept(&s.text) => Response {
             status: 200,
@@ -330,6 +391,180 @@ fn route(state: &State, path: &str, params: &HashMap<String, String>) -> Respons
         }
         ["repository", "informationsystem", "search"] => search(state, params),
         _ => Response::status(404),
+    }
+}
+
+const PREVIEW: &str = "/sap/bc/adt/datapreview/";
+
+/// The collections of the discovery of SAP_BASIS 750 the provider looks at,
+/// with the content types they accept.
+const DISCOVERY_750: [(&str, &str); 12] = [
+    (
+        "programs/programs",
+        "application/vnd.sap.adt.programs.programs.v2+xml",
+    ),
+    (
+        "programs/includes",
+        "application/vnd.sap.adt.programs.includes.v2+xml",
+    ),
+    ("oo/classes", "application/vnd.sap.adt.oo.classes.v2+xml"),
+    (
+        "oo/interfaces",
+        "application/vnd.sap.adt.oo.interfaces.v2+xml",
+    ),
+    (
+        "functions/groups",
+        "application/vnd.sap.adt.functions.groups.v2+xml",
+    ),
+    ("repository/informationsystem/search", ""),
+    (
+        "repository/informationsystem/usageReferences",
+        "application/vnd.sap.adt.repository.usagereferences.request.v1+xml",
+    ),
+    ("datapreview/freestyle", ""),
+    ("datapreview/ddic", ""),
+    ("ddic/structures", "application/vnd.sap.adt.blues.v1+xml"),
+    (
+        "ddic/dataelements",
+        "application/vnd.sap.adt.dataelements.v1+xml",
+    ),
+    ("ddic/ddl/sources", "application/vnd.sap.adt.ddlsource+xml"),
+];
+
+/// What SAP_BASIS 750 answers differently from the plain mock; `None` for
+/// the requests both answer alike.
+fn route_750(state: &State, seg: &[&str], accept: &str) -> Option<Response> {
+    let dictionary = |r: SourceRef| match state.provider.fetch(&r) {
+        Ok(Some(s)) => Some(s.text),
+        _ => None,
+    };
+    Some(match seg {
+        ["discovery"] | ["core", "discovery"] => {
+            let mut body = String::from(
+                r#"<?xml version="1.0" encoding="utf-8"?><app:service xmlns:app="http://www.w3.org/2007/app" xmlns:atom="http://www.w3.org/2005/Atom"><app:workspace><atom:title>ABAP</atom:title>"#,
+            );
+            for (href, accepts) in DISCOVERY_750 {
+                body.push_str(&format!(
+                    r#"<app:collection href="/sap/bc/adt/{href}"><atom:title>{href}</atom:title>"#
+                ));
+                if !accepts.is_empty() {
+                    body.push_str(&format!("<app:accept>{accepts}</app:accept>"));
+                }
+                body.push_str("</app:collection>");
+            }
+            body.push_str("</app:workspace></app:service>");
+            Response::ok("application/atomsvc+xml", body)
+        }
+        ["system", "components"] => Response::ok(
+            "application/atom+xml;type=feed",
+            r#"<?xml version="1.0" encoding="utf-8"?><atom:feed xmlns:atom="http://www.w3.org/2005/Atom"><atom:title>Installed Components</atom:title><atom:entry><atom:id>SAP_ABA</atom:id><atom:title>750;SAPK-75035INSAPABA;0035;Cross-Application Component</atom:title></atom:entry><atom:entry><atom:id>SAP_BASIS</atom:id><atom:title>750;SAPK-75035INSAPBASIS;0035;SAP Basis Component</atom:title></atom:entry></atom:feed>"#.to_string(),
+        ),
+        ["ddic", "dataelements", name] => {
+            let v1 = accept
+                .split(',')
+                .any(|a| a.trim() == "application/vnd.sap.adt.dataelements.v1+xml");
+            if !v1 {
+                return Some(Response::status(406));
+            }
+            match dictionary(SourceRef::data_element(name)) {
+                Some(xml) => Response::ok(
+                    "application/vnd.sap.adt.dataelements.v1+xml",
+                    data_element_v1(name, &xml),
+                ),
+                None => Response::status(404),
+            }
+        }
+        // structures yes, transparent tables not: 7.50 has no collection
+        ["ddic", "structures", name, "source", "main"] => {
+            match dictionary(SourceRef::table(name)) {
+                Some(xml) if field(&xml, "TABCLASS").as_deref() == Some("INTTAB") => {
+                    Response::ok("text/plain; charset=utf-8", xml)
+                }
+                _ => Response::status(404),
+            }
+        }
+        ["ddic", "ddl", "sources", name, "source", "main"] => {
+            match dictionary(SourceRef::data_definition(name)) {
+                Some(text) => Response::ok("text/plain; charset=utf-8", text),
+                None => Response::status(404),
+            }
+        }
+        _ => return None,
+    })
+}
+
+/// A data element in the XML of ADT, version 1, from its abapGit file: what
+/// it is typed with.
+fn data_element_v1(name: &str, xml: &str) -> String {
+    let domain = field(xml, "DOMNAME").unwrap_or_default();
+    let reference = (field(xml, "REFKIND"), field(xml, "REFTYPE"));
+    let (kind, type_name) = match (reference.0.as_deref(), reference.1.as_deref()) {
+        (Some("R"), Some("C" | "I")) => ("refToClifType", domain),
+        (Some("R"), _) => ("refToDictionaryType", domain),
+        _ if !domain.is_empty() => ("domain", domain),
+        _ => ("predefinedAbapType", String::new()),
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?><blue:wbobj xmlns:blue="http://www.sap.com/wbobj/dictionary/dtel" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="{}" adtcore:type="DTEL/DE"><dtel:dataElement xmlns:dtel="http://www.sap.com/adt/dictionary/dataelements"><dtel:typeKind>{kind}</dtel:typeKind><dtel:typeName>{}</dtel:typeName><dtel:dataType>{}</dtel:dataType></dtel:dataElement></blue:wbobj>"#,
+        xml_escape(&name.to_ascii_uppercase()),
+        xml_escape(&type_name),
+        xml_escape(&field(xml, "DATATYPE").unwrap_or_default())
+    )
+}
+
+/// The data preview: free-form ABAP SQL, or a `SELECT` on the dictionary
+/// object the table preview is opened on.
+fn preview(state: &State, path: &str, params: &HashMap<String, String>, sql: &str) -> Response {
+    let Some(tables) = &state.tables else {
+        return Response::status(404);
+    };
+    let max = params
+        .get("rownumber")
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(100);
+    let answer = match path.strip_prefix(PREVIEW) {
+        Some("freestyle") => tables.select(sql, None, max),
+        Some("ddic") => match params.get("ddicentityname") {
+            Some(entity) => tables.select(sql, Some(&entity.to_ascii_uppercase()), max),
+            None => return Response::status(400),
+        },
+        _ => return Response::status(404),
+    };
+    match answer {
+        Ok((columns, rows)) => {
+            let mut body = format!(
+                r#"<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview"><dataPreview:totalRows>{}</dataPreview:totalRows>"#,
+                rows.len()
+            );
+            for (i, column) in columns.iter().enumerate() {
+                body.push_str(&format!(
+                    r#"<dataPreview:columns><dataPreview:metadata dataPreview:name="{}" dataPreview:type="C"/><dataPreview:dataSet>"#,
+                    xml_escape(column)
+                ));
+                for row in &rows {
+                    match row[i].as_str() {
+                        "" => body.push_str("<dataPreview:data/>"),
+                        v => body.push_str(&format!(
+                            "<dataPreview:data>{}</dataPreview:data>",
+                            xml_escape(v)
+                        )),
+                    }
+                }
+                body.push_str("</dataPreview:dataSet></dataPreview:columns>");
+            }
+            body.push_str("</dataPreview:tableData>");
+            Response::ok("application/vnd.sap.adt.datapreview.table.v1+xml", body)
+        }
+        Err(message) => Response {
+            status: 400,
+            content_type: "application/xml",
+            body: format!(
+                r#"<?xml version="1.0" encoding="utf-8"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="com.sap.adt.dataPreview"/><type id="Exception"/><message lang="EN">{0}</message><localizedMessage lang="EN">{0}</localizedMessage></exc:exception>"#,
+                xml_escape(&message)
+            ),
+            csrf: false,
+            token_required: false,
+        },
     }
 }
 
@@ -719,6 +954,131 @@ mod tests {
             .fetch(&"CLAS:ZCL_A".parse().unwrap())
             .unwrap()
             .is_some());
+        drop(server);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn acts_like_basis_750() {
+        let dir = folder();
+        let files = [
+            (
+                "zspot.enhs.xml",
+                "<BADI_DATA><ENH_BADI_DATA><BADI_NAME>ZBADI</BADI_NAME><INTERFACE_NAME>ZIF_A</INTERFACE_NAME>\
+                 <DEFAULT_CLASS>ZCL_A</DEFAULT_CLASS></ENH_BADI_DATA></BADI_DATA>",
+            ),
+            (
+                "zimpl.enho.xml",
+                "<IMPL><ENH_BADI_IMPL_DATA><BADI_NAME>ZBADI</BADI_NAME><IMPL_CLASS>ZCL_IMPL</IMPL_CLASS>\
+                 <ACTIVE>X</ACTIVE></ENH_BADI_IMPL_DATA></IMPL>",
+            ),
+            (
+                "zexit.sxsd.xml",
+                "<BADI><EXIT_NAME>ZEXIT</EXIT_NAME><INTER_NAME>ZIF_EX</INTER_NAME><DEF_CLNAME>ZCL_DEF</DEF_CLNAME></BADI>",
+            ),
+            (
+                "zimp.sxci.xml",
+                "<IMPLEMENTATION_DATA><IMP_CLASS>ZCL_IM</IMP_CLASS><EXIT_NAME>ZEXIT</EXIT_NAME>\
+                 <INTER_NAME>ZIF_EX</INTER_NAME><ACTIVE>X</ACTIVE></IMPLEMENTATION_DATA>",
+            ),
+            (
+                "zenh.enho.a1b2.abap",
+                "\"Name: \\PR:ZREPORT\\EX:ZPOINT\\EI\nENHANCEMENT 1 zenh.\n  gv_x = 1.\nENDENHANCEMENT.",
+            ),
+            (
+                "zid_ref.dtel.xml",
+                "<DD04V><ROLLNAME>ZID_REF</ROLLNAME><DOMNAME>ZIF_A</DOMNAME><DATATYPE>REF</DATATYPE>\
+                 <REFKIND>R</REFKIND><REFTYPE>I</REFTYPE></DD04V>",
+            ),
+            (
+                "zst.tabl.xml",
+                "<DD02V><TABNAME>ZST</TABNAME><TABCLASS>INTTAB</TABCLASS></DD02V>\
+                 <DD03P><FIELDNAME>ID</FIELDNAME><ROLLNAME>ZID_REF</ROLLNAME></DD03P>",
+            ),
+            (
+                "ztab.tabl.xml",
+                "<DD02V><TABNAME>ZTAB</TABNAME><TABCLASS>TRANSP</TABCLASS></DD02V>",
+            ),
+        ];
+        for (name, text) in files {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        let fs = FsProvider::new(vec![dir.clone()]).unwrap();
+        let config = MockAdtConfig {
+            release: MockRelease::Basis750,
+            ..MockAdtConfig::default()
+        };
+        let server = MockAdtServer::start(fs, "127.0.0.1:0", config).unwrap();
+        let adt = provider(server.url(), "mock");
+
+        // the class relations, not the where-used list, which also names users
+        assert_eq!(adt.implementations("ZIF_A").unwrap(), ["ZCL_IMPL"]);
+        let badi = adt.badi("zbadi").unwrap().unwrap();
+        assert_eq!(badi.implementations, ["ZCL_IMPL"]);
+        assert_eq!(badi.fallback.as_deref(), Some("ZCL_A"));
+        // the join of the classic BAdI tables
+        let exit = adt.classic_badi("ZIF_EX").unwrap().unwrap();
+        assert_eq!(exit.name, "ZEXIT");
+        assert_eq!(exit.implementations, ["ZCL_IM"]);
+        assert_eq!(exit.fallback.as_deref(), Some("ZCL_DEF"));
+
+        // the system has the hook, but no way to read its code
+        assert!(adt
+            .enhancements(&["ZREPORT".to_string()], &[])
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            adt.notes(),
+            ["enhancements: not available (the ADT discovery has no enhancements/enhoxhh to read their code, SAP_BASIS 750 SP 0035)"]
+        );
+
+        let text = |r: &str| adt.fetch(&r.parse().unwrap()).unwrap().map(|s| s.text);
+        let dtel = text("DTEL:ZID_REF").unwrap();
+        assert!(dtel.contains("<dtel:typeKind>refToClifType</dtel:typeKind><dtel:typeName>ZIF_A<"));
+        assert!(text("TABL:ZST").unwrap().contains("ZID_REF"));
+        assert_eq!(text("TABL:ZTAB"), None);
+
+        let requests = server.requests();
+        assert!(!requests.iter().any(|r| r.contains("usageReferences")));
+        assert!(!requests.iter().any(|r| r.contains("enhoxhh")));
+        assert!(requests.iter().any(|r| r.contains("datapreview/freestyle")));
+        drop(server);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn data_elements_only_in_version_1_on_750() {
+        let dir = folder();
+        std::fs::write(
+            dir.join("zd.dtel.xml"),
+            "<DD04V><ROLLNAME>ZD</ROLLNAME><DOMNAME>ZDOM</DOMNAME></DD04V>",
+        )
+        .unwrap();
+        let fs = FsProvider::new(vec![dir.clone()]).unwrap();
+        let config = MockAdtConfig {
+            release: MockRelease::Basis750,
+            ..MockAdtConfig::default()
+        };
+        let server = MockAdtServer::start(fs, "127.0.0.1:0", config).unwrap();
+        let get = |accept: &str| {
+            let mut stream =
+                TcpStream::connect(server.url().trim_start_matches("http://")).unwrap();
+            let auth = base64(b"DEVELOPER:mock");
+            write!(
+                stream,
+                "GET /sap/bc/adt/ddic/dataelements/zd HTTP/1.1\r\nAuthorization: Basic {auth}\r\nAccept: {accept}\r\n\r\n"
+            )
+            .unwrap();
+            let mut answer = String::new();
+            stream.read_to_string(&mut answer).unwrap();
+            answer
+        };
+        assert!(get("application/vnd.sap.adt.dataelements.v2+xml").starts_with("HTTP/1.1 406"));
+        let v1 = get("application/vnd.sap.adt.dataelements.v1+xml");
+        assert!(v1.starts_with("HTTP/1.1 200"), "{v1}");
+        assert!(v1.contains("<dtel:typeKind>domain</dtel:typeKind><dtel:typeName>ZDOM<"));
+        assert_eq!("750".parse(), Ok(MockRelease::Basis750));
+        assert!("7.50".parse::<MockRelease>().is_err());
         drop(server);
         let _ = std::fs::remove_dir_all(dir);
     }

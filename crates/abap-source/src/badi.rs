@@ -135,6 +135,11 @@ impl BadiIndex {
     pub fn classic(&self, interface: &str) -> Option<Badi> {
         self.classic.get(&interface.to_ascii_uppercase()).cloned()
     }
+
+    /// All BAdIs, those of enhancement spots and the classic ones.
+    pub fn all(&self) -> impl Iterator<Item = &Badi> {
+        self.badis.values().chain(self.classic.values())
+    }
 }
 
 fn add_class(b: &mut Badi, class: String) {
@@ -157,7 +162,7 @@ fn rows<'a>(xml: &'a str, key: &str) -> Vec<&'a str> {
 }
 
 /// The text of the first element `<name>`, upper case; `None` when missing or empty.
-fn field(xml: &str, name: &str) -> Option<String> {
+pub(crate) fn field(xml: &str, name: &str) -> Option<String> {
     let open = format!("<{name}>");
     let start = xml.find(&open)? + open.len();
     let end = start + xml[start..].find('<')?;

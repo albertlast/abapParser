@@ -45,10 +45,12 @@ for language models:
                        from the source options
 
 testing:
-  mock-adt --src <dir>... [--port N] [--client nnn]
+  mock-adt --src <dir>... [--port N] [--client nnn] [--release 750]
                        serve the folders like an SAP system through ADT, for
                        tests of loading sources; port 50000 by default, logon
-                       from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
+                       from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock;
+                       --release 750 acts like SAP_BASIS 750 with its data
+                       preview, dictionary and limits
 
 output:
   JSON by default; --text for symbols, db, calls, logic, cds and graph gives a
@@ -65,6 +67,8 @@ struct Args {
     depth: u32,
     port: u16,
     client: Option<String>,
+    /// what `mock-adt` acts like
+    release: Option<String>,
     options: ProviderOptions,
 }
 
@@ -76,6 +80,7 @@ fn parse_args() -> Result<Args, String> {
         depth: 1,
         port: 50000,
         client: None,
+        release: None,
         options: ProviderOptions::default(),
     };
     let mut adt_url = std::env::var("ABAP_ADT_URL").ok();
@@ -94,6 +99,7 @@ fn parse_args() -> Result<Args, String> {
             "--adt-url" => adt_url = Some(value("--adt-url")?),
             "--client" => client = Some(value("--client")?),
             "--language" => language = Some(value("--language")?),
+            "--release" => a.release = Some(value("--release")?),
             "--port" => {
                 a.port = value("--port")?
                     .parse()
@@ -240,7 +246,7 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
 }
 
 fn mock_adt(args: &Args) -> ExitCode {
-    use abap_analysis::abap_source::{FsProvider, MockAdtConfig, MockAdtServer};
+    use abap_analysis::abap_source::{FsProvider, MockAdtConfig, MockAdtServer, MockRelease};
     if args.options.src.is_empty() {
         eprintln!("mock-adt needs --src folders\n\n{USAGE}");
         return ExitCode::from(2);
@@ -261,6 +267,15 @@ fn mock_adt(args: &Args) -> ExitCode {
         config.password = password;
     }
     config.client = args.client.clone();
+    if let Some(release) = &args.release {
+        config.release = match release.parse::<MockRelease>() {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        };
+    }
     let user = config.user.clone();
     match MockAdtServer::start(provider, &format!("127.0.0.1:{}", args.port), config) {
         Ok(server) => {

@@ -8,6 +8,7 @@
   - The enhancement lookup no longer filters on `ENHINCINX-FULL_NAME`, a long string that SAP_BASIS 750 rejects in a condition. This was the HTTP 400 for every function module.
   - Data elements are requested in the version the system lists.
 - **Notes:** a lookup the system cannot do is no longer an error. It is a note in the new `notes` of call graph and logic results, like `enhancements: not available (the ADT discovery has no enhancements/enhoxhh to read their code, SAP_BASIS 750 SP 0035)`. Answers that could not be given are not cached.
+- **Mock of SAP_BASIS 750:** `abap mock-adt --release 750` (`MockRelease::Basis750` in Rust) acts like the ERP measured. It has that system's discovery and component list, and serves data elements only in XML version 1 (406 otherwise), structures but no tables, and no enhancement code. Its data preview answers the queries of the ADT provider from the class relations, BAdIs and enhancements of the served folders. It rejects what 7.50 rejects: long strings in `WHERE` and lines over 255 characters. A test checks that the call graph over it matches the one read from the folder, with one note.
 - **Request log:** `ABAP_ADT_LOG=1` writes every ADT request to stderr: method, path, status, duration, and the SQL of data preview queries. It never writes headers, cookies, tokens or credentials.
 - **Fix:** two parallel loads of the same object could make a cache write fail.
 - **Corpus:** three HR projects with logical database PNP, `INFOTYPES` and payroll clusters. The oracle reads plain `NAME.abap` files as programs.

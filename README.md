@@ -222,6 +222,13 @@ An SAP system names the enhancements of a program in its index of enhancement in
 - the repository search that finds a function module's group
 - the where-used list of an interface, a POST that needs the CSRF token and the session cookie handed out with it
 
+With `--release 750` it acts like an ERP on SAP_BASIS 750, as measured on one:
+- the discovery and component list of that system: no collection for tables, lock objects or the code of enhancement implementations
+- data elements only in XML version 1, otherwise HTTP 406; structures, but no tables
+- the data preview, free-form and per table: it answers the queries the provider sends from the class relations, BAdIs and enhancements of the folders. Like 7.50, it rejects long strings such as `ENHINCINX-FULL_NAME` in `WHERE` and lines over 255 characters.
+
+Dictionary objects come as the abapGit XML of the folders, which the analysis reads like the formats of a system. Without `--release` the mock serves sources only, as above.
+
 Requests need basic authentication, and with `--client` only that client is accepted. The logon comes from `ABAP_ADT_USER` and `ABAP_ADT_PASSWORD`, or is `DEVELOPER`/`mock`, so a client started with the same environment logs on. Your own projects can use it to test code that loads ABAP from a system: keep part of the code locally and let the rest come over ADT.
 
 ```sh
@@ -229,7 +236,7 @@ abap mock-adt --src ./abap-src --port 50000
 ABAP_ADT_USER=DEVELOPER ABAP_ADT_PASSWORD=mock abap graph CLAS:ZCL_ORDERS --src ./local --adt-url http://127.0.0.1:50000 --cache ./.abap-cache
 ```
 
-In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `requests()` lists what was asked for. `crates/abap-analysis/tests/adt_mock.rs` uses it: one class is local, the classes it uses come over ADT into the cache, and a second run reads them from the cache.
+In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `requests()` lists what was asked for. `crates/abap-analysis/tests/adt_mock.rs` uses it: one class is local, the classes it uses come over ADT into the cache, and a second run reads them from the cache. Another test builds a call graph over the 7.50 mock and checks that it is the one of the folder, with one note about enhancements.
 
 ## Logic
 
