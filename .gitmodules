@@ -41,3 +41,15 @@
 [submodule "tests/corpus/spma-2025-08"]
 	path = tests/corpus/spma-2025-08
 	url = https://github.com/keremkoseoglu/spma-2025-08
+[submodule "tests/corpus/abap_interface_framework"]
+	path = tests/corpus/abap_interface_framework
+	url = https://github.com/palermo-consulting/abap_interface_framework.git
+	shallow = true
+[submodule "tests/corpus/sap_to_active_directory"]
+	path = tests/corpus/sap_to_active_directory
+	url = https://github.com/palermo-consulting/sap_to_active_directory.git
+	shallow = true
+[submodule "tests/corpus/hr_dme"]
+	path = tests/corpus/hr_dme
+	url = https://github.com/ysichov/HR_DME.git
+	shallow = true

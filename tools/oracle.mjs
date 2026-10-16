@@ -225,8 +225,12 @@ function main() {
     const reg = new Registry(config);
     const names = new Map();
     for (const f of walk(input)) {
-      // abaplint derives the object type from the abapGit style file name
-      const name = path.basename(f).toLowerCase();
+      // abaplint derives the object type from the abapGit style file name;
+      // a plain NAME.abap is a program
+      let name = path.basename(f).toLowerCase();
+      if (name.split(".").length === 2) {
+        name = name.replace(/\.abap$/, ".prog.abap");
+      }
       names.set(name, path.relative(process.cwd(), f));
       reg.addFile(new MemoryFile(name, fs.readFileSync(f, "utf8")));
     }

@@ -14,6 +14,9 @@
 | `ajson/` (submodule) | [sbcgua/ajson](https://github.com/sbcgua/ajson) | MIT | modern library with many unit tests |
 | `abap-logger/` (submodule) | [ABAP-Logger/ABAP-Logger](https://github.com/ABAP-Logger/ABAP-Logger) | MIT | small, macros |
 | `spma-2025-08/` (submodule) | [keremkoseoglu/spma-2025-08](https://github.com/keremkoseoglu/spma-2025-08) | MIT | AMDP: SQLScript procedures and table functions |
+| `abap_interface_framework/` (submodule) | [palermo-consulting/abap_interface_framework](https://github.com/palermo-consulting/abap_interface_framework) | MIT | HR: logical database PNP (`GET PERNR`), `INFOTYPES`, `HR_READ_INFOTYPE`, payroll clusters; plain `NAME.abap` files, not abapGit |
+| `sap_to_active_directory/` (submodule) | [palermo-consulting/sap_to_active_directory](https://github.com/palermo-consulting/sap_to_active_directory) | MIT | HR: `GET PERNR`, `INFOTYPES`, macros of the logical database like `RP-PROVIDE-FROM-LAST`; plain `NAME.abap` files |
+| `hr_dme/` (submodule) | [ysichov/HR_DME](https://github.com/ysichov/HR_DME) | MIT | HR: one large classic report, `INFOTYPES`, direct access to `PA*` tables |
 | `golden/` (generated, gitignored) | output of `tools/oracle.mjs` (@abaplint/core): tokens, statements, symbols, SQL details and data references of the syntax check per corpus file, plus `sql_cases.json` for the SQL statement cases | - | `oracle_diff.rs`, `symbols_diff.rs`, `sql_diff.rs`, `refs_diff.rs` |
 | `private/` (gitignored) | your own ABAP code, never committed | - | local experiments |
 

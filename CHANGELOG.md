@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Corpus:** three HR projects with logical database PNP, `INFOTYPES` and payroll clusters. The oracle reads plain `NAME.abap` files as programs.
+
 ## 0.3.0
 
 BAdIs, enhancements and customer exits are followed to the code that runs; loading from an SAP system is faster.

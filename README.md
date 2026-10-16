@@ -38,17 +38,17 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
-The corpus is 1,897 files from eleven open source projects (MIT/Apache-2.0), see [tests/corpus](tests/corpus/README.md):
+The corpus is 1,929 files from fourteen open source projects (MIT/Apache-2.0), three of them classic HR code, see [tests/corpus](tests/corpus/README.md):
 
 - **Tokens:** identical in all files.
 - **Statement boundaries:** identical in 99.8% of the files, macro expansion included.
-- **Statement kinds:** 99.84% of 303,374 statements classified the same. Most of the rest are statements abaplint cannot parse, or macros defined twice, where we follow the ABAP documentation and abaplint does not.
+- **Statement kinds:** 99.85% of 321,856 statements classified the same. Most of the rest are statements abaplint cannot parse, or macros defined twice, where we follow the ABAP documentation and abaplint does not.
 - **abaplint statement test cases:** 99.9% of 4,363 classified the same.
-- **Symbols:** identical to abaplint's file information in every compared category across 1,785 files: classes, interfaces, methods, parameters, attributes, aliases, implemented interfaces, forms, implementations. Files where abaplint itself fails to parse a statement are skipped.
+- **Symbols:** identical to abaplint's file information in every compared category across 1,861 files: classes, interfaces, methods, parameters, attributes, aliases, implemented interfaces, forms, implementations. Files where abaplint itself fails to parse a statement are skipped.
 
-- **Database access:** for 1,431 of the corpus's 1,432 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
+- **Database access:** for 1,474 of the corpus's 1,475 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
 
-- **Call graph:** each corpus is loaded through the folder provider. 97.2% of 58,178 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
+- **Call graph:** each corpus is loaded through the folder provider. 97.0% of 58,560 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
 
 - **Data references:** abaplint's syntax check resolves every variable a statement reads or writes. In the 1,432 files whose objects pass that check (155k references), we find 99.85% of abaplint's references, and 94.8% of ours are also abaplint's. Most of the rest are names abaplint cannot resolve, like constants from SAP includes missing in the corpus. abaplint's conventions are translated before comparing, see `crates/abap-syntax/tests/refs_diff.rs`. For example, in `lo->attr = x` abaplint writes `lo`, while we read `lo` and write `attr`.
 
