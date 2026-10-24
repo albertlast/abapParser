@@ -62,19 +62,23 @@ export interface Call {
   text: string;
   /** object the call is in, like `CLAS:ZCL_X`; set by the call graph */
   unit?: string;
+  /** why the target was not found, when `resolved` is false; set by the call graph */
+  unresolved?: Unresolved;
 }
 
 /** Calls across objects, loaded through the source providers. */
 export interface CallGraph {
   calls: Call[];
   /** provider errors, e.g. authorization failures */
-  errors: string[];
-  /** referenced objects no provider had */
+  errors: LoadError[];
+  /** referenced objects no provider had; those whose loading failed are in `errors` */
   missing: string[];
   /** lookups the system could not do, like `enhancements: not available (...)`; the graph is complete apart from them */
   notes?: string[];
   roots: string[];
   schema_version: number;
+  /** referenced objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling */
+  skipped?: string[];
   units: GraphUnit[];
 }
 
@@ -431,6 +435,9 @@ export interface Effect {
   via?: BlockRef[];
 }
 
+/** What kind of failure an error is. */
+export type ErrorCode = "other" | "auth" | "http" | "network" | "io";
+
 export interface Event {
   is_static: boolean;
   name: string;
@@ -454,8 +461,8 @@ export interface EventHandler {
 /** Control flow, conditions and data flow of the procedures of a file, or of all sources of an object loaded through a workspace. */
 export interface FileLogic {
   /** provider errors, e.g. authorization failures */
-  errors?: string[];
-  /** objects no provider had: includes, and called objects */
+  errors?: LoadError[];
+  /** objects no provider had: includes, and called objects; those whose loading failed are in `errors` */
   missing?: string[];
   /** lookups the system could not do, like `enhancements: not available (...)`; the result is complete apart from them */
   notes?: string[];
@@ -463,6 +470,8 @@ export interface FileLogic {
   object?: string;
   procedures: Procedure[];
   schema_version: number;
+  /** called objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling */
+  skipped?: string[];
 }
 
 /** Symbols defined in one ABAP source file. */
@@ -536,6 +545,19 @@ export interface Interface {
   name: string;
   span: Span;
   types: Declaration[];
+}
+
+/** A failure of a source provider; the analysis went on without what it could not load. */
+export interface LoadError {
+  /** what failed, like `HTTP 500 for https://host/sap/bc/adt/...` */
+  cause: string;
+  code: ErrorCode;
+  /** the object, like `CLAS:ZCL_X`, or the lookup, like `implementations:ZIF_X` */
+  object: string;
+  /** trying again may succeed: network failures, HTTP 408, 429 and 5xx */
+  retryable: boolean;
+  /** the HTTP status of `http` */
+  status?: number;
 }
 
 export interface Method {
@@ -743,5 +765,8 @@ export interface Typing {
 }
 
 export type TypingKind = "type" | "like" | "type_ref_to" | "like_ref_to" | "table" | "range" | "line_of" | "structure" | "for";
+
+/** Why the target of a call was not found. */
+export type Unresolved = "dynamic" | "unknown_type" | "missing" | "lookup_failed" | "hierarchy_incomplete" | "not_followed" | "limit" | "cancelled" | "not_loaded";
 
 export type Visibility = "public" | "protected" | "private";

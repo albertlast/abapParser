@@ -23,7 +23,7 @@ ENDCLASS.
 class SymbolsTest(unittest.TestCase):
     def test_class(self):
         s = abap_parser.symbols(SOURCE)
-        self.assertEqual(s["schema_version"], 1)
+        self.assertEqual(s["schema_version"], 2)
         c = s["classes"][0]
         self.assertEqual(c["name"], "zcl_demo")
         self.assertTrue(c["is_global"])
@@ -142,9 +142,33 @@ class SymbolsTest(unittest.TestCase):
             raise ConnectionError("no connection")
 
         graph = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": failing})
-        self.assertTrue(any("no connection" in e for e in graph["errors"]), graph["errors"])
+        self.assertTrue(any("no connection" in e["cause"] for e in graph["errors"]), graph["errors"])
         with self.assertRaises(TypeError):
             abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": "nope"})
+
+    def test_follow_progress_cancel_and_reasons(self):
+        sources = {
+            "PROG:ZMAIN": "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_ONE'.\n  CALL FUNCTION 'BAPI_X'.\n  CALL FUNCTION 'Z_GONE'.",
+            "FUNC:Z_ONE": "FUNCTION z_one.\n  DELETE FROM zone WHERE id = 1.\nENDFUNCTION.",
+            "FUNC:BAPI_X": "FUNCTION bapi_x.\nENDFUNCTION.",
+        }
+        seen = []
+        graph = abap_parser.call_graph(
+            ["PROG:ZMAIN"],
+            {"fetch": sources.get, "follow": {"include": ["Z*"]}, "progress": lambda p: seen.append(p["object"])},
+            1,
+        )
+        why = {c["name"]: c.get("unresolved") for c in graph["calls"]}
+        self.assertEqual(why, {"Z_ONE": None, "BAPI_X": "not_followed", "Z_GONE": "missing"})
+        self.assertEqual(graph["skipped"], ["FUNC:BAPI_X"])
+        self.assertIn("FUNC:Z_ONE", seen)
+        token = abap_parser.CancelToken()
+        token.cancel()
+        self.assertTrue(token.cancelled)
+        cancelled = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": sources.get, "cancel": token}, 1)
+        self.assertTrue(all(c["unresolved"] == "cancelled" for c in cancelled["calls"]))
+        with self.assertRaises(TypeError):
+            abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": sources.get, "cancel": True})
 
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):

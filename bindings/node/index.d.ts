@@ -23,6 +23,30 @@ export interface SourceOptions {
    * functions take it; the blocking ones throw a TypeError.
    */
   fetch?: (reference: string) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Which objects calls are followed into; the objects given are always
+   * loaded. Those not loaded are listed in `skipped`, calls into them are
+   * unresolved with the reason `not_followed` or `limit`.
+   */
+  follow?: {
+    /** name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace; all when empty */
+    include?: string[];
+    /** name patterns of objects not to load, also when `include` matches */
+    exclude?: string[];
+    /** at most this many objects are loaded or looked for */
+    limit?: number;
+  };
+  /**
+   * Called after each object loaded or looked for, without waiting for it.
+   * Only the async functions take it.
+   */
+  progress?: (progress: {loaded: number; object: string}) => void;
+  /**
+   * Once aborted, nothing more is loaded and the analysis finishes with what
+   * it has; calls into objects not loaded are unresolved with the reason
+   * `cancelled`. Only the async functions take it.
+   */
+  signal?: AbortSignal;
   /** cache folder for sources fetched from the SAP system */
   cache?: string;
   adt?: {

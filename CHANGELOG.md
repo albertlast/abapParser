@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Following calls can be limited and cancelled, and what was not found says why.
+
+- **Follow filters and limits:** `follow` in the options (`--follow`, `--skip`, `--limit` in the CLI and the MCP server) loads only objects whose names match patterns like `Z*` or a custom namespace `/ABC/*`, leaves out others, and stops after a number of objects; the objects given are always loaded. Objects not loaded are in the new `skipped` of call graph and logic, not in `missing`, and the notes say when the limit was reached. A progress function is called after each object (`progress` in Node.js and Python, `--progress` in the CLI), and an analysis can be cancelled (`signal` in Node.js, a `CancelToken` in Python, `Workspace::with_cancel` in Rust); it then finishes with what it has.
+- **Why calls are unresolved:** the new `unresolved` of calls in the call graph says why a target was not found: `dynamic`, `unknown_type`, `missing`, `lookup_failed`, `hierarchy_incomplete`, `not_followed`, `limit`, `cancelled` or `not_loaded`. The compact text writes it, like `(unresolved: not followed)`.
+- **Structured errors:** `errors` of call graph and logic are objects instead of text: `code` (`auth`, `http`, `network`, `io`, `other`), `object`, `cause`, `retryable` and the HTTP `status`. Failures of the connection to an SAP system are `network` and retryable, as are HTTP 408, 429 and 5xx. Objects whose loading failed are no longer in `missing`.
+
+Changes to existing output: `schema_version` is 2, since `errors` holds objects. In Rust, the functions of `abap_analysis::json` that load sources take `Hooks` (provider, progress, cancel) instead of a provider; `SourceError` has a new variant `Network`.
+
 ## 0.4.0
 
 The release each statement needs, syntax checks, and lineage for SAP_BASIS 7.50 systems and HR code: sources from the host, `sy-subrc` and system fields per statement, infotypes, locks and data clusters.

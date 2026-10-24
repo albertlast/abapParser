@@ -29,32 +29,69 @@ function loadNative() {
 
 const native = loadNative();
 
+/** The functions and the signal of the options, which do not go to the native module as JSON. */
+const HOOKS = ["fetch", "progress", "signal"];
+
 /**
- * The fetch function of the options for the native module: it always
- * returns a promise, also when the host's function returns the source.
+ * The options as JSON for the native module, without the hooks.
  * @param {import("./index").SourceOptions} options
  */
-function fetchOf(options) {
-  const fetch = options == null ? undefined : options.fetch;
-  if (fetch == null) {
-    return undefined;
+function json(options) {
+  if (options == null) {
+    return JSON.stringify(options);
   }
-  if (typeof fetch !== "function") {
-    throw new TypeError("abap-parser: options.fetch must be a function");
+  const rest = {...options};
+  for (const key of HOOKS) {
+    delete rest[key];
   }
-  return async (reference) => fetch(reference);
+  return JSON.stringify(rest);
 }
 
 /**
- * The blocking functions wait in the JavaScript thread, so a fetch function
- * could never run: only the async ones take it.
+ * The hooks of the options for the native module: the fetch function, made
+ * to always return a promise; the progress function, called with
+ * `{loaded, object}`; and a cancel token the signal cancels.
+ * @param {import("./index").SourceOptions} options
+ */
+function hooksOf(options) {
+  const {fetch, progress, signal} = options ?? {};
+  for (const [name, f] of [
+    ["fetch", fetch],
+    ["progress", progress],
+  ]) {
+    if (f != null && typeof f !== "function") {
+      throw new TypeError(`abap-parser: options.${name} must be a function`);
+    }
+  }
+  let token;
+  if (signal != null) {
+    token = new native.CancelToken();
+    if (signal.aborted) {
+      token.cancel();
+    } else {
+      signal.addEventListener("abort", () => token.cancel(), {once: true});
+    }
+  }
+  return [
+    fetch == null ? undefined : async (reference) => fetch(reference),
+    progress == null ? undefined : (text) => progress(JSON.parse(text)),
+    token,
+  ];
+}
+
+/**
+ * The blocking functions wait in the JavaScript thread, so the functions of
+ * the host could never run and nothing could cancel: only the async ones
+ * take them.
  * @param {import("./index").SourceOptions} options @param {string} name
  */
-function withoutFetch(options, name) {
-  if (options != null && options.fetch != null) {
-    throw new TypeError(`abap-parser: options.fetch needs ${name}Async, ${name} blocks the event loop`);
+function withoutHooks(options, name) {
+  for (const key of HOOKS) {
+    if (options != null && options[key] != null) {
+      throw new TypeError(`abap-parser: options.${key} needs ${name}Async, ${name} blocks the event loop`);
+    }
   }
-  return JSON.stringify(options);
+  return json(options);
 }
 
 /**
@@ -95,7 +132,7 @@ function calls(source) {
  * @returns {import("./types").CallGraph}
  */
 function callGraph(roots, options, depth = 1) {
-  return JSON.parse(native.callGraphJson(roots, withoutFetch(options, "callGraph"), depth));
+  return JSON.parse(native.callGraphJson(roots, withoutHooks(options, "callGraph"), depth));
 }
 
 /**
@@ -106,7 +143,7 @@ function callGraph(roots, options, depth = 1) {
  * @returns {string | null}
  */
 function fetchSource(reference, options) {
-  return native.fetchSource(reference, withoutFetch(options, "fetchSource"));
+  return native.fetchSource(reference, withoutHooks(options, "fetchSource"));
 }
 
 /**
@@ -131,7 +168,7 @@ function logic(source) {
  * @returns {import("./types").FileLogic}
  */
 function logicObject(reference, options, depth = 1) {
-  return JSON.parse(native.logicObjectJson(reference, withoutFetch(options, "logicObject"), depth));
+  return JSON.parse(native.logicObjectJson(reference, withoutHooks(options, "logicObject"), depth));
 }
 
 /**
@@ -178,7 +215,7 @@ function text(analysis, source) {
  * @returns {string}
  */
 function objectText(analysis, objects, options, depth = 1) {
-  return native.objectText(analysis, objects, withoutFetch(options, "objectText"), depth);
+  return native.objectText(analysis, objects, withoutHooks(options, "objectText"), depth);
 }
 
 // The same on the libuv thread pool: promises, the event loop keeps running.
@@ -203,21 +240,21 @@ const statementsAsync = (source) => parsed(native.statementsJsonAsync(source));
  * @returns {Promise<import("./types").CallGraph>}
  */
 const callGraphAsync = (roots, options, depth = 1) =>
-  parsed(native.callGraphJsonAsync(roots, JSON.stringify(options), depth, fetchOf(options)));
+  parsed(native.callGraphJsonAsync(roots, json(options), depth, ...hooksOf(options)));
 
 /**
  * @param {string} reference @param {import("./index").SourceOptions} options
  * @returns {Promise<string | null>}
  */
 const fetchSourceAsync = (reference, options) =>
-  parsed(native.fetchSourceJsonAsync(reference, JSON.stringify(options), fetchOf(options)));
+  parsed(native.fetchSourceJsonAsync(reference, json(options), ...hooksOf(options)));
 
 /**
  * @param {string} reference @param {import("./index").SourceOptions} options @param {number} [depth=1]
  * @returns {Promise<import("./types").FileLogic>}
  */
 const logicObjectAsync = (reference, options, depth = 1) =>
-  parsed(native.logicObjectJsonAsync(reference, JSON.stringify(options), depth, fetchOf(options)));
+  parsed(native.logicObjectJsonAsync(reference, json(options), depth, ...hooksOf(options)));
 
 /** @param {string} analysis @param {string} source @returns {Promise<string>} */
 const textAsync = (analysis, source) => native.textAsync(analysis, source);
@@ -228,7 +265,7 @@ const textAsync = (analysis, source) => native.textAsync(analysis, source);
  * @returns {Promise<string>}
  */
 const objectTextAsync = (analysis, objects, options, depth = 1) =>
-  native.objectTextAsync(analysis, objects, JSON.stringify(options), depth, fetchOf(options));
+  native.objectTextAsync(analysis, objects, json(options), depth, ...hooksOf(options));
 
 module.exports = {
   symbols,

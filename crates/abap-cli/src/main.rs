@@ -42,6 +42,14 @@ source options:
   --cache <dir>        cache folder for sources from the SAP system
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
+
+following calls into other objects (graph, logic, mcp):
+  --follow <pattern>   load only objects whose name matches, like Z* or a
+                       custom namespace /ABC/*; repeatable; the objects
+                       given are always loaded
+  --skip <pattern>     do not load objects whose name matches, repeatable
+  --limit <n>          load at most n objects
+  --progress           write each object loaded to stderr
   ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,
   duration, the SQL of data preview queries; never credentials
 
@@ -75,6 +83,8 @@ struct Args {
     /// what `mock-adt` acts like, the release `release` compares with
     release: Option<String>,
     options: ProviderOptions,
+    follow: abap_analysis::Follow,
+    progress: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -87,6 +97,8 @@ fn parse_args() -> Result<Args, String> {
         client: None,
         release: None,
         options: ProviderOptions::default(),
+        follow: abap_analysis::Follow::default(),
+        progress: false,
     };
     let mut adt_url = std::env::var("ABAP_ADT_URL").ok();
     let mut client = std::env::var("ABAP_ADT_CLIENT").ok();
@@ -105,6 +117,16 @@ fn parse_args() -> Result<Args, String> {
             "--client" => client = Some(value("--client")?),
             "--language" => language = Some(value("--language")?),
             "--release" => a.release = Some(value("--release")?),
+            "--follow" => a.follow.include.push(value("--follow")?),
+            "--skip" => a.follow.exclude.push(value("--skip")?),
+            "--progress" => a.progress = true,
+            "--limit" => {
+                a.follow.limit = Some(
+                    value("--limit")?
+                        .parse()
+                        .map_err(|_| "--limit needs a number".to_string())?,
+                )
+            }
             "--port" => {
                 a.port = value("--port")?
                     .parse()
@@ -174,7 +196,8 @@ fn main() -> ExitCode {
         }
         "mock-adt" => mock_adt(&args),
         "mcp" => {
-            let server = mcp::Server::new(args.options.build().map_err(|e| e.to_string()));
+            let server = mcp::Server::new(args.options.build().map_err(|e| e.to_string()))
+                .with_follow(args.follow.clone());
             let stdin = std::io::stdin();
             match server.run(stdin.lock(), std::io::stdout()) {
                 Ok(()) => ExitCode::SUCCESS,
@@ -386,7 +409,11 @@ fn object_command(command: &str, args: &Args) -> ExitCode {
         }
         return status;
     }
-    let workspace = abap_analysis::Workspace::new(provider);
+    let mut workspace = abap_analysis::Workspace::new(provider).with_follow(args.follow.clone());
+    if args.progress {
+        workspace =
+            workspace.with_progress(Box::new(|p| eprintln!("{:>5} {}", p.loaded, p.object)));
+    }
     let errors = if command == "logic" {
         let logic = workspace.logic(&refs[0], args.depth);
         if args.text {

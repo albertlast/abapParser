@@ -7,14 +7,16 @@
 //!
 //! The async variants loading sources take a `fetch` function of the host:
 //! the worker threads call it through a threadsafe function and wait for
-//! the promise it returns, while the event loop runs it.
+//! the promise it returns, while the event loop runs it. They also take a
+//! `progress` function, called without waiting, and a [`CancelToken`].
 
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::task::{Context, Poll, Wake, Waker};
 
 use abap_analysis::abap_source::{FnProvider, SourceError, SourceRef};
-use abap_analysis::json::Host;
+use abap_analysis::json::Hooks;
 use napi::bindgen_prelude::{AsyncTask, Env, Error, Function, Promise, Result, Task};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::Status;
@@ -55,20 +57,64 @@ impl Task for JsonTask {
 type FetchJs<'a> = Function<'a, String, Promise<Option<String>>>;
 type FetchTsfn = ThreadsafeFunction<String, Promise<Option<String>>, String, Status, false>;
 
-/// The fetch function of the host as a source provider; built in the
-/// JavaScript thread, called from the worker threads.
-fn host(fetch: Option<FetchJs>) -> Result<Host> {
-    let Some(f) = fetch else {
-        return Ok(None);
-    };
-    let tsfn: Arc<FetchTsfn> = Arc::new(
-        f.build_threadsafe_function()
+/// `(json) => void`, called with `{"loaded": 3, "object": "CLAS:ZCL_X"}`.
+type ProgressJs<'a> = Function<'a, String, ()>;
+type ProgressTsfn = ThreadsafeFunction<String, (), String, Status, false>;
+
+/// Stops an analysis loading sources: once cancelled, nothing more is
+/// loaded and the analysis finishes with what it has. index.js cancels it
+/// when the `signal` of the options aborts.
+#[napi]
+pub struct CancelToken {
+    flag: Arc<AtomicBool>,
+}
+
+#[napi]
+impl CancelToken {
+    #[napi(constructor)]
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        CancelToken {
+            flag: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    #[napi]
+    pub fn cancel(&self) {
+        self.flag.store(true, Ordering::Relaxed);
+    }
+}
+
+/// The functions of the host for an analysis: built in the JavaScript
+/// thread, called from the worker threads.
+fn hooks(
+    fetch: Option<FetchJs>,
+    progress: Option<ProgressJs>,
+    cancel: Option<&CancelToken>,
+) -> Result<Hooks> {
+    let mut hooks = Hooks::default();
+    if let Some(f) = fetch {
+        let tsfn: Arc<FetchTsfn> = Arc::new(
+            f.build_threadsafe_function()
+                .callee_handled::<false>()
+                .build()?,
+        );
+        hooks.host = Some(Box::new(FnProvider::new("fetch", move |r| {
+            call_fetch(&tsfn, r)
+        })));
+    }
+    if let Some(f) = progress {
+        let tsfn: ProgressTsfn = f
+            .build_threadsafe_function()
             .callee_handled::<false>()
-            .build()?,
-    );
-    Ok(Some(Box::new(FnProvider::new("fetch", move |r| {
-        call_fetch(&tsfn, r)
-    }))))
+            .build()?;
+        hooks.progress = Some(Box::new(move |p| {
+            let json = serde_json::json!({"loaded": p.loaded, "object": p.object});
+            tsfn.call(json.to_string(), ThreadsafeFunctionCallMode::NonBlocking);
+        }));
+    }
+    hooks.cancel = cancel.map(|c| c.flag.clone());
+    Ok(hooks)
 }
 
 fn call_fetch(
@@ -148,7 +194,8 @@ pub fn calls_json_async(source: String) -> AsyncTask<JsonTask> {
 /// Blocking: loads sources from folders or the SAP system.
 #[napi]
 pub fn call_graph_json(roots: Vec<String>, options: String, depth: u32) -> Result<String> {
-    abap_analysis::json::call_graph(&roots, &options, depth, None).map_err(Error::from_reason)
+    abap_analysis::json::call_graph(&roots, &options, depth, Hooks::default())
+        .map_err(Error::from_reason)
 }
 
 #[napi(ts_return_type = "Promise<string>")]
@@ -157,16 +204,18 @@ pub fn call_graph_json_async(
     options: String,
     depth: u32,
     fetch: Option<FetchJs>,
+    progress: Option<ProgressJs>,
+    cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let host = host(fetch)?;
+    let hooks = hooks(fetch, progress, cancel)?;
     Ok(JsonTask::new(move || {
-        abap_analysis::json::call_graph(&roots, &options, depth, host)
+        abap_analysis::json::call_graph(&roots, &options, depth, hooks)
     }))
 }
 
 #[napi]
 pub fn fetch_source(reference: String, options: String) -> Result<Option<String>> {
-    abap_analysis::json::fetch(&reference, &options, None).map_err(Error::from_reason)
+    abap_analysis::json::fetch(&reference, &options, Hooks::default()).map_err(Error::from_reason)
 }
 
 /// The source as a JSON string or `null`.
@@ -175,10 +224,12 @@ pub fn fetch_source_json_async(
     reference: String,
     options: String,
     fetch: Option<FetchJs>,
+    progress: Option<ProgressJs>,
+    cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let host = host(fetch)?;
+    let hooks = hooks(fetch, progress, cancel)?;
     Ok(JsonTask::new(move || {
-        let text = abap_analysis::json::fetch(&reference, &options, host)?;
+        let text = abap_analysis::json::fetch(&reference, &options, hooks)?;
         Ok(serde_json::to_string(&text).expect("text serializes"))
     }))
 }
@@ -196,7 +247,8 @@ pub fn logic_json_async(source: String) -> AsyncTask<JsonTask> {
 /// Blocking: loads sources from folders or the SAP system.
 #[napi]
 pub fn logic_object_json(reference: String, options: String, depth: u32) -> Result<String> {
-    abap_analysis::json::logic_object(&reference, &options, depth, None).map_err(Error::from_reason)
+    abap_analysis::json::logic_object(&reference, &options, depth, Hooks::default())
+        .map_err(Error::from_reason)
 }
 
 #[napi(ts_return_type = "Promise<string>")]
@@ -205,10 +257,12 @@ pub fn logic_object_json_async(
     options: String,
     depth: u32,
     fetch: Option<FetchJs>,
+    progress: Option<ProgressJs>,
+    cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let host = host(fetch)?;
+    let hooks = hooks(fetch, progress, cancel)?;
     Ok(JsonTask::new(move || {
-        abap_analysis::json::logic_object(&reference, &options, depth, host)
+        abap_analysis::json::logic_object(&reference, &options, depth, hooks)
     }))
 }
 
@@ -251,7 +305,7 @@ pub fn object_text(
     options: String,
     depth: u32,
 ) -> Result<String> {
-    abap_analysis::json::object_text(&analysis, &objects, &options, depth, None)
+    abap_analysis::json::object_text(&analysis, &objects, &options, depth, Hooks::default())
         .map_err(Error::from_reason)
 }
 
@@ -262,10 +316,12 @@ pub fn object_text_async(
     options: String,
     depth: u32,
     fetch: Option<FetchJs>,
+    progress: Option<ProgressJs>,
+    cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let host = host(fetch)?;
+    let hooks = hooks(fetch, progress, cancel)?;
     Ok(JsonTask::new(move || {
-        abap_analysis::json::object_text(&analysis, &objects, &options, depth, host)
+        abap_analysis::json::object_text(&analysis, &objects, &options, depth, hooks)
     }))
 }
 

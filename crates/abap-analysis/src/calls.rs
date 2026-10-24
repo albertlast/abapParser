@@ -1205,6 +1205,7 @@ pub(crate) fn new_call(
 ) -> m::Call {
     let zero = m::Position { row: 0, col: 0 };
     m::Call {
+        unresolved: None,
         kind,
         from: None,
         name,

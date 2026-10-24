@@ -25,6 +25,9 @@ DeclarationKind = Literal["data", "class_data", "static", "constant", "type", "f
 
 Direction = Literal["importing", "exporting", "changing", "returning", "using", "tables"]
 
+ErrorCode = Literal["other", "auth", "http", "network", "io"]
+"""What kind of failure an error is."""
+
 OperandKind = Literal["literal", "data", "call", "constructor", "arithmetic", "template", "component"]
 """What an operand of a condition is."""
 
@@ -32,6 +35,9 @@ Store = Literal["memory", "parameter", "file", "shared_buffer", "shared_memory",
 """Where data outside of the program and the database is kept."""
 
 TypingKind = Literal["type", "like", "type_ref_to", "like_ref_to", "table", "range", "line_of", "structure", "for"]
+
+Unresolved = Literal["dynamic", "unknown_type", "missing", "lookup_failed", "hierarchy_incomplete", "not_followed", "limit", "cancelled", "not_loaded"]
+"""Why the target of a call was not found."""
 
 Visibility = Literal["public", "protected", "private"]
 
@@ -71,7 +77,7 @@ class BlockRef(_BlockRefRequired, _BlockRefOptional):
 _CallRequired = TypedDict("_CallRequired", {"dynamic": "bool", "hierarchy_incomplete": "bool", "is_static": "bool", "kind": "CallKind", "name": "str", "options": "List[str]", "resolved": "bool", "span": "Span", "text": "str"})
 
 
-_CallOptional = TypedDict("_CallOptional", {"badi": "str", "class": "str", "from": "BlockRef", "program": "str", "receiver": "str", "unit": "str"}, total=False)
+_CallOptional = TypedDict("_CallOptional", {"badi": "str", "class": "str", "from": "BlockRef", "program": "str", "receiver": "str", "unit": "str", "unresolved": "Unresolved"}, total=False)
 
 
 class Call(_CallRequired, _CallOptional):
@@ -80,10 +86,10 @@ class Call(_CallRequired, _CallOptional):
 
 class _CallGraphRequired(TypedDict):
     calls: List[Call]
-    errors: List[str]
+    errors: List[LoadError]
     """provider errors, e.g. authorization failures"""
     missing: List[str]
-    """referenced objects no provider had"""
+    """referenced objects no provider had; those whose loading failed are in `errors`"""
     roots: List[str]
     schema_version: int
     units: List[GraphUnit]
@@ -93,6 +99,8 @@ class CallGraph(_CallGraphRequired, total=False):
     """Calls across objects, loaded through the source providers."""
     notes: List[str]
     """lookups the system could not do, like `enhancements: not available (...)`; the graph is complete apart from them"""
+    skipped: List[str]
+    """referenced objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling"""
 
 
 class _CdsAssociationRequired(TypedDict):
@@ -511,14 +519,16 @@ class _FileLogicRequired(TypedDict):
 
 class FileLogic(_FileLogicRequired, total=False):
     """Control flow, conditions and data flow of the procedures of a file, or of all sources of an object loaded through a workspace."""
-    errors: List[str]
+    errors: List[LoadError]
     """provider errors, e.g. authorization failures"""
     missing: List[str]
-    """objects no provider had: includes, and called objects"""
+    """objects no provider had: includes, and called objects; those whose loading failed are in `errors`"""
     notes: List[str]
     """lookups the system could not do, like `enhancements: not available (...)`; the result is complete apart from them"""
     object: str
     """the object, like `PROG:ZREPORT`; for objects loaded through a workspace"""
+    skipped: List[str]
+    """called objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling"""
 
 
 class _FileSymbolsRequired(TypedDict):
@@ -598,6 +608,22 @@ class Interface(TypedDict):
     name: str
     span: Span
     types: List[Declaration]
+
+
+class _LoadErrorRequired(TypedDict):
+    cause: str
+    """what failed, like `HTTP 500 for https://host/sap/bc/adt/...`"""
+    code: ErrorCode
+    object: str
+    """the object, like `CLAS:ZCL_X`, or the lookup, like `implementations:ZIF_X`"""
+    retryable: bool
+    """trying again may succeed: network failures, HTTP 408, 429 and 5xx"""
+
+
+class LoadError(_LoadErrorRequired, total=False):
+    """A failure of a source provider; the analysis went on without what it could not load."""
+    status: int
+    """the HTTP status of `http`"""
 
 
 class _MethodRequired(TypedDict):

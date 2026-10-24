@@ -24,7 +24,7 @@ ENDCLASS.`;
 
 test("symbols of a class", () => {
   const s = abap.symbols(SOURCE);
-  assert.equal(s.schema_version, 1);
+  assert.equal(s.schema_version, 2);
   const c = s.classes[0];
   assert.equal(c.name, "zcl_demo");
   assert.equal(c.is_global, true);
@@ -221,10 +221,53 @@ test("sources from a fetch function of the host", async () => {
     },
   });
   assert.ok(
-    failing.errors.some((e) => e.includes("no connection")),
+    failing.errors.some((e) => e.cause.includes("no connection")),
     failing.errors.join("; "),
   );
   // the blocking functions cannot wait for it
   assert.throws(() => abap.callGraph(["PROG:ZMAIN"], {fetch}), /callGraphAsync/);
   assert.throws(() => abap.callGraphAsync(["PROG:ZMAIN"], {fetch: "nope"}), /must be a function/);
+});
+
+test("follow patterns, progress, cancelling and why calls are unresolved", async () => {
+  const sources = {
+    "PROG:ZMAIN":
+      "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_ONE'.\n  CALL FUNCTION 'BAPI_X'.\n  CALL FUNCTION 'Z_GONE'.",
+    "FUNC:Z_ONE": "FUNCTION z_one.\n  DELETE FROM zone WHERE id = 1.\nENDFUNCTION.",
+    "FUNC:BAPI_X": "FUNCTION bapi_x.\nENDFUNCTION.",
+  };
+  const fetch = (r) => sources[r];
+  const seen = [];
+  const graph = await abap.callGraphAsync(
+    ["PROG:ZMAIN"],
+    {fetch, follow: {include: ["Z*"]}, progress: (p) => seen.push(p.object)},
+    1,
+  );
+  const why = Object.fromEntries(graph.calls.map((c) => [c.name, c.unresolved ?? null]));
+  assert.deepEqual(why, {Z_ONE: null, BAPI_X: "not_followed", Z_GONE: "missing"});
+  assert.deepEqual(graph.skipped, ["FUNC:BAPI_X"]);
+  assert.equal(graph.schema_version, 2);
+  // progress calls arrive before the promise settles
+  assert.ok(seen.includes("PROG:ZMAIN") && seen.includes("FUNC:Z_ONE"), seen.join());
+  // an aborted signal loads nothing beyond the root
+  const controller = new AbortController();
+  controller.abort();
+  const cancelled = await abap.callGraphAsync(["PROG:ZMAIN"], {fetch, signal: controller.signal}, 1);
+  assert.ok(cancelled.calls.every((c) => c.unresolved === "cancelled"));
+  // structured errors
+  const failing = await abap.callGraphAsync(
+    ["PROG:ZMAIN"],
+    {
+      fetch: (r) => {
+        if (r === "FUNC:Z_ONE") throw new Error("timeout");
+        return sources[r];
+      },
+    },
+    1,
+  );
+  const e = failing.errors.find((x) => x.object === "FUNC:Z_ONE");
+  assert.equal(e.code, "other");
+  assert.match(e.cause, /timeout/);
+  assert.equal(failing.calls.find((c) => c.name === "Z_ONE").unresolved, "lookup_failed");
+  assert.throws(() => abap.callGraph(["PROG:ZMAIN"], {fetch: undefined, progress: () => {}}), /callGraphAsync/);
 });

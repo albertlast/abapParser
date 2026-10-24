@@ -35,6 +35,8 @@ __all__ = [
     "statements_async",
     "AdtOptions",
     "SourceOptions",
+    "FollowOptions",
+    "CancelToken",
     "Call",
     "CallGraph",
     "DbAccess",
@@ -58,6 +60,27 @@ class AdtOptions(_AdtRequired, total=False):
     insecure: bool
 
 
+class FollowOptions(TypedDict, total=False):
+    """Which objects calls are followed into; the objects given are always
+    loaded. Those not loaded are listed in ``skipped``, calls into them are
+    unresolved with the reason ``not_followed`` or ``limit``.
+
+    ``include``: name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace,
+    all when empty; ``exclude``: name patterns not to load, also when
+    ``include`` matches; ``limit``: at most this many objects are loaded or
+    looked for."""
+
+    include: List[str]
+    exclude: List[str]
+    limit: int
+
+
+CancelToken = _native.CancelToken
+"""Stops an analysis loading sources: ``token.cancel()``, also from another
+thread or the event loop; nothing more is loaded and the analysis finishes
+with what it has."""
+
+
 class SourceOptions(TypedDict, total=False):
     """Where sources come from: local folders first, then the fetch function,
     then an SAP system.
@@ -66,21 +89,35 @@ class SourceOptions(TypedDict, total=False):
     called with objects like "CLAS:ZCL_X", "CLAS:ZCL_X/implementations",
     "PROG:ZREPORT_TOP" or "FUNC:Z_FM", it returns the source, or None when it
     has none. Exceptions it raises are listed in ``errors``. It is called from
-    worker threads, also several at once."""
+    worker threads, also several at once.
+
+    ``follow`` limits which objects calls are followed into, see
+    ``FollowOptions``. ``progress`` is called with ``{"loaded": n, "object":
+    "CLAS:ZCL_X"}`` after each object loaded or looked for, from worker
+    threads. ``cancel`` is a ``CancelToken``."""
 
     src: List[str]
     cache: str
     adt: AdtOptions
+    follow: FollowOptions
     fetch: Callable[[str], Optional[str]]
+    progress: Callable[[dict], Any]
+    cancel: Any
 
 
-def _split(options: SourceOptions) -> Tuple[str, Any]:
-    """The options as JSON for the native module, and the fetch function."""
+def _split(options: SourceOptions) -> Tuple[str, Any, Any, Any]:
+    """The options as JSON for the native module, and the fetch function, the
+    progress function and the cancel token."""
     rest = dict(options)
     fetch = rest.pop("fetch", None)
-    if fetch is not None and not callable(fetch):
-        raise TypeError("options['fetch'] must be callable")
-    return json.dumps(rest), fetch
+    progress = rest.pop("progress", None)
+    cancel = rest.pop("cancel", None)
+    for name, f in (("fetch", fetch), ("progress", progress)):
+        if f is not None and not callable(f):
+            raise TypeError(f"options['{name}'] must be callable")
+    if cancel is not None and not isinstance(cancel, CancelToken):
+        raise TypeError("options['cancel'] must be a CancelToken")
+    return json.dumps(rest), fetch, progress, cancel
 
 
 def symbols(source: str) -> FileSymbols:
@@ -100,9 +137,9 @@ def calls(source: str) -> List[Call]:
     return json.loads(_native.calls_json(source))
 
 
-def _with_depth(options: SourceOptions, depth: int) -> Tuple[str, int, Any]:
-    text, fetch = _split(options)
-    return text, depth, fetch
+def _with_depth(options: SourceOptions, depth: int) -> Tuple[str, int, Any, Any, Any]:
+    text, fetch, progress, cancel = _split(options)
+    return text, depth, fetch, progress, cancel
 
 
 def call_graph(roots: List[str], options: SourceOptions, depth: int = 1) -> CallGraph:
