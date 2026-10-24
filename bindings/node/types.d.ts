@@ -203,7 +203,7 @@ export type ConditionKind = "or" | "equiv" | "and" | "not" | "compare" | "is" | 
 /** A data object read or written by a statement. */
 export interface DataAccess {
   access: AccessKind;
-  /** the type, when known; for now that of system fields */
+  /** the type of what is accessed, `path` with its components, when the sources tell it: from declarations, parameters, attributes and system fields, LIKE resolved, inline declarations from what is assigned to them */
   data_type?: DataType;
   /** declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable */
   declared?: boolean;
@@ -231,15 +231,19 @@ export interface DataAccess {
 
 export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "system" | "other";
 
-/** A built-in elementary type, like that of a system field. */
+/** The type of a data object, as far as the sources tell it. */
 export interface DataType {
-  /** the data element typing it, like `SYST_DATUM` */
+  /** the data element typing it, like `SYST_DATUM` of `sy-datum` */
   data_element?: string;
   decimals?: number;
-  /** `i`, `b`, `c`, `n`, `d`, `t`, `x` or `p` */
+  /** a built-in type: `i`, `int8`, `b`, `s`, `c`, `n`, `d`, `t`, `x`, `p`, `f`, `string`, `xstring`, `decfloat16`, `decfloat34`, `utclong`; `structure` (declared with BEGIN OF, or several columns), `table` and `range` (line type in `line`), `ref` (to `name`, or to `line` for data), or `named`: a type known only by its name, like a dictionary type `matnr`, a column `mara-matnr`, a type of a class `zcl_x=>ty_rows` or a generic type like `any` */
   kind: string;
   /** characters of `c` and `n`, bytes of `x` and `p` */
   length?: number;
+  /** the line type of `table` and `range`, the data a `ref` refers to */
+  line?: DataType;
+  /** the type name as written, lower case: of `named`, the class or interface of `ref`, and of local types resolved to their kind, like `ty_rows` of a `table` */
+  name?: string;
 }
 
 /** One database access statement. */
@@ -385,6 +389,8 @@ export type DbTargetKind = "table" | "structure" | "list";
 /** A data object or type declaration. Structures declared with `BEGIN OF ... END OF` list their parts in `components`. */
 export interface Declaration {
   components?: Declaration[];
+  /** the type, LIKE and local types resolved, when the sources tell it */
+  data_type?: DataType;
   /** declared with BEGIN OF ENUM ... END OF ENUM */
   is_enum: boolean;
   /** declared with BEGIN OF ... END OF */

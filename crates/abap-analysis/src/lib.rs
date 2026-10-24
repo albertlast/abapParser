@@ -10,6 +10,7 @@ mod hr;
 mod logic;
 mod stores;
 mod symbols;
+mod types;
 mod workspace;
 
 pub use abap_source;
