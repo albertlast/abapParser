@@ -568,7 +568,11 @@ pub fn db_access(accesses: &[m::DbAccess]) -> String {
     let mut out = String::new();
     for a in accesses {
         let from = a.block.as_ref().map(block).unwrap_or_default();
-        let tables: Vec<&str> = a.tables.iter().map(|t| t.name.as_str()).collect();
+        let mut tables: Vec<String> = a.tables.iter().map(|t| t.name.clone()).collect();
+        // a cluster with its area: indx(mo)
+        if let (Some(c), Some(t)) = (&a.cluster, tables.first_mut()) {
+            let _ = write!(t, "({}) cluster", c.area);
+        }
         let _ = writeln!(
             out,
             "  {:>5} {from}: {} {} | {}",
@@ -748,6 +752,7 @@ fn scope(s: m::DataScope) -> &'static str {
         m::DataScope::Global => "global",
         m::DataScope::Database => "database table",
         m::DataScope::External => "external",
+        m::DataScope::System => "system",
         m::DataScope::Other => "other",
     }
 }
@@ -814,7 +819,7 @@ ENDCLASS.
   parameters: importing iv_id, importing iv_status, exporting ev_count
   reads tables: ZORDERS
   writes ZORDERS (database table) at 24; from iv_id, iv_status
-  writes ev_count (parameter) at 25; from iv_id, sy-dbcnt
+  writes ev_count (parameter) at 25; from iv_id, iv_status
   statements:
        24 UPDATE zorders SET status = @iv_status WHERE id = @iv_id.  when iv_id > 0
        25 ev_count = sy-dbcnt.  when iv_id > 0

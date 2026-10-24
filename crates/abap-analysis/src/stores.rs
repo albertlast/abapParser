@@ -1,7 +1,8 @@
 //! Data a statement keeps outside the program or gets from there: ABAP
-//! memory, SAP memory, files, shared buffers, data clusters in database
-//! tables, and SAP locks. Given as table accesses, so the data flow treats them like
-//! tables: what is written there depends on, what is read from there.
+//! memory, SAP memory, files, shared buffers and SAP locks. Given as table
+//! accesses, so the data flow treats them like tables: what is written
+//! there depends on, what is read from there. Data clusters in database
+//! tables are database accesses, see [`abap_sql::parse_cluster`].
 
 use std::collections::HashMap;
 
@@ -46,8 +47,8 @@ pub(crate) fn store_accesses(
             via: None,
             depends: None,
         };
-    // EXPORT ... TO MEMORY ID id / IMPORT ... FROM MEMORY ID id, and the
-    // clusters in tables: TO DATABASE dbtab(ar) ID id
+    // EXPORT ... TO MEMORY ID id / IMPORT ... FROM MEMORY ID id, and to
+    // shared buffers and shared memory
     let cluster = |written: bool, delete: bool| -> Vec<m::TableAccess> {
         let mut out = Vec::new();
         if let Some(i) = at(&["MEMORY", "ID"]) {
@@ -61,7 +62,6 @@ pub(crate) fn store_accesses(
             }
         }
         for (phrase, store) in [
-            (&["DATABASE"][..], None),
             (&["SHARED", "BUFFER"][..], Some(m::Store::SharedBuffer)),
             (&["SHARED", "MEMORY"][..], Some(m::Store::SharedMemory)),
         ] {
@@ -75,9 +75,8 @@ pub(crate) fn store_accesses(
                 .to_ascii_uppercase();
             let id = at(&["ID"]).and_then(key).unwrap_or_default();
             let name = match store {
-                None => table,
                 Some(m::Store::SharedBuffer) => format!("shared_buffer:{table}:{id}"),
-                Some(_) => format!("shared_memory:{table}:{id}"),
+                _ => format!("shared_memory:{table}:{id}"),
             };
             out.push(access(name, store, written, delete));
         }
@@ -213,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_parameters_files_clusters() {
+    fn memory_parameters_files_locks() {
         let got = accesses(
             "CONSTANTS c_key TYPE c LENGTH 10 VALUE 'ZORD'.
 EXPORT orders = lt_orders TO MEMORY ID 'ZORDERS'.
@@ -238,7 +237,6 @@ CALL FUNCTION 'ENQUEUE_READ' TABLES enq = lt_enq.",
             [
                 "memory:ZORDERS Write Modify",
                 "memory:ZORD Read Select",
-                "INDX Write Modify",
                 "shared_buffer:INDX:K1 Read Select",
                 "memory:(LV_KEY) Write Delete",
                 "memory:* Write Delete",

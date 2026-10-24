@@ -35,6 +35,11 @@ pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::Db
                 resolve_dynamic(&mut a, &constants);
                 out.push(a);
             }
+        } else if let Some(mut a) = abap_sql::parse_cluster(file, s) {
+            a.block = blocks[i].clone();
+            a.text = file.statement_text(s);
+            a.span = span(file, i, i);
+            out.push(a);
         } else if let Some(end) = native_end(file, i) {
             // EXEC SQL ... ENDEXEC, or the body of an AMDP method: HANA SQL
             let (from, to) = native_range(file, i, end);

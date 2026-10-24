@@ -13,7 +13,7 @@ CallKind = Literal["method", "constructor", "function", "form", "submit", "trans
 
 ConditionKind = Literal["or", "equiv", "and", "not", "compare", "is", "in", "between", "predicate", "catch"]
 
-DataScope = Literal["parameter", "local", "attribute", "global", "database", "external", "other"]
+DataScope = Literal["parameter", "local", "attribute", "global", "database", "external", "system", "other"]
 
 DbOperation = Literal["insert", "update", "modify", "delete", "merge", "select", "native"]
 
@@ -239,6 +239,8 @@ class _DataAccessRequired(TypedDict):
 
 class DataAccess(_DataAccessRequired, total=False):
     """A data object read or written by a statement."""
+    data_type: DataType
+    """the type, when known; for now that of system fields"""
     declared: bool
     """declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable"""
     depends: Dependency
@@ -255,6 +257,20 @@ class DataAccess(_DataAccessRequired, total=False):
     """accessed by the called procedure, not by the statement itself"""
     whole: bool
     """writes: the whole data object is replaced, not just a component"""
+
+
+class _DataTypeRequired(TypedDict):
+    kind: str
+    """`i`, `b`, `c`, `n`, `d`, `t`, `x` or `p`"""
+
+
+class DataType(_DataTypeRequired, total=False):
+    """A built-in elementary type, like that of a system field."""
+    data_element: str
+    """the data element typing it, like `SYST_DATUM`"""
+    decimals: int
+    length: int
+    """characters of `c` and `n`, bytes of `x` and `p`"""
 
 
 class _DbAccessRequired(TypedDict):
@@ -290,6 +306,8 @@ class _DbAccessRequired(TypedDict):
 class DbAccess(_DbAccessRequired, total=False):
     """One database access statement."""
     block: BlockRef
+    cluster: DbCluster
+    """a data cluster: `EXPORT ... TO DATABASE` (`modify`), `IMPORT ... FROM DATABASE` and `IMPORT DIRECTORY` (`select`), `DELETE FROM DATABASE` (`delete`); the exported data objects are in `source`, the imported ones in `target`"""
     connection: str
     cursor: str
     """cursor variable of OPEN CURSOR"""
@@ -310,6 +328,19 @@ class DbAssignment(TypedDict):
     """`column = value` in UPDATE ... SET."""
     column: DbColumn
     value: str
+
+
+class _DbClusterRequired(TypedDict):
+    area: str
+    """the area, as written, like `mo`"""
+
+
+class DbCluster(_DbClusterRequired, total=False):
+    """A data cluster in a database table, `EXPORT ... TO DATABASE dbtab(ar) ID id`."""
+    id: str
+    """the ID as written: a literal with its quotes, or a data object"""
+    parameters: List[str]
+    """the names in the cluster, lower case: `orders` of `orders = lt_orders`; in the old form `EXPORT gt_rt TO ...` the data objects"""
 
 
 class _DbColumnRequired(TypedDict):

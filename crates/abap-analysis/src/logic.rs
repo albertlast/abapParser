@@ -16,6 +16,7 @@ use abap_source::SourceRef;
 use abap_syntax::expr::{Access, Cond, CondKind, DataRef, Expr, ExprKind, Head, Link};
 use abap_syntax::operands::operands;
 use abap_syntax::structure;
+use abap_syntax::system::{self, SystemField};
 use abap_syntax::{decl, join_tokens, File, Statement, StatementKind as K, Token, TokenKind};
 
 use crate::args::{call_args, Actual, At, CallArgs};
@@ -671,6 +672,7 @@ impl<'w> Engine<'w> {
             whole: false,
             declared: false,
             implicit: false,
+            data_type: None,
             sources: Vec::new(),
             from_entry: false,
             via: Some(via.clone()),
@@ -811,6 +813,7 @@ impl<'w> Engine<'w> {
                         whole: false,
                         declared: false,
                         implicit: false,
+                        data_type: None,
                         sources: Vec::new(),
                         from_entry: false,
                         via: Some(via.clone()),
@@ -1819,7 +1822,9 @@ fn procedure(
 
 impl Ctx<'_> {
     fn scope(&self, name: &str, found: m::DataScope) -> m::DataScope {
-        if self.locals.contains(name) {
+        if found == m::DataScope::System {
+            m::DataScope::System
+        } else if self.locals.contains(name) {
             m::DataScope::Local
         } else if self.parameters.contains(name) {
             m::DataScope::Parameter
@@ -1926,8 +1931,9 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
     if let Some((name, used)) = abap_syntax::sap_macro(file, s) {
         macro_accesses(file, s, name, used, &mut reads, &mut writes);
     }
-    if let Some(whole) = sets_subrc(file, s) {
-        writes.push(implicit("sy-subrc", start_of(&toks), whole));
+    let conditions: Vec<m::Condition> = ops.conds().map(|c| condition(&toks, c)).collect();
+    for (field, whole) in sets_fields(file, s, &conditions) {
+        writes.push(implicit(field, start_of(&toks), whole));
     }
     // the start value of `DATA x TYPE i VALUE 1`
     if matches!(s.kind, K::Data | K::Constant) && toks.iter().any(|t| t.is("VALUE")) {
@@ -1941,6 +1947,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 whole: true,
                 declared: true,
                 implicit: false,
+                data_type: None,
                 sources: Vec::new(),
                 from_entry: false,
                 via: None,
@@ -1995,6 +2002,8 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
 fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
     let path = text(toks, r.start, r.last);
     let field = system_field(&path);
+    let known = field.as_ref().and_then(|(_, f)| *f);
+    let field = field.map(|(name, _)| name);
     let name = if r.attribute {
         let full = text(toks, r.start, r.pos).to_ascii_lowercase();
         full.strip_prefix("me->")
@@ -2021,12 +2030,15 @@ fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
         },
         scope: if r.attribute {
             m::DataScope::Attribute
+        } else if known.is_some() {
+            m::DataScope::System
         } else {
             m::DataScope::Other
         },
         whole: r.access == Access::Write && whole,
         declared: r.declared,
         implicit: false,
+        data_type: known.map(data_type),
         sources: Vec::new(),
         from_entry: false,
         via: None,
@@ -2039,9 +2051,10 @@ fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
     }
 }
 
-/// A system field accessed as `sy-subrc` or `syst-subrc`: `sy-subrc`, lower
-/// case. Each is its own data object, not a component of `sy`.
-fn system_field(path: &str) -> Option<String> {
+/// A system field accessed as `sy-subrc` or `syst-subrc`: its name
+/// `sy-subrc`, lower case, and the field of SYST, unless no field has the
+/// name. Each is its own data object, not a component of `sy`.
+fn system_field(path: &str) -> Option<(String, Option<&'static SystemField>)> {
     let lower = path.to_ascii_lowercase();
     let rest = lower
         .strip_prefix("sy-")
@@ -2050,7 +2063,16 @@ fn system_field(path: &str) -> Option<String> {
         .chars()
         .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
         .collect();
-    (!field.is_empty()).then(|| format!("sy-{field}"))
+    (!field.is_empty()).then(|| (format!("sy-{field}"), system::system_field(&field)))
+}
+
+fn data_type(f: &SystemField) -> m::DataType {
+    m::DataType {
+        kind: f.kind.as_str().to_string(),
+        length: (f.length > 0).then_some(f.length),
+        decimals: (f.decimals > 0).then_some(f.decimals),
+        data_element: Some(f.data_element.to_string()),
+    }
 }
 
 fn start_of(toks: &[&Token]) -> m::Position {
@@ -2063,14 +2085,19 @@ fn start_of(toks: &[&Token]) -> m::Position {
 /// Data a statement writes without naming it, like `sy-subrc`; `whole`
 /// when it always does.
 fn implicit(name: &str, at: m::Position, whole: bool) -> m::DataAccess {
+    let field = system_field(name).and_then(|(_, f)| f);
     m::DataAccess {
         name: name.to_string(),
         path: name.to_string(),
         access: m::AccessKind::Write,
-        scope: m::DataScope::Other,
+        scope: match field {
+            Some(_) => m::DataScope::System,
+            None => m::DataScope::Other,
+        },
         whole,
         declared: false,
         implicit: true,
+        data_type: field.map(data_type),
         sources: Vec::new(),
         from_entry: false,
         via: None,
@@ -2123,7 +2150,9 @@ fn sets_subrc(file: &File, s: &Statement) -> Option<bool> {
         | K::Convert
         | K::GetBit
         | K::SetBit
-        | K::Commit => Some(true),
+        | K::Commit
+        // ENDEXEC sets it, for the block
+        | K::ExecSQL => Some(true),
         // only a dynamic assignment or one of a table expression
         K::Assign => {
             let toks = tokens(file, s);
@@ -2140,6 +2169,62 @@ fn sets_subrc(file: &File, s: &Statement) -> Option<bool> {
         K::CallTransaction => Some(false),
         _ => None,
     }
+}
+
+/// The system fields a statement sets, as SAP documents for each, and
+/// whether it always does: `sy-subrc` (see [`sets_subrc`]), `sy-tabix`,
+/// `sy-index` in loops, `sy-dbcnt`, `sy-fdpos`, `sy-tfill` and `sy-tleng`,
+/// the message fields. Loops set theirs in each pass, which is what their
+/// statements read; after the loop the value is again the one from before,
+/// which this does not tell.
+fn sets_fields(
+    file: &File,
+    s: &Statement,
+    conditions: &[m::Condition],
+) -> Vec<(&'static str, bool)> {
+    let mut out: Vec<(&'static str, bool)> = sets_subrc(file, s)
+        .map(|whole| ("sy-subrc", whole))
+        .into_iter()
+        .collect();
+    let describe_table = || tokens(file, s).get(1).is_some_and(|t| t.is("TABLE"));
+    out.extend_from_slice(match s.kind {
+        K::ReadTable | K::Append | K::Collect | K::Loop => &[("sy-tabix", true)],
+        K::Do | K::While => &[("sy-index", true)],
+        K::Select
+        | K::SelectLoop
+        | K::With
+        | K::WithLoop
+        | K::InsertDatabase
+        | K::UpdateDatabase
+        | K::ModifyDatabase
+        | K::DeleteDatabase
+        | K::FetchNextCursor
+        | K::ExecSQL => &[("sy-dbcnt", true)],
+        // only when it finds the pattern
+        K::Search => &[("sy-fdpos", false)],
+        K::Describe if describe_table() => &[("sy-tfill", true), ("sy-tleng", true)],
+        K::Message => &[
+            ("sy-msgid", true),
+            ("sy-msgty", true),
+            ("sy-msgno", true),
+            ("sy-msgv1", true),
+            ("sy-msgv2", true),
+            ("sy-msgv3", true),
+            ("sy-msgv4", true),
+        ],
+        _ => &[],
+    });
+    // CO, CN, CA, NA, CS, NS, CP and NP set sy-fdpos, true or not
+    fn compares_strings(c: &m::Condition) -> bool {
+        c.operator
+            .as_deref()
+            .is_some_and(|o| matches!(o, "CO" | "CN" | "CA" | "NA" | "CS" | "NS" | "CP" | "NP"))
+            || c.children.iter().any(compares_strings)
+    }
+    if conditions.iter().any(compares_strings) && !out.iter().any(|(f, _)| *f == "sy-fdpos") {
+        out.push(("sy-fdpos", true));
+    }
+    out
 }
 
 /// Whether a call sets `sy-subrc`: every method call sets it to 0 when the
@@ -2169,14 +2254,22 @@ fn macro_accesses(
     let access = |i: usize, kind: m::AccessKind, whole: bool| {
         let arg = args.get(i).filter(|a| hr::is_data(a))?;
         let path = hr::join(arg);
+        let field = system_field(&path);
+        let known = field.as_ref().and_then(|(_, f)| *f);
         Some(m::DataAccess {
-            name: system_field(&path).unwrap_or_else(|| arg[0].text.to_ascii_lowercase()),
+            name: field
+                .map(|(name, _)| name)
+                .unwrap_or_else(|| arg[0].text.to_ascii_lowercase()),
             path,
             access: kind,
-            scope: m::DataScope::Other,
+            scope: match known {
+                Some(_) => m::DataScope::System,
+                None => m::DataScope::Other,
+            },
             whole,
             declared: false,
             implicit: false,
+            data_type: known.map(data_type),
             sources: Vec::new(),
             from_entry: false,
             via: None,
@@ -2607,6 +2700,7 @@ fn reaching(
         whole: access == m::AccessKind::Write,
         declared: false,
         implicit: false,
+        data_type: None,
         sources: Vec::new(),
         from_entry: false,
         via: None,
@@ -2805,6 +2899,7 @@ fn aliases(
                 whole: false,
                 declared: false,
                 implicit: false,
+                data_type: None,
                 sources: Vec::new(),
                 from_entry: false,
                 via: a.via.clone(),
@@ -2820,6 +2915,7 @@ fn aliases(
             whole: false,
             declared: false,
             implicit: false,
+            data_type: None,
             sources: Vec::new(),
             from_entry: false,
             via: None,
@@ -3324,64 +3420,67 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
     });
     // what the value of `var` written by a step depends on; without a
     // variable, e.g. for a condition, everything the step reads
-    let inputs_of =
-        |start: u32, var: &str, inputs: &mut BTreeSet<String>, tables: &mut BTreeSet<String>| {
-            let mut seen: HashSet<(u32, String)> = HashSet::new();
-            let mut todo: Vec<(u32, String)> = vec![(start, var.to_string())];
-            while let Some((id, var)) = todo.pop() {
-                if !seen.insert((id, var.clone())) {
+    let inputs_of = |start: u32,
+                     var: &str,
+                     inputs: &mut BTreeSet<String>,
+                     tables: &mut BTreeSet<String>| {
+        let mut seen: HashSet<(u32, String)> = HashSet::new();
+        let mut todo: Vec<(u32, String)> = vec![(start, var.to_string())];
+        while let Some((id, var)) = todo.pop() {
+            if !seen.insert((id, var.clone())) {
+                continue;
+            }
+            let Some(s) = by_id.get(&id) else { continue };
+            // written only through calls: what it depends on there
+            let through_calls: Vec<&m::Dependency> = s
+                .writes
+                .iter()
+                .filter(|w| !var.is_empty() && w.name == var)
+                .map(|w| w.depends.as_ref())
+                .chain(
+                    s.tables
+                        .iter()
+                        .filter(|t| {
+                            !var.is_empty() && t.name == var && t.access == m::AccessKind::Write
+                        })
+                        .map(|t| t.depends.as_ref()),
+                )
+                .collect::<Option<Vec<_>>>()
+                .unwrap_or_default();
+            let narrow = !through_calls.is_empty();
+            let arguments = through_calls.iter().any(|d| d.arguments);
+            for d in &through_calls {
+                tables.extend(d.tables.iter().cloned());
+            }
+            for r in &s.reads {
+                // the reference `lo` of `lo->x` decides which object it is
+                let relevant = !narrow
+                    || (arguments && r.via.is_none())
+                    || through_calls.iter().any(|d| d.reads.contains(&r.name))
+                    || var
+                        .strip_prefix(r.name.as_str())
+                        .is_some_and(|rest| rest.starts_with("->"));
+                if !relevant {
                     continue;
                 }
-                let Some(s) = by_id.get(&id) else { continue };
-                // written only through calls: what it depends on there
-                let through_calls: Vec<&m::Dependency> = s
-                    .writes
-                    .iter()
-                    .filter(|w| !var.is_empty() && w.name == var)
-                    .map(|w| w.depends.as_ref())
-                    .chain(
-                        s.tables
-                            .iter()
-                            .filter(|t| {
-                                !var.is_empty() && t.name == var && t.access == m::AccessKind::Write
-                            })
-                            .map(|t| t.depends.as_ref()),
-                    )
-                    .collect::<Option<Vec<_>>>()
-                    .unwrap_or_default();
-                let narrow = !through_calls.is_empty();
-                let arguments = through_calls.iter().any(|d| d.arguments);
-                for d in &through_calls {
-                    tables.extend(d.tables.iter().cloned());
+                // system fields come from the runtime, not from callers
+                if r.from_entry && !matches!(r.scope, m::DataScope::Local | m::DataScope::System) {
+                    inputs.insert(r.name.clone());
                 }
-                for r in &s.reads {
-                    // the reference `lo` of `lo->x` decides which object it is
-                    let relevant = !narrow
-                        || (arguments && r.via.is_none())
-                        || through_calls.iter().any(|d| d.reads.contains(&r.name))
-                        || var
-                            .strip_prefix(r.name.as_str())
-                            .is_some_and(|rest| rest.starts_with("->"));
-                    if !relevant {
-                        continue;
-                    }
-                    if r.from_entry && r.scope != m::DataScope::Local {
-                        inputs.insert(r.name.clone());
-                    }
-                    todo.extend(r.sources.iter().map(|src| (*src, r.name.clone())));
-                }
-                if !narrow {
-                    for t in &s.tables {
-                        if t.access == m::AccessKind::Read {
-                            tables.insert(t.name.clone());
-                        }
-                    }
-                }
-                // the conditions deciding whether the step runs
-                todo.extend(s.guards.iter().map(|g| (g.statement, String::new())));
-                todo.extend(case_of.get(&id).map(|c| (*c, String::new())));
+                todo.extend(r.sources.iter().map(|src| (*src, r.name.clone())));
             }
-        };
+            if !narrow {
+                for t in &s.tables {
+                    if t.access == m::AccessKind::Read {
+                        tables.insert(t.name.clone());
+                    }
+                }
+            }
+            // the conditions deciding whether the step runs
+            todo.extend(s.guards.iter().map(|g| (g.statement, String::new())));
+            todo.extend(case_of.get(&id).map(|c| (*c, String::new())));
+        }
+    };
 
     let mut out: BTreeMap<String, m::Effect> = BTreeMap::new();
     let mut add = |name: &str, scope: m::DataScope, id: u32, via: Option<&m::BlockRef>| {
@@ -3406,7 +3505,8 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
         for w in &s.writes {
             // `sy-subrc` set by a statement, or `pnp-sw-found` by a macro of
             // SAP, are for the checks that follow
-            let undeclared = w.implicit && w.scope == m::DataScope::Other;
+            let undeclared =
+                w.implicit && matches!(w.scope, m::DataScope::Other | m::DataScope::System);
             if w.scope != m::DataScope::Local && !w.declared && !undeclared {
                 add(&w.name, w.scope, s.id, w.via.as_ref());
             }
@@ -3921,6 +4021,83 @@ ENDFORM.",
         assert!(f.effects.iter().all(|e| !e.name.starts_with("sy")));
         assert!(crate::text::logic(&l)
             .contains("when sy-subrc = 0 [sy-subrc of 2] AND syst-subrc NE 0 [sy-subrc of 4]"));
+    }
+
+    #[test]
+    fn system_fields_have_types_and_the_statements_setting_them() {
+        let l = logic(
+            "FORM f USING it_tab TYPE ty_tab.
+  gv_date = sy-datum.
+  READ TABLE it_tab INTO DATA(ls) WITH KEY id = 1.
+  gv_line = sy-tabix.
+  SELECT * FROM zt INTO TABLE @DATA(lt).
+  gv_count = sy-dbcnt.
+  DO 3 TIMES.
+    gv_round = sy-index.
+  ENDDO.
+  IF gv_text CA ' '.
+    gv_pos = sy-fdpos.
+  ENDIF.
+  MESSAGE e001(zm) INTO DATA(lv_msg).
+  gv_class = sy-msgid.
+ENDFORM.",
+        );
+        let f = procedure(&l, "f");
+        let read = |text: &str| {
+            find(&f.body, text)
+                .reads
+                .iter()
+                .find(|r| r.name.starts_with("sy-"))
+                .unwrap()
+                .clone()
+        };
+        // set by the runtime, with its type
+        let datum = read("gv_date = sy-datum.");
+        assert_eq!(datum.scope, m::DataScope::System);
+        assert!(datum.from_entry);
+        let t = datum.data_type.unwrap();
+        assert_eq!(
+            (t.kind.as_str(), t.data_element.as_deref()),
+            ("d", Some("SYST_DATUM"))
+        );
+        // from the runtime: no input of the procedure
+        assert!(effect(f, "gv_date").inputs.is_empty());
+        // set by statements: from them
+        assert_eq!(read("gv_line = sy-tabix.").sources, [2]);
+        assert_eq!(effect(f, "gv_line").inputs, ["it_tab"]);
+        assert_eq!(read("gv_count = sy-dbcnt.").sources, [4]);
+        assert_eq!(effect(f, "gv_count").tables, ["ZT"]);
+        let index = read("gv_round = sy-index.");
+        assert_eq!(
+            (index.sources.as_slice(), index.from_entry),
+            (&[6][..], false)
+        );
+        assert_eq!(read("gv_pos = sy-fdpos.").sources, [9]);
+        let msgid = read("gv_class = sy-msgid.");
+        assert_eq!(msgid.sources, [12]);
+        assert_eq!(msgid.data_type.unwrap().length, Some(20));
+        // no system field is an effect
+        assert!(f.effects.iter().all(|e| !e.name.starts_with("sy-")));
+    }
+
+    #[test]
+    fn data_clusters_in_tables() {
+        let l = logic(
+            "REPORT z.
+FORM put.
+  SELECT * FROM zsrc INTO TABLE @DATA(lt_rows).
+  EXPORT rows = lt_rows TO DATABASE indx(zr) ID 'K1'.
+ENDFORM.
+FORM take.
+  DATA lt_rows TYPE STANDARD TABLE OF zsrc.
+  IMPORT rows = lt_rows FROM DATABASE indx(zr) ID 'K1'.
+  INSERT ztgt FROM TABLE @lt_rows.
+ENDFORM.",
+        );
+        assert_eq!(effect(procedure(&l, "put"), "INDX").tables, ["ZSRC"]);
+        assert_eq!(effect(procedure(&l, "take"), "ZTGT").tables, ["INDX"]);
+        let db = crate::db_access("IMPORT rows = lt_rows FROM DATABASE indx(zr) ID 'K1'.");
+        assert_eq!(db[0].cluster.as_ref().unwrap().area, "zr");
     }
 
     #[test]

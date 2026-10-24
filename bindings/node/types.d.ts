@@ -199,6 +199,8 @@ export type ConditionKind = "or" | "equiv" | "and" | "not" | "compare" | "is" | 
 /** A data object read or written by a statement. */
 export interface DataAccess {
   access: AccessKind;
+  /** the type, when known; for now that of system fields */
+  data_type?: DataType;
   /** declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable */
   declared?: boolean;
   /** writes through a call: what the written value depends on in the called procedure */
@@ -223,13 +225,26 @@ export interface DataAccess {
   whole?: boolean;
 }
 
-export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "other";
+export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "system" | "other";
+
+/** A built-in elementary type, like that of a system field. */
+export interface DataType {
+  /** the data element typing it, like `SYST_DATUM` */
+  data_element?: string;
+  decimals?: number;
+  /** `i`, `b`, `c`, `n`, `d`, `t`, `x` or `p` */
+  kind: string;
+  /** characters of `c` and `n`, bytes of `x` and `p` */
+  length?: number;
+}
 
 /** One database access statement. */
 export interface DbAccess {
   block?: BlockRef;
   bypassing_buffer: boolean;
   client_specified: boolean;
+  /** a data cluster: `EXPORT ... TO DATABASE` (`modify`), `IMPORT ... FROM DATABASE` and `IMPORT DIRECTORY` (`select`), `DELETE FROM DATABASE` (`delete`); the exported data objects are in `source`, the imported ones in `target` */
+  cluster?: DbCluster;
   /** comparisons of WHERE, subqueries included */
   conditions: DbCondition[];
   connection?: string;
@@ -275,6 +290,16 @@ export interface DbAccess {
 export interface DbAssignment {
   column: DbColumn;
   value: string;
+}
+
+/** A data cluster in a database table, `EXPORT ... TO DATABASE dbtab(ar) ID id`. */
+export interface DbCluster {
+  /** the area, as written, like `mo` */
+  area: string;
+  /** the ID as written: a literal with its quotes, or a data object */
+  id?: string;
+  /** the names in the cluster, lower case: `orders` of `orders = lt_orders`; in the old form `EXPORT gt_rt TO ...` the data objects */
+  parameters?: string[];
 }
 
 /** A column reference, `qualifier~name` or `name`. */
