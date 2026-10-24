@@ -203,6 +203,24 @@ function sqlCases(dir, outFile) {
   console.log(`oracle: ${out.length} sql cases`);
 }
 
+// SAP's global macros, like those of the logical database PNP, as the
+// parser has them in SAP_MACROS of crates/abap-syntax/src/lib.rs
+function sapMacros() {
+  const rust = fs.readFileSync(new URL("../crates/abap-syntax/src/lib.rs", import.meta.url), "utf8");
+  const list = rust.match(/pub const SAP_MACROS: &\[&str\] = &\[([^\]]*)\]/);
+  if (list === null) {
+    throw new Error("SAP_MACROS not found in crates/abap-syntax/src/lib.rs");
+  }
+  return [...list[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+}
+
+// a configuration for the release with SAP's global macros
+function configFor(version) {
+  const conf = Config.getDefault(version).get();
+  conf.syntax.globalMacros = sapMacros();
+  return conf;
+}
+
 // on-premise releases, oldest first
 const RELEASES = ["v700", "v702", "v740sp02", "v740sp05", "v740sp08", "v750", "v751", "v752",
   "v753", "v754", "v755", "v756", "v757", "v758", "v816"];
@@ -226,7 +244,7 @@ function releases(outDir, inputs) {
     // per file: statement key -> type per release
     const kinds = new Map();
     for (const [r, release] of RELEASES.entries()) {
-      const reg = new Registry(Config.getDefault(Version[release]));
+            const reg = new Registry(new Config(JSON.stringify(configFor(Version[release]))));
       for (const [name, text] of sources) {
         reg.addFile(new MemoryFile(name, text));
       }
@@ -310,7 +328,7 @@ function main() {
 
   // unknown types are void instead of errors, so the syntax check of code
   // using SAP standard types goes on
-  const conf = Config.getDefault(Version.v816).get();
+    const conf = configFor(Version.v816);
   conf.syntax.errorNamespace = "^$";
   const config = new Config(JSON.stringify(conf));
   let files = 0;

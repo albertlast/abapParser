@@ -44,7 +44,7 @@ The corpus is 1,929 files from fourteen open source projects (MIT/Apache-2.0), t
 - **Tokens:** identical in all files.
 - **Statement boundaries:** identical in 99.8% of the files, macro expansion included.
 - **Statement kinds:** 99.85% of 321,856 statements classified the same. Most of the rest are statements abaplint cannot parse, or macros defined twice, where we follow the ABAP documentation and abaplint does not.
-- **abaplint statement test cases:** 99.9% of 4,363 classified the same.
+- **abaplint statement test cases:** all 4,365 classified the same; cases for the ABAP Cloud language versions are left out.
 - **Symbols:** identical to abaplint's file information in every compared category across 1,861 files: classes, interfaces, methods, parameters, attributes, aliases, implemented interfaces, forms, implementations. Files where abaplint itself fails to parse a statement are skipped.
 
 - **Database access:** for 1,474 of the corpus's 1,475 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
@@ -59,8 +59,8 @@ The corpus is 1,929 files from fourteen open source projects (MIT/Apache-2.0), t
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
-- **Releases:** abaplint was run once per on-premise release. Of 265,811 corpus statements, 261,031 (98.2%) get the release abaplint gives. 4,777 differ where abaplint reads newer syntax as older or dates predicate functions later, see [Releases](#releases); 3 differ otherwise. Of abaplint's 1,012 release-tagged test cases that apply on premise, 98.0% are met.
-- **Syntax errors:** 69 of abaplint's 76 cases that are invalid at every release are reported; no statement abaplint accepts is reported, in the corpus or in its test cases.
+- **Releases:** abaplint was run once per on-premise release. Of 265,817 corpus statements, 261,037 (98.2%) get the release abaplint gives. 4,777 differ where abaplint reads newer syntax as older or dates predicate functions later, see [Releases](#releases); 3 differ otherwise. Of abaplint's 1,016 release-tagged test cases that apply on premise, 98.0% are met.
+- **Syntax errors:** 69 of abaplint's 77 cases that are invalid at every release are reported; no statement abaplint accepts is reported, in the corpus or in its test cases.
 
 Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Syntax errors are found by checks for errors of known kinds, not by a full grammar of every statement.
 

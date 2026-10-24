@@ -60,6 +60,11 @@
   "type": "Write"
  },
  {
+  "abap": "WRITE (3) ''NO-GAP.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
   "abap": "write /(100) 'foobar'.",
   "expect": "match",
   "type": "Write"
@@ -406,6 +411,11 @@
  },
  {
   "abap": "WRITE / (10) <pnumber>.",
+  "expect": "match",
+  "type": "Write"
+ },
+ {
+  "abap": "WRITE |{ float EXPONENT = 0 DECIMALS = foo-bar NUMBER = RAW }|.",
   "expect": "match",
   "type": "Write"
  },

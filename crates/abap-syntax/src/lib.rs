@@ -168,6 +168,28 @@ pub fn parse_with_macros(source: &str, macros: &[MacroDef]) -> File {
 type MacroTable = HashMap<String, Vec<(usize, String)>>;
 
 /// The definition valid at a source offset.
+/// The name at the start of `tokens`, upper case: identifiers joined by
+/// dashes without blanks, like `RP-PROVIDE-FROM-LAST`; with the number of
+/// tokens it takes.
+fn dashed_name(tokens: &[&Token]) -> (String, usize) {
+    let Some(first) = tokens.first() else {
+        return (String::new(), 0);
+    };
+    let mut name = first.upper();
+    let mut n = 1;
+    while n + 1 < tokens.len()
+        && tokens[n].kind == TokenKind::Dash
+        && !tokens[n].ws_before
+        && !tokens[n + 1].ws_before
+        && tokens[n + 1].kind == TokenKind::Identifier
+    {
+        name.push('-');
+        name.push_str(&tokens[n + 1].upper());
+        n += 2;
+    }
+    (name, n)
+}
+
 fn macro_at<'a>(table: &'a MacroTable, name: &str, offset: usize) -> Option<&'a String> {
     table
         .get(name)?
@@ -205,10 +227,11 @@ fn expand_macros(file: &mut File, macros: &MacroTable, depth: usize) {
         let s = out.last().unwrap();
         let tokens: Vec<&Token> = s.tokens.iter().map(|t| &file.lexed.tokens[*t]).collect();
         let at = tokens[0].clone();
-        let Some(body) = macro_at(macros, &at.upper(), at.span.start) else {
+        let (name, used) = dashed_name(&tokens);
+        let Some(body) = macro_at(macros, &name, at.span.start) else {
             continue;
         };
-        let text = substitute(body, &macro_arguments(&tokens[1..]));
+        let text = substitute(body, &macro_arguments(&tokens[used..]));
         // inside the expansion, the definitions valid at the call apply
         let mut inner_macros: MacroTable = macros
             .keys()
@@ -479,6 +502,18 @@ fn extract_pragmas(tokens: &[Token], statements: &mut [Statement]) {
     }
 }
 
+/// Macros of SAP standard that programs call without defining them: those
+/// of the logical database PNP (include DBPNPMAC), which reports on it get
+/// with the database. Their calls are MacroCall statements; the names only,
+/// what they expand to is in the SAP system. The abaplint oracle
+/// (`tools/oracle.mjs`) gets the same list as global macros.
+pub const SAP_MACROS: &[&str] = &[
+    "RP-PROVIDE-FROM-LAST",
+    "RP-PROVIDE-FROM-FRST",
+    "RP-READ-INFOTYPE",
+    "RP-SET-DATA-INTERVAL",
+];
+
 /// Statements inside DEFINE ... END-OF-DEFINITION become MacroContent, and
 /// unknown statements starting with a defined macro name become MacroCall.
 /// Definitions are added to `macros`; a later definition replaces an earlier one.
@@ -492,7 +527,8 @@ fn mark_macros(
     for s in statements.iter_mut() {
         match s.kind {
             StatementKind::Define => {
-                current = s.tokens.get(1).map(|i| (tokens[*i].upper(), None, 0));
+                let after: Vec<&Token> = s.tokens.iter().skip(1).map(|i| &tokens[*i]).collect();
+                current = (!after.is_empty()).then(|| (dashed_name(&after).0, None, 0));
             }
             StatementKind::EndOfDefinition if current.is_some() => {
                 let (name, start, end) = current.take().unwrap();
@@ -516,7 +552,11 @@ fn mark_macros(
             }
             StatementKind::Unknown | StatementKind::MacroCall => {
                 let first = &tokens[s.tokens[0]];
-                if macro_at(macros, &first.upper(), first.span.start).is_some() {
+                let words: Vec<&Token> = s.tokens.iter().map(|i| &tokens[*i]).collect();
+                let name = dashed_name(&words).0;
+                if macro_at(macros, &name, first.span.start).is_some()
+                    || SAP_MACROS.contains(&name.as_str())
+                {
                     s.kind = StatementKind::MacroCall;
                 }
             }
@@ -632,6 +672,21 @@ mod tests {
             kinds(src),
             ["MethodImplementation", "NativeSQL", "EndMethod"]
         );
+    }
+
+    #[test]
+    fn macros_with_dashes_and_those_of_sap() {
+        let src = "DEFINE my-mac.\n  WRITE &1.\nEND-OF-DEFINITION.\nmy-mac 'x'.";
+        let file = parse(src);
+        let write = file.statements.last().unwrap();
+        assert_eq!(write.kind, StatementKind::Write);
+        assert_eq!(file.statement_text(write), "WRITE 'x'.");
+        // defined in the logical database PNP, not in the program
+        assert_eq!(
+            kinds("rp-provide-from-last p0001 space pn-begda pn-endda."),
+            ["MacroCall"]
+        );
+        assert_eq!(kinds("rp-unknown p0001."), ["Unknown"]);
     }
 
     #[test]

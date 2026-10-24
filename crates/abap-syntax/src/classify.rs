@@ -646,9 +646,35 @@ fn insert(w: &Words, body: &[&Token]) -> StatementKind {
         return InsertDatabase;
     }
     if w.has("INTO") {
+        // INSERT f1 f2 INTO fg: several fields into a field group
+        if fields_before_into(body) > 1 {
+            return InsertFieldGroup;
+        }
         return InsertInternal;
     }
     InsertDatabase
+}
+
+/// Operands between the keyword and INTO at depth 0: tokens after a blank
+/// that are names or literals.
+fn fields_before_into(body: &[&Token]) -> usize {
+    let mut depth = 0u32;
+    let mut count = 0;
+    for t in body.iter().skip(1) {
+        match t.kind {
+            TokenKind::ParenLeft | TokenKind::BracketLeft => depth += 1,
+            TokenKind::ParenRight | TokenKind::BracketRight => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        if depth == 0 && t.is("INTO") {
+            break;
+        }
+        if depth == 0 && t.ws_before && matches!(t.kind, TokenKind::Identifier | TokenKind::String)
+        {
+            count += 1;
+        }
+    }
+    count
 }
 
 fn modify(w: &Words, body: &[&Token]) -> StatementKind {

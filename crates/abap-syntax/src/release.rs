@@ -470,6 +470,15 @@ impl<'a> Scan<'a> {
                 {
                     self.need(Release::V740Sp02, "table expression");
                 }
+                // get_ref( )->*
+                TokenKind::InstanceArrow
+                    if self.word(i + 1) == "*"
+                        && i > 0
+                        && self.t[i - 1].kind == TokenKind::ParenRight
+                        && !self.closes_constructor(i - 1) =>
+                {
+                    self.need(Release::V756, "dereference of a method result");
+                }
                 // ref->( name ), struct-( name )
                 TokenKind::InstanceArrow | TokenKind::Dash if self.tight_paren(i + 1) => {
                     // ASSIGN struc-(name) and CALL METHOD oref->(name) are old
@@ -566,6 +575,22 @@ impl<'a> Scan<'a> {
                 _ => return None,
             }
         }
+    }
+
+    /// Whether the `)` at `close` ends a constructor expression like
+    /// `CAST ty( ... )`.
+    fn closes_constructor(&self, close: usize) -> bool {
+        let Some(open) = (0..close).rev().find(|&k| {
+            self.depth[k] == self.depth[close] && self.t[k].kind == TokenKind::ParenLeft
+        }) else {
+            return false;
+        };
+        // back over the type name, zcl_x=>ty or #
+        let mut k = open;
+        while k > 1 && !self.t[k - 1].ws_before && self.t[k - 1].kind != TokenKind::Identifier {
+            k -= 2;
+        }
+        k > 1 && CONSTRUCTORS.iter().any(|(c, _)| *c == self.word(k - 2))
     }
 
     /// Whether the token is inside the `{ }` of a string template.

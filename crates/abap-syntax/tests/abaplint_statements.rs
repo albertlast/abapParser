@@ -12,7 +12,7 @@ use abap_syntax::StatementKind;
 use serde::Deserialize;
 
 /// Minimum share of "match" cases classified like abaplint; raise when improving.
-const MIN_MATCH_PERCENT: f64 = 99.8;
+const MIN_MATCH_PERCENT: f64 = 99.99;
 
 #[derive(Deserialize)]
 struct Case {
@@ -20,6 +20,8 @@ struct Case {
     expect: String,
     #[serde(rename = "type")]
     kind: Option<String>,
+    /// the ABAP Cloud language versions, `Cloud` or `KeyUser`
+    lang: Option<String>,
 }
 
 #[test]
@@ -37,6 +39,14 @@ fn abaplint_statement_cases() {
     for f in files {
         let cases: Vec<Case> = serde_json::from_str(&std::fs::read_to_string(&f).unwrap()).unwrap();
         for case in cases {
+            // what ABAP Cloud allows differs, e.g. AT PF1 is AT there
+            if case
+                .lang
+                .as_deref()
+                .is_some_and(|l| l != "None" && l != "Normal")
+            {
+                continue;
+            }
             let file = abap_syntax::parse(&case.abap);
             let statements: Vec<_> = file
                 .statements

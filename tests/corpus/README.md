@@ -2,7 +2,7 @@
 
 | Folder | Source | License | Used for |
 |---|---|---|---|
-| `abaplint/statements/` | statement tests of [abaplint](https://github.com/abaplint/abaplint) `v2.120.60`, extracted by `tools/extract-abaplint-tests.mjs` | MIT, see `abaplint/LICENSE` | `crates/abap-syntax/tests/abaplint_statements.rs` |
+| `abaplint/statements/` | statement tests of [abaplint](https://github.com/abaplint/abaplint) `v2.120.86`, extracted by `tools/extract-abaplint-tests.mjs` | MIT, see `abaplint/LICENSE` | `crates/abap-syntax/tests/abaplint_statements.rs` |
 | `abapgit/` (submodule) | [abapGit](https://github.com/abapGit/abapGit) | MIT | whole-file differential tests |
 | `abap-cheat-sheets/` (submodule) | [SAP-samples/abap-cheat-sheets](https://github.com/SAP-samples/abap-cheat-sheets) | Apache-2.0 | whole-file differential tests, modern syntax |
 | `abap2xlsx/` (submodule) | [abap2xlsx/abap2xlsx](https://github.com/abap2xlsx/abap2xlsx) | Apache-2.0 | large classes, older style, demo reports |

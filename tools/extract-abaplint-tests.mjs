@@ -15,7 +15,7 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 import * as esbuild from "esbuild";
 
-const ABAPLINT_TAG = "v2.120.60";
+const ABAPLINT_TAG = "v2.120.86";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const outDir = path.join(repoRoot, "tests", "corpus", "abaplint");

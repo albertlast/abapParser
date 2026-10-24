@@ -1103,6 +1103,30 @@
   "minRelease": "OpenABAP"
  },
  {
+  "abap": "lv_value = get_ref( )->*.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v756"
+ },
+ {
+  "abap": "lv_value = zcl_foo=>get_ref( )->*.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v756"
+ },
+ {
+  "abap": "lv_value = lo_obj->get_ref( iv_name )->*.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v756"
+ },
+ {
+  "abap": "lv_value = NEW zcl_foo( )->get_ref( )->*.",
+  "expect": "match",
+  "type": "Move",
+  "minRelease": "v756"
+ },
+ {
   "abap": "lv_ref_bgqc_name->* = me->ms_item-obj_name.",
   "expect": "match",
   "type": "Move",

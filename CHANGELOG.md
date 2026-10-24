@@ -3,7 +3,11 @@
 ## Unreleased
 
 - **Releases:** each statement gets the oldest on-premise ABAP release that has everything it uses, from 7.02 to 8.16, with the construct that needs it, like `7.40 SP02: inline declaration`. New `release` and `error` on statements. New command `abap release <file> [--release 750]` gives the release a file needs and the statements newer than a given release. 98.2% of the corpus statements get the release abaplint gives; all but 3 of the rest are cases where abaplint reads newer syntax as older or dates predicate functions later. The oracle has a new mode, `--releases`, that parses the corpus once per release.
-- **Syntax errors:** checks for errors of known kinds, like a keyword as a column, parameter sections out of order or `PACKAGE SIZE` without a table. They report 69 of abaplint's 76 cases that are invalid at every release, and none of the corpus statements abaplint accepts.
+- **Syntax errors:** checks for errors of known kinds, like a keyword as a column, parameter sections out of order or `PACKAGE SIZE` without a table. They report 69 of abaplint's 77 cases that are invalid at every release, and none of the corpus statements abaplint accepts.
+- **SAP macros:** calls of the macros of the logical database PNP (`RP-PROVIDE-FROM-LAST`, `RP-PROVIDE-FROM-FRST`, `RP-READ-INFOTYPE`, `RP-SET-DATA-INTERVAL`), which HR reports use without defining them, are `MacroCall` statements instead of `Unknown`. Macros with dashes in their names, `DEFINE my-mac.`, are expanded; only the part before the first dash was the name.
+- **Field groups:** `INSERT f1 f2 INTO header` is `InsertFieldGroup`, not an internal table insert.
+- **Text literals:** a literal in quotes ends at its closing quote also when no blank follows, as in SQLScript `'x';`, like abaplint 2.120.86.
+- **abaplint 2.120.86:** the reference is updated from 2.120.60, with its statement test cases extracted again.
 - **Older SAP systems:** tested against an ERP on SAP_BASIS 750 SP35.
   - What a system offers is read from its ADT discovery, not assumed from its release.
   - Data preview queries the system rejects fall back to the table preview, with single-table queries.

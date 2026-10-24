@@ -135,6 +135,21 @@
   "type": "ModifyLine"
  },
  {
+  "abap": "MODIFY LINE n LINE FORMAT INVERSE ON.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE n LINE FORMAT INVERSE OFF.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
+  "abap": "MODIFY LINE n LINE FORMAT INVERSE = lv_inverse INPUT ON.",
+  "expect": "match",
+  "type": "ModifyLine"
+ },
+ {
   "abap": "MODIFY LINE sy-index FIELD VALUE lv_val FROM gc_false.",
   "expect": "unknown",
   "release": "Newest",
