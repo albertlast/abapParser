@@ -20,7 +20,7 @@ use serde::Deserialize;
 
 /// Baselines; raise when improving.
 const MIN_CORPUS_PERCENT: f64 = 99.99;
-const MIN_CASES_PERCENT: f64 = 97.9;
+const MIN_CASES_PERCENT: f64 = 99.0;
 
 #[derive(Deserialize)]
 struct Golden {
@@ -56,6 +56,30 @@ const READ_AS_OLDER: [&str; 5] = [
 /// predicate method calls with 7.40 SP08.
 const PREDICATE_FUNCTION: &str = "predicate function";
 
+/// Constructs dated by SAP's ABAP release news where abaplint gives another
+/// release: `INTO @DATA(x)` came with 7.40 SP08, not SP05, for example.
+const RELEASE_NEWS: [&str; 15] = [
+    "inline declaration in SQL",
+    "inline declaration for OPEN CURSOR",
+    "path expression",
+    "path expression with parameters or filter",
+    "SQL searched CASE",
+    "CROSS JOIN",
+    "SQL hierarchy",
+    "hierarchy aggregate navigator",
+    "window expression",
+    "window function of 7.55",
+    "window frame",
+    "INDICATORS",
+    "INDICATORS NULL BITFIELD",
+    "SQL regular expression",
+    "SUBSTRING_REGEXPR",
+];
+
+fn by_release_news(needs: &[abap_syntax::release::Need]) -> bool {
+    needs.iter().any(|n| RELEASE_NEWS.contains(&n.construct))
+}
+
 /// abaplint's cloud releases that equal an on-premise one.
 const ON_PREMISE: [&str; 10] = [
     "v762", "v765", "v769", "v773", "v777", "v781", "v785", "v789", "v793", "v916",
@@ -85,6 +109,7 @@ fn releases_of_the_corpus() {
     let mut same = 0;
     let mut older = 0;
     let mut predicates = 0;
+    let mut news = 0;
     let mut diffs: Diffs = BTreeMap::new();
     for f in &files {
         let golden: Golden = serde_json::from_str(&std::fs::read_to_string(f).unwrap()).unwrap();
@@ -151,6 +176,9 @@ fn releases_of_the_corpus() {
             {
                 same += 1;
                 predicates += 1;
+            } else if by_release_news(&needs) {
+                same += 1;
+                news += 1;
             } else {
                 let text = abap_syntax::join_tokens(parsed.statement_tokens(s));
                 let construct = ours.map_or("-", |n| n.construct);
@@ -172,7 +200,7 @@ fn releases_of_the_corpus() {
     report("differences", &diffs);
     let rate = common::percent(same, total);
     println!(
-                "\nstatements with the release abaplint gives: {same}/{total} ({rate:.2}%), {older} of them newer syntax abaplint also reads as older, {predicates} predicate functions abaplint dates with 7.40 SP08"
+                "\nstatements with the release abaplint gives: {same}/{total} ({rate:.2}%), {older} of them newer syntax abaplint also reads as older, {predicates} predicate functions abaplint dates with 7.40 SP08, {news} dated by the release news"
     );
     assert!(
         rate >= MIN_CORPUS_PERCENT,
@@ -197,6 +225,7 @@ fn release_tagged_statement_cases() {
     let dir = common::repo_root().join("tests/corpus/abaplint/statements");
     let mut total = 0;
     let mut ok = 0;
+    let mut news = 0;
     let mut diffs: Diffs = BTreeMap::new();
     for f in common::json_files(&dir) {
         let cases: Vec<Case> = serde_json::from_str(&std::fs::read_to_string(&f).unwrap()).unwrap();
@@ -240,6 +269,9 @@ fn release_tagged_statement_cases() {
             let invalid = case.expect == "unknown" && syntax_error(&file, s).is_some();
             if invalid || check(ours, release) {
                 ok += 1;
+            } else if by_release_news(&statement_needs(&file, s)) {
+                ok += 1;
+                news += 1;
             } else {
                 let rule = match (&case.min_release, case.expect.as_str()) {
                     (Some(_), _) => "from",
@@ -255,7 +287,7 @@ fn release_tagged_statement_cases() {
     }
     report("release-tagged cases not met", &diffs);
     let rate = common::percent(ok, total);
-    println!("\nrelease-tagged cases met: {ok}/{total} ({rate:.1}%)");
+    println!("\nrelease-tagged cases met: {ok}/{total} ({rate:.1}%), {news} of them dated by the release news");
     assert!(
         rate >= MIN_CASES_PERCENT,
         "{rate:.1}% below {MIN_CASES_PERCENT}%"

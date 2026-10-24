@@ -5,8 +5,10 @@
 //! Releases a construct came with follow abaplint's grammar
 //! (<https://github.com/abaplint/abaplint>, MIT). Constructs abaplint dates by
 //! a cloud release (7.60 to 9.18) count from the on-premise release that
-//! shipped it, 7.76 from 7.54 for example. Statements that only exist in an
-//! older form are not told apart: a statement needs at least 7.00.
+//! shipped it, 7.76 from 7.54 for example. Where abaplint and SAP's ABAP
+//! release news disagree, the release news win: window expressions with 7.54,
+//! not 7.57, for example. Statements that only exist in an older form are not
+//! told apart: a statement needs at least 7.00.
 
 use crate::expr::{Access, Chain, Cond, CondKind, Expr, ExprKind, Head, Item, Link, Value};
 use crate::operands::{operands, Operand};
@@ -756,11 +758,18 @@ impl<'a> Scan<'a> {
             let t = self.t[i];
             if t.kind == TokenKind::At {
                 self.need(Release::V740Sp05, "host variable with @");
+                if self.word(i + 1) == "DATA" && self.tight_paren(i + 2) {
+                    if self.kind == K::OpenCursor {
+                        self.need(Release::V751, "inline declaration for OPEN CURSOR");
+                    } else {
+                        self.need(Release::V740Sp08, "inline declaration in SQL");
+                    }
+                }
             }
             if t.kind == TokenKind::AssociationName {
-                self.need(Release::V740Sp05, "path expression");
+                self.need(Release::V750, "path expression");
                 if matches!(self.word(i + 1), "(" | "[") {
-                    self.need(Release::V751, "path expression with parameters or filter");
+                    self.need(Release::V752, "path expression with parameters or filter");
                 }
             }
             let word = self.word(i).to_string();
@@ -806,6 +815,9 @@ impl<'a> Scan<'a> {
                 "CASE" if select && clause == "ORDER" => {
                     self.need(Release::V757, "ORDER BY an expression")
                 }
+                "CASE" if self.word(i + 1) == "WHEN" => {
+                    self.need(Release::V740Sp08, "SQL searched CASE")
+                }
                 "CASE" => self.need(Release::V740Sp05, "SQL CASE"),
                 "FIELDS"
                     if self.depth[i] == 0 && (i == 0 || self.word(i - 1) != "CORRESPONDING") =>
@@ -816,7 +828,7 @@ impl<'a> Scan<'a> {
                 "INTERSECT" | "EXCEPT" if self.starts_select(i + 1) => {
                     self.need(Release::V756, "INTERSECT or EXCEPT")
                 }
-                "CROSS" if self.word(i + 1) == "JOIN" => self.need(Release::V750, "CROSS JOIN"),
+                "CROSS" if self.word(i + 1) == "JOIN" => self.need(Release::V751, "CROSS JOIN"),
                 "CAST" if self.tight_paren(i + 1) || self.word(i + 1) == "(" => {
                     self.need(Release::V750, "SQL CAST")
                 }
@@ -824,14 +836,26 @@ impl<'a> Scan<'a> {
                 | "HIERARCHY_DESCENDANTS"
                 | "HIERARCHY_ANCESTORS"
                 | "HIERARCHY_SIBLINGS"
-                | "HIERARCHY_DESCENDANTS_AGGREGATE"
-                | "HIERARCHY_ANCESTORS_AGGREGATE"
                     if self.word(i + 1) == "(" =>
                 {
-                    self.need(Release::V750, "SQL hierarchy")
+                    self.need(Release::V753, "SQL hierarchy")
+                }
+                "HIERARCHY_DESCENDANTS_AGGREGATE" | "HIERARCHY_ANCESTORS_AGGREGATE"
+                    if self.word(i + 1) == "(" =>
+                {
+                    self.need(Release::V754, "hierarchy aggregate navigator")
                 }
                 "OFFSET" => self.need(Release::V751, "OFFSET"),
-                "OVER" if self.word(i + 1) == "(" => self.need(Release::V757, "window function"),
+                "OVER" if self.word(i + 1) == "(" => self.need(Release::V754, "window expression"),
+                "FIRST_VALUE" | "LAST_VALUE" | "NTILE" if self.word(i + 1) == "(" => {
+                    self.need(Release::V755, "window function of 7.55")
+                }
+                "ROWS"
+                    if matches!(self.word(i + 1), "BETWEEN" | "UNBOUNDED" | "CURRENT")
+                        || self.word(i + 2) == "PRECEDING" =>
+                {
+                    self.need(Release::V755, "window frame")
+                }
                 "PRIVILEGED" if self.word(i + 1) == "ACCESS" => {
                     if i > 0 && self.word(i - 1) == "WITH" {
                         self.need(Release::V752, "WITH PRIVILEGED ACCESS")
@@ -849,7 +873,10 @@ impl<'a> Scan<'a> {
                 "INDICATORS" if self.word(i + 1) == "SET" => {
                     self.need(Release::V755, "INDICATORS SET STRUCTURE")
                 }
-                "INDICATORS" => self.need(Release::V816, "INDICATORS"),
+                "INDICATORS" if self.find_seq("NULL BITFIELD").is_some() => {
+                    self.need(Release::V756, "INDICATORS NULL BITFIELD")
+                }
+                "INDICATORS" => self.need(Release::V754, "INDICATORS"),
                 "INTO"
                     if self.word(i + 1) == "(" && self.t.get(i + 1).is_some_and(|t| t.ws_after) =>
                 {
@@ -883,11 +910,10 @@ impl<'a> Scan<'a> {
                     self.need(Release::V753, "IS INITIAL in SQL")
                 }
                 "LIKE_REGEXPR" | "OCCURRENCES_REGEXPR" | "REPLACE_REGEXPR" => {
-                    self.need(Release::V757, "SQL regular expression")
+                    self.need(Release::V755, "SQL regular expression")
                 }
-                "LOCATE_REGEXPR" | "SUBSTRING_REGEXPR" => {
-                    self.need(Release::V758, "SQL regular expression")
-                }
+                "SUBSTRING_REGEXPR" => self.need(Release::V756, "SUBSTRING_REGEXPR"),
+                "LOCATE_REGEXPR" => self.need(Release::V758, "LOCATE_REGEXPR"),
                 "JOIN" if self.word(i + 1).starts_with('#') => self.need(Release::V816, "join tag"),
                 "+" | "-" | "*" | "/"
                     if select
@@ -1322,6 +1348,59 @@ mod tests {
         assert_eq!(need("APPEND foo( ) TO itab."), None);
         assert_eq!(need("DATA x TYPE i VALUE 1."), None);
         assert_eq!(need("METHODS m RETURNING VALUE(r) TYPE i."), None);
+    }
+
+    /// Releases from SAP's ABAP release news where abaplint gives others.
+    #[test]
+    fn sql_constructs_by_the_release_news() {
+        assert_eq!(
+            need("SELECT a FROM t INTO TABLE @DATA(lt)."),
+            Some((Release::V740Sp08, "inline declaration in SQL"))
+        );
+        assert_eq!(
+            need("OPEN CURSOR @DATA(c) FOR SELECT a FROM t."),
+            Some((Release::V751, "inline declaration for OPEN CURSOR"))
+        );
+        assert_eq!(
+            need("SELECT CASE a WHEN 1 THEN 2 END AS b FROM t INTO TABLE @lt."),
+            Some((Release::V740Sp05, "SQL CASE"))
+        );
+        assert_eq!(
+            need("SELECT CASE WHEN a = 1 THEN 2 END AS b FROM t INTO TABLE @lt."),
+            Some((Release::V740Sp08, "SQL searched CASE"))
+        );
+        assert_eq!(
+            need("SELECT a FROM t CROSS JOIN u INTO TABLE @lt."),
+            Some((Release::V751, "CROSS JOIN"))
+        );
+        assert_eq!(
+            need("SELECT a, ROW_NUMBER( ) OVER( ORDER BY a ) AS n FROM t INTO TABLE @lt."),
+            Some((Release::V754, "window expression"))
+        );
+        assert_eq!(
+            need("SELECT a, NTILE( 4 ) OVER( ORDER BY a ) AS n FROM t INTO TABLE @lt."),
+            Some((Release::V755, "window function of 7.55"))
+        );
+        assert_eq!(
+            need("SELECT a, SUM( b ) OVER( ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS s FROM t INTO TABLE @lt."),
+            Some((Release::V755, "window frame"))
+        );
+        assert_eq!(
+            need("SELECT a FROM t INTO TABLE @lt INDICATORS NULL STRUCTURE ind."),
+            Some((Release::V754, "INDICATORS"))
+        );
+        assert_eq!(
+            need("SELECT a FROM t INTO TABLE @lt INDICATORS NULL BITFIELD ind."),
+            Some((Release::V756, "INDICATORS NULL BITFIELD"))
+        );
+        assert_eq!(
+            need("SELECT a FROM t WHERE like_regexpr( pcre = 'a', value = b ) = 1 INTO TABLE @lt."),
+            Some((Release::V755, "SQL regular expression"))
+        );
+        assert_eq!(
+            need("SELECT FROM t FIELDS substring_regexpr( pcre = 'a', value = b ) AS c INTO TABLE @lt."),
+            Some((Release::V756, "SUBSTRING_REGEXPR"))
+        );
     }
 
     #[test]
