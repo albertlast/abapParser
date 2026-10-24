@@ -514,6 +514,17 @@ pub const SAP_MACROS: &[&str] = &[
     "RP-SET-DATA-INTERVAL",
 ];
 
+/// The macro of [`SAP_MACROS`] a MacroCall statement calls, with the number
+/// of tokens its name takes; its arguments follow.
+pub fn sap_macro(file: &File, s: &Statement) -> Option<(&'static str, usize)> {
+    if s.kind != StatementKind::MacroCall {
+        return None;
+    }
+    let tokens: Vec<&Token> = s.tokens.iter().map(|i| &file.tokens()[*i]).collect();
+    let (name, used) = dashed_name(&tokens);
+    SAP_MACROS.iter().find(|m| **m == name).map(|m| (*m, used))
+}
+
 /// Statements inside DEFINE ... END-OF-DEFINITION become MacroContent, and
 /// unknown statements starting with a defined macro name become MacroCall.
 /// Definitions are added to `macros`; a later definition replaces an earlier one.

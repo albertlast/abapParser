@@ -23,8 +23,17 @@ const pyproject = path.join(root, "bindings", "python", "pyproject.toml");
 
 const WORKSPACE_VERSION = /(\[workspace\.package\][^[]*?\nversion = ")([^"]+)(")/;
 // the crates of the workspace in Cargo.lock, they have no source
-const MEMBERS = ["abap-lexer", "abap-syntax", "abap-model", "abap-sql", "abap-source",
-  "abap-analysis", "abap-cli", "abap-node", "abap-python"];
+const MEMBERS = [
+  "abap-lexer",
+  "abap-syntax",
+  "abap-model",
+  "abap-sql",
+  "abap-source",
+  "abap-analysis",
+  "abap-cli",
+  "abap-node",
+  "abap-python",
+];
 
 function cargoVersion() {
   const m = fs.readFileSync(cargoToml, "utf8").match(WORKSPACE_VERSION);

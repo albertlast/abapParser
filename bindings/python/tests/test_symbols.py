@@ -118,6 +118,34 @@ class SymbolsTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             abap_parser.object_text("graph", ["CLAS:X"], {})
 
+    def test_sources_from_a_fetch_function(self):
+        sources = {
+            "PROG:ZMAIN": "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_SAVE'.\n  PERFORM run IN PROGRAM zother.",
+            "FUNC:Z_SAVE": "FUNCTION z_save.\n  DELETE FROM zlog WHERE id = 1.\nENDFUNCTION.",
+        }
+        asked = []
+
+        def fetch(reference):
+            asked.append(reference)
+            return sources.get(reference)
+
+        graph = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": fetch}, 2)
+        self.assertIn(("FUNC:Z_SAVE", "fetch:FUNC:Z_SAVE"), [(u["reference"], u["origin"]) for u in graph["units"]])
+        self.assertIn("PROG:ZOTHER", graph["missing"])
+        self.assertIn("FUNC:Z_SAVE", asked)
+        lg = abap_parser.logic_object("PROG:ZMAIN", {"fetch": fetch})
+        self.assertIn("ZLOG", [e["name"] for e in lg["procedures"][0]["effects"]])
+        self.assertEqual(abap_parser.fetch_source("PROG:ZMAIN", {"fetch": fetch}), sources["PROG:ZMAIN"])
+        self.assertIn("z_save", abap_parser.object_text("symbols", ["FUNC:Z_SAVE"], {"fetch": fetch}).lower())
+
+        def failing(reference):
+            raise ConnectionError("no connection")
+
+        graph = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": failing})
+        self.assertTrue(any("no connection" in e for e in graph["errors"]), graph["errors"])
+        with self.assertRaises(TypeError):
+            abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": "nope"})
+
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):
         path = CORPUS / "abapgit" / "src" / "apack" / "zcl_abapgit_apack_migration.clas.abap"

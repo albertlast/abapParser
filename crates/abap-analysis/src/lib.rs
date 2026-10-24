@@ -6,6 +6,7 @@ mod context;
 mod db;
 mod ddic;
 mod enhance;
+mod hr;
 mod logic;
 mod stores;
 mod symbols;
@@ -100,16 +101,27 @@ pub fn release(source: &str, target: Option<abap_syntax::release::Release>) -> m
     }
 }
 
-/// JSON entry points shared by the language bindings.
+/// JSON entry points shared by the language bindings. Those loading
+/// sources take the provider options as JSON and a provider of the caller,
+/// like a [`abap_source::FnProvider`] calling back into Node.js or Python,
+/// asked after the folders and before the SAP system.
 pub mod json {
+    /// A provider of the caller.
+    pub type Host = Option<Box<dyn abap_source::SourceProvider>>;
+
     pub fn symbols(source: &str) -> String {
         serde_json::to_string(&super::symbols(source)).expect("symbols serialize")
     }
 
     /// Call graph from objects like `CLAS:ZCL_X`, sources as described by a
     /// JSON [`abap_source::ProviderOptions`] object.
-    pub fn call_graph(roots: &[String], options: &str, depth: u32) -> Result<String, String> {
-        let workspace = workspace(options)?;
+    pub fn call_graph(
+        roots: &[String],
+        options: &str,
+        depth: u32,
+        host: Host,
+    ) -> Result<String, String> {
+        let workspace = workspace(options, host)?;
         let roots = roots
             .iter()
             .map(|r| r.parse::<abap_source::SourceRef>())
@@ -119,23 +131,23 @@ pub mod json {
     }
 
     /// Source text of one object, `None` when no provider has it.
-    pub fn fetch(reference: &str, options: &str) -> Result<Option<String>, String> {
+    pub fn fetch(reference: &str, options: &str, host: Host) -> Result<Option<String>, String> {
         let r: abap_source::SourceRef = reference.parse()?;
-        let provider = provider(options)?;
+        let provider = provider(options, host)?;
         provider
             .fetch(&r)
             .map(|s| s.map(|s| s.text))
             .map_err(|e| e.to_string())
     }
 
-    fn provider(options: &str) -> Result<Box<dyn abap_source::SourceProvider>, String> {
+    fn provider(options: &str, host: Host) -> Result<Box<dyn abap_source::SourceProvider>, String> {
         let options: abap_source::ProviderOptions =
             serde_json::from_str(options).map_err(|e| format!("invalid options: {e}"))?;
-        options.build().map_err(|e| e.to_string())
+        options.build_with(host).map_err(|e| e.to_string())
     }
 
-    fn workspace(options: &str) -> Result<crate::Workspace, String> {
-        Ok(crate::Workspace::new(provider(options)?))
+    fn workspace(options: &str, host: Host) -> Result<crate::Workspace, String> {
+        Ok(crate::Workspace::new(provider(options, host)?))
     }
 
     pub fn calls(source: &str) -> String {
@@ -153,9 +165,14 @@ pub mod json {
     /// Logic of all sources of an object like `PROG:ZREPORT`, calls into
     /// other objects followed `depth` hops; sources as described by a JSON
     /// [`abap_source::ProviderOptions`] object.
-    pub fn logic_object(reference: &str, options: &str, depth: u32) -> Result<String, String> {
+    pub fn logic_object(
+        reference: &str,
+        options: &str,
+        depth: u32,
+        host: Host,
+    ) -> Result<String, String> {
         let r: abap_source::SourceRef = reference.parse()?;
-        let logic = workspace(options)?.logic(&r, depth);
+        let logic = workspace(options, host)?.logic(&r, depth);
         Ok(serde_json::to_string(&logic).expect("logic serializes"))
     }
 
@@ -194,6 +211,7 @@ pub mod json {
         objects: &[String],
         options: &str,
         depth: u32,
+        host: Host,
     ) -> Result<String, String> {
         use crate::text;
         let objects = objects
@@ -201,7 +219,7 @@ pub mod json {
             .map(|r| r.parse::<abap_source::SourceRef>())
             .collect::<Result<Vec<_>, _>>()?;
         let first = objects.first().ok_or("no object given")?;
-        let workspace = workspace(options)?;
+        let workspace = workspace(options, host)?;
         match analysis {
             "symbols" if first.kind == abap_source::ObjectKind::Ddls => workspace
                 .unit(first)

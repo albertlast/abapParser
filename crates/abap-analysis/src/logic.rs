@@ -16,7 +16,7 @@ use abap_source::SourceRef;
 use abap_syntax::expr::{Access, Cond, CondKind, DataRef, Expr, ExprKind, Head, Link};
 use abap_syntax::operands::operands;
 use abap_syntax::structure;
-use abap_syntax::{decl, join_tokens, File, Statement, StatementKind as K, Token};
+use abap_syntax::{decl, join_tokens, File, Statement, StatementKind as K, Token, TokenKind};
 
 use crate::args::{call_args, Actual, At, CallArgs};
 use crate::calls::{span_of, type_info, CallExtractor, SymbolsResolver};
@@ -423,6 +423,8 @@ impl<'w> Engine<'w> {
                     .map(|(k, _)| (t, k))
                     .collect();
             }
+            // lock modules are generated; what they do is in the lock store
+            m::CallKind::Function if crate::stores::lock_module(&c.name).is_some() => None,
             m::CallKind::Function => match self.find(o, "function_module", None, &c.name) {
                 Some(k) => Some((o, k)),
                 None => self
@@ -527,6 +529,7 @@ impl<'w> Engine<'w> {
             &parameters,
         );
         data_flow(&mut p.procedure.body, &p.procedure.flow);
+        guard_subrc(&mut p.procedure.body);
         p.procedure.effects = effects(&p.procedure.body);
         let s = summarize(&p.procedure, &bound);
         p.summary = Some(s.clone());
@@ -667,6 +670,7 @@ impl<'w> Engine<'w> {
             scope,
             whole: false,
             declared: false,
+            implicit: false,
             sources: Vec::new(),
             from_entry: false,
             via: Some(via.clone()),
@@ -806,6 +810,7 @@ impl<'w> Engine<'w> {
                         scope,
                         whole: false,
                         declared: false,
+                        implicit: false,
                         sources: Vec::new(),
                         from_entry: false,
                         via: Some(via.clone()),
@@ -1262,10 +1267,13 @@ fn build_unit(
             }
         }
     }
-    // data kept outside the program: memory, parameters, files
+    // data kept outside the program: memory, parameters, files, locks;
+    // infotype tables of HR
     let constants = literal_constants(symbols);
+    let infotypes = crate::hr::infotypes(symbols);
     for st in &file.statements {
-        let found = crate::stores::store_accesses(file, st, &constants);
+        let mut found = crate::stores::store_accesses(file, st, &constants);
+        found.extend(crate::hr::infotype_reads(file, st, &constants, &infotypes));
         if found.is_empty() {
             continue;
         }
@@ -1285,6 +1293,43 @@ fn build_unit(
             }
         }
     }
+    // GET node: the logical database fills the node and, at GET PERNR or
+    // GET OBJEC, the tables of the infotypes
+    for st in &file.statements {
+        let Some(node) = crate::hr::get_node(file, st) else {
+            continue;
+        };
+        let at = span_of(file, st).start;
+        let Some((k, id)) = locate(&procs, &at) else {
+            continue;
+        };
+        let Some(s) = find_step_mut(&mut procs[k].procedure.body, id) else {
+            continue;
+        };
+        // each with the table it comes from
+        let mut filled = vec![(node.clone(), Vec::new())];
+        filled.extend(
+            crate::hr::filled(&node, &infotypes)
+                .into_iter()
+                .map(|(t, db)| (t.table.clone(), vec![db])),
+        );
+        for (name, tables) in filled {
+            let scope = if globals.contains(&name) {
+                m::DataScope::Global
+            } else {
+                m::DataScope::Other
+            };
+            s.writes.push(m::DataAccess {
+                scope,
+                depends: Some(m::Dependency {
+                    reads: Vec::new(),
+                    arguments: false,
+                    tables,
+                }),
+                ..implicit(&name, at, true)
+            });
+        }
+    }
     // calls with their arguments; dynamic ones with the names they can have
     let mut seen: HashMap<(u32, String), usize> = HashMap::new();
     for c in calls {
@@ -1296,6 +1341,22 @@ fn build_unit(
         } else {
             (vec![c], Vec::new())
         };
+        if let Some(whole) = resolved
+            .iter()
+            .filter_map(|c| call_sets_subrc(c.kind))
+            .max()
+        {
+            if let Some(s) = find_step_mut(&mut procs[k].procedure.body, id) {
+                match s
+                    .writes
+                    .iter_mut()
+                    .find(|w| w.implicit && w.name == "sy-subrc")
+                {
+                    Some(w) => w.whole |= whole,
+                    None => s.writes.push(implicit("sy-subrc", s.span.start, whole)),
+                }
+            }
+        }
         for c in resolved {
             let n = seen
                 .entry((id, format!("{:?} {}", c.kind, c.name.to_ascii_lowercase())))
@@ -1530,7 +1591,6 @@ fn is_frame(kind: K) -> bool {
             | K::AtLineSelection
             | K::AtUserCommand
             | K::AtPF
-            | K::Get
     )
 }
 
@@ -1863,6 +1923,12 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
             }
         }
     }
+    if let Some((name, used)) = abap_syntax::sap_macro(file, s) {
+        macro_accesses(file, s, name, used, &mut reads, &mut writes);
+    }
+    if let Some(whole) = sets_subrc(file, s) {
+        writes.push(implicit("sy-subrc", start_of(&toks), whole));
+    }
     // the start value of `DATA x TYPE i VALUE 1`
     if matches!(s.kind, K::Data | K::Constant) && toks.iter().any(|t| t.is("VALUE")) {
         if let Some(v) = decl::variable(file, s) {
@@ -1874,6 +1940,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 scope: m::DataScope::Local,
                 whole: true,
                 declared: true,
+                implicit: false,
                 sources: Vec::new(),
                 from_entry: false,
                 via: None,
@@ -1926,18 +1993,27 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
 }
 
 fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
+    let path = text(toks, r.start, r.last);
+    let field = system_field(&path);
     let name = if r.attribute {
         let full = text(toks, r.start, r.pos).to_ascii_lowercase();
         full.strip_prefix("me->")
             .map(str::to_string)
             .unwrap_or(full)
+    } else if let Some(f) = &field {
+        f.clone()
     } else {
         toks[r.pos].text.to_ascii_lowercase()
     };
     let t = toks[r.pos];
+    // `sy-subrc = 4` replaces the system field
+    let whole = r.whole
+        || field
+            .as_deref()
+            .is_some_and(|f| f.eq_ignore_ascii_case(&path));
     m::DataAccess {
         name: name.trim_start_matches('!').to_string(),
-        path: text(toks, r.start, r.last),
+        path,
         access: match r.access {
             Access::Read => m::AccessKind::Read,
             Access::Write => m::AccessKind::Write,
@@ -1948,8 +2024,9 @@ fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
         } else {
             m::DataScope::Other
         },
-        whole: r.access == Access::Write && r.whole,
+        whole: r.access == Access::Write && whole,
         declared: r.declared,
+        implicit: false,
         sources: Vec::new(),
         from_entry: false,
         via: None,
@@ -1959,6 +2036,178 @@ fn access(toks: &[&Token], r: &DataRef) -> m::DataAccess {
             row: t.start.row,
             col: t.start.col,
         },
+    }
+}
+
+/// A system field accessed as `sy-subrc` or `syst-subrc`: `sy-subrc`, lower
+/// case. Each is its own data object, not a component of `sy`.
+fn system_field(path: &str) -> Option<String> {
+    let lower = path.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("sy-")
+        .or_else(|| lower.strip_prefix("syst-"))?;
+    let field: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    (!field.is_empty()).then(|| format!("sy-{field}"))
+}
+
+fn start_of(toks: &[&Token]) -> m::Position {
+    m::Position {
+        row: toks[0].start.row,
+        col: toks[0].start.col,
+    }
+}
+
+/// Data a statement writes without naming it, like `sy-subrc`; `whole`
+/// when it always does.
+fn implicit(name: &str, at: m::Position, whole: bool) -> m::DataAccess {
+    m::DataAccess {
+        name: name.to_string(),
+        path: name.to_string(),
+        access: m::AccessKind::Write,
+        scope: m::DataScope::Other,
+        whole,
+        declared: false,
+        implicit: true,
+        sources: Vec::new(),
+        from_entry: false,
+        via: None,
+        through: None,
+        depends: None,
+        position: at,
+    }
+}
+
+/// Whether a statement sets `sy-subrc`: `Some(true)` when it always does,
+/// as SAP documents for each statement, `Some(false)` when it may. Calls
+/// of methods and forms are added with the calls of the step, see
+/// [`call_sets_subrc`].
+fn sets_subrc(file: &File, s: &Statement) -> Option<bool> {
+    match s.kind {
+        K::ReadTable
+        | K::Loop
+        | K::InsertInternal
+        | K::ModifyInternal
+        | K::DeleteInternal
+        | K::Select
+        | K::SelectLoop
+        | K::With
+        | K::WithLoop
+        | K::InsertDatabase
+        | K::UpdateDatabase
+        | K::ModifyDatabase
+        | K::DeleteDatabase
+        | K::FetchNextCursor
+        | K::CallFunction
+        | K::CreateObject
+        | K::AuthorityCheck
+        | K::Find
+        | K::Replace
+        | K::Search
+        | K::Split
+        | K::Concatenate
+        | K::Overlay
+        | K::Import
+        | K::DeleteCluster
+        | K::GetParameter
+        | K::OpenDataset
+        | K::ReadDataset
+        | K::DeleteDataset
+        | K::CallSelectionScreen
+        | K::ReadLine
+        | K::ReadReport
+        | K::InsertReport
+        | K::GenerateSubroutine
+        | K::Convert
+        | K::GetBit
+        | K::SetBit
+        | K::Commit => Some(true),
+        // only a dynamic assignment or one of a table expression
+        K::Assign => {
+            let toks = tokens(file, s);
+            let to = toks.iter().position(|t| t.is("TO")).unwrap_or(toks.len());
+            toks[..to]
+                .iter()
+                .any(|t| {
+                    matches!(t.kind, TokenKind::ParenLeft | TokenKind::BracketLeft)
+                        || t.is("COMPONENT")
+                })
+                .then_some(true)
+        }
+        // with USING the result of the batch input
+        K::CallTransaction => Some(false),
+        _ => None,
+    }
+}
+
+/// Whether a call sets `sy-subrc`: every method call sets it to 0 when the
+/// method is called, the method may change it then; a form may set it.
+fn call_sets_subrc(kind: m::CallKind) -> Option<bool> {
+    match kind {
+        m::CallKind::Method | m::CallKind::Constructor => Some(true),
+        m::CallKind::Form => Some(false),
+        _ => None,
+    }
+}
+
+/// What a macro of SAP reads and writes, see [`crate::hr::macro_access`].
+fn macro_accesses(
+    file: &File,
+    s: &Statement,
+    name: &str,
+    used: usize,
+    reads: &mut Vec<m::DataAccess>,
+    writes: &mut Vec<m::DataAccess>,
+) {
+    use crate::hr;
+    let Some(effect) = hr::macro_access(name) else {
+        return;
+    };
+    let args = hr::arguments(file, s, used);
+    let access = |i: usize, kind: m::AccessKind, whole: bool| {
+        let arg = args.get(i).filter(|a| hr::is_data(a))?;
+        let path = hr::join(arg);
+        Some(m::DataAccess {
+            name: system_field(&path).unwrap_or_else(|| arg[0].text.to_ascii_lowercase()),
+            path,
+            access: kind,
+            scope: m::DataScope::Other,
+            whole,
+            declared: false,
+            implicit: false,
+            sources: Vec::new(),
+            from_entry: false,
+            via: None,
+            through: None,
+            depends: None,
+            position: m::Position {
+                row: arg[0].start.row,
+                col: arg[0].start.col,
+            },
+        })
+    };
+    reads.extend(
+        effect
+            .reads
+            .iter()
+            .filter_map(|i| access(*i, m::AccessKind::Read, false)),
+    );
+    writes.extend(
+        effect
+            .writes
+            .iter()
+            .filter_map(|(i, whole)| access(*i, m::AccessKind::Write, *whole)),
+    );
+    let at = start_of(&tokens(file, s));
+    for set in effect.sets {
+        // like `pnp-sw-found`, a field of the structure `pnp`
+        let root = set.split('-').next().unwrap_or(set);
+        writes.push(m::DataAccess {
+            path: set.to_string(),
+            ..implicit(root, at, false)
+        });
     }
 }
 
@@ -2113,7 +2362,8 @@ fn tree(ctx: &Ctx, statements: &[usize]) -> Vec<m::Step> {
 
     for &i in statements {
         let kind = file.statements[i].kind;
-        if is_frame(kind) {
+        // the macros of SAP have no definition here: their call is the step
+        if is_frame(kind) && abap_syntax::sap_macro(file, &file.statements[i]).is_none() {
             continue;
         }
         if closers().contains(&kind) {
@@ -2356,6 +2606,7 @@ fn reaching(
         scope: m::DataScope::Local,
         whole: access == m::AccessKind::Write,
         declared: false,
+        implicit: false,
         sources: Vec::new(),
         from_entry: false,
         via: None,
@@ -2553,6 +2804,7 @@ fn aliases(
                 access: a.access,
                 whole: false,
                 declared: false,
+                implicit: false,
                 sources: Vec::new(),
                 from_entry: false,
                 via: a.via.clone(),
@@ -2567,6 +2819,7 @@ fn aliases(
             access: m::AccessKind::Read,
             whole: false,
             declared: false,
+            implicit: false,
             sources: Vec::new(),
             from_entry: false,
             via: None,
@@ -2657,7 +2910,45 @@ fn guard_of(step: &m::Step, negated: bool) -> Option<m::Guard> {
         statement: step.id,
         negated,
         text: c.text.clone(),
+        subrc: Vec::new(),
     })
+}
+
+/// Fills `subrc` of the guards checking `sy-subrc`: the statements whose
+/// value the condition reads, after the data flow. A WHEN reads it through
+/// its CASE.
+fn guard_subrc(body: &mut [m::Step]) {
+    let mut set_by: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut case_of: HashMap<u32, u32> = HashMap::new();
+    walk(body, &mut |s| {
+        let sources: BTreeSet<u32> = s
+            .reads
+            .iter()
+            .filter(|r| r.name == "sy-subrc")
+            .flat_map(|r| r.sources.iter().copied())
+            .collect();
+        if !sources.is_empty() {
+            set_by.insert(s.id, sources.into_iter().collect());
+        }
+        if matches!(kind_of(s), K::Case) {
+            for w in &s.children {
+                case_of.insert(w.id, s.id);
+            }
+        }
+    });
+    if set_by.is_empty() {
+        return;
+    }
+    walk_mut(body, &mut |s| {
+        for g in &mut s.guards {
+            let checked = set_by
+                .get(&g.statement)
+                .or_else(|| case_of.get(&g.statement).and_then(|c| set_by.get(c)));
+            if let Some(ids) = checked {
+                g.subrc = ids.clone();
+            }
+        }
+    });
 }
 
 /// Whether the steps end with a jump out of their block.
@@ -3113,7 +3404,10 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
     };
     walk(body, &mut |s| {
         for w in &s.writes {
-            if w.scope != m::DataScope::Local && !w.declared {
+            // `sy-subrc` set by a statement, or `pnp-sw-found` by a macro of
+            // SAP, are for the checks that follow
+            let undeclared = w.implicit && w.scope == m::DataScope::Other;
+            if w.scope != m::DataScope::Local && !w.declared && !undeclared {
                 add(&w.name, w.scope, s.id, w.via.as_ref());
             }
         }
@@ -3378,8 +3672,9 @@ ENDCLASS.
             .tables
             .iter()
             .any(|t| t.name == "ZLOG" && t.access == m::AccessKind::Write));
+        let written = call.writes.iter().find(|w| !w.implicit).unwrap();
         assert_eq!(
-            call.writes[0].via.as_ref().map(|b| b.name.as_str()),
+            written.via.as_ref().map(|b| b.name.as_str()),
             Some("write_log")
         );
     }
@@ -3585,6 +3880,113 @@ ENDFORM.",
                 .find(|l| l.contains("writes ZTGT")),
             Some("  writes ZTGT (database table) at 10; from tables memory:ZROWS")
         );
+    }
+
+    #[test]
+    fn guards_know_which_statement_set_sy_subrc() {
+        let l = logic(
+            "FORM f USING it_tab TYPE ty_tab.
+  READ TABLE it_tab INTO DATA(ls) INDEX 1.
+  IF sy-subrc = 0.
+    CALL FUNCTION 'Z_X' EXCEPTIONS failed = 1.
+    IF syst-subrc NE 0.
+      gv_err = abap_true.
+    ENDIF.
+  ENDIF.
+  PERFORM other.
+  CASE sy-subrc.
+    WHEN 4.
+      gv_four = abap_true.
+  ENDCASE.
+ENDFORM.",
+        );
+        let f = procedure(&l, "f");
+        let err = find(&f.body, "gv_err = abap_true.");
+        let set: Vec<(&str, &[u32])> = err
+            .guards
+            .iter()
+            .map(|g| (g.text.as_str(), g.subrc.as_slice()))
+            .collect();
+        assert_eq!(
+            set,
+            [("sy-subrc = 0", &[1][..]), ("syst-subrc NE 0", &[3][..])]
+        );
+        // a form may set it or leave it: from READ TABLE when the IF is
+        // not taken, from the call when it is
+        let four = find(&f.body, "gv_four = abap_true.");
+        assert_eq!(four.guards[0].subrc, [1, 3, 8]);
+        // what READ TABLE found decides the write
+        assert_eq!(effect(f, "gv_err").inputs, ["abap_true", "it_tab"]);
+        // sy-subrc itself is no effect
+        assert!(f.effects.iter().all(|e| !e.name.starts_with("sy")));
+        assert!(crate::text::logic(&l)
+            .contains("when sy-subrc = 0 [sy-subrc of 2] AND syst-subrc NE 0 [sy-subrc of 4]"));
+    }
+
+    #[test]
+    fn lock_modules_set_and_release_locks() {
+        let l = logic(
+            "REPORT z.
+FORM f.
+  CALL FUNCTION 'ENQUEUE_EZ_ORDER' EXPORTING vbeln = lv_vbeln EXCEPTIONS foreign_lock = 1.
+  CHECK sy-subrc = 0.
+  UPDATE zorder SET status = 'X' WHERE vbeln = lv_vbeln.
+  CALL FUNCTION 'DEQUEUE_EZ_ORDER' EXPORTING vbeln = lv_vbeln.
+ENDFORM.
+FUNCTION enqueue_ez_order.
+  INSERT zlocks FROM ls_lock.
+ENDFUNCTION.",
+        );
+        let f = procedure(&l, "f");
+        let lock = effect(f, "lock:EZ_ORDER");
+        assert_eq!(lock.scope, m::DataScope::External);
+        assert_eq!(lock.statements, [2, 5]);
+        // the generated module is not followed: no table write from it
+        assert!(f.effects.iter().all(|e| e.name != "ZLOCKS"));
+        let step = find(
+            &f.body,
+            "CALL FUNCTION 'DEQUEUE_EZ_ORDER' EXPORTING vbeln = lv_vbeln.",
+        );
+        assert_eq!(step.tables[0].store, Some(m::Store::Lock));
+        assert_eq!(step.tables[0].operation, m::DbOperation::Delete);
+    }
+
+    #[test]
+    fn hr_infotypes() {
+        let l = logic(
+            "REPORT zhr.
+TABLES pernr.
+INFOTYPES: 0001, 0002, 0105 MODE N.
+DATA gv_name TYPE string.
+DATA gt_0185 TYPE TABLE OF p0185.
+GET pernr.
+  rp-provide-from-last p0002 space pn-begda pn-endda.
+  IF pnp-sw-found = '1'.
+    gv_name = p0002-nachn.
+  ENDIF.
+  rp-read-infotype pernr-pernr 0105 p0105 pn-begda pn-endda.
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr     = pernr-pernr
+      infty     = '0185'
+    TABLES
+      infty_tab = gt_0185.",
+        );
+        let get = &l.procedures[0];
+        assert_eq!(get.block.name, "GET pernr");
+        // the logical database fills each table from its own
+        assert_eq!(effect(get, "p0001").tables, ["PA0001"]);
+        assert_eq!(effect(get, "p0001").scope, m::DataScope::Global);
+        assert_eq!(effect(get, "gv_name").tables, ["PA0002"]);
+        assert_eq!(effect(get, "p0105").tables, ["PA0105"]);
+        assert_eq!(effect(get, "gt_0185").tables, ["PA0185"]);
+        // MODE N: read by the program, not at GET
+        assert!(get.body[0].tables.iter().all(|t| t.name != "PA0105"));
+        // pnp-sw-found decides, but is no effect
+        let name = find(&get.body, "gv_name = p0002-nachn.");
+        let found = find(&get.body, "IF pnp-sw-found = '1'.");
+        assert_eq!(found.reads[0].sources, [name.id - 2]);
+        assert!(get.effects.iter().all(|e| e.name != "pnp"));
     }
 
     #[test]

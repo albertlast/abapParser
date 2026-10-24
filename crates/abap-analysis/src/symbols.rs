@@ -146,6 +146,7 @@ fn declaration_kind(kind: K) -> Option<m::DeclarationKind> {
         K::Ranges => D::Range,
         K::Tables => D::Tables,
         K::Nodes => D::Node,
+        K::Infotypes => D::Infotype,
         K::IncludeType => D::Include,
         _ => return None,
     })
@@ -210,6 +211,11 @@ impl Declarations {
                 }),
                 ..empty_declaration(name, kind, b.span(index, index))
             }
+        } else if s.kind == K::Infotypes {
+            let Some(d) = infotype(b.file, s, b.span(index, index)) else {
+                return;
+            };
+            d
         } else {
             let Some(v) = decl::variable(b.file, s) else {
                 return;
@@ -247,6 +253,42 @@ impl Declarations {
         }
         self.done
     }
+}
+
+/// `INFOTYPES nnnn [NAME name] ...`: the table `pnnnn`, or `name`, of
+/// infotype structures `Pnnnn` with header line.
+fn infotype(file: &File, s: &Statement, span: m::Span) -> Option<m::Declaration> {
+    let words: Vec<&str> = s
+        .tokens
+        .iter()
+        .map(|t| file.tokens()[*t].text.as_str())
+        .collect();
+    let number = words
+        .get(1)
+        .filter(|w| w.bytes().all(|b| b.is_ascii_digit()))?;
+    let name = words
+        .iter()
+        .position(|w| w.eq_ignore_ascii_case("NAME"))
+        .and_then(|i| words.get(i + 1))
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| format!("p{number}"));
+    Some(m::Declaration {
+        typing: Some(m::Typing {
+            kind: m::TypingKind::Table,
+            name: Some(format!("P{number}")),
+            table: Some(m::TableTyping {
+                kind: None,
+                unique: None,
+                key: None,
+                line_is_ref: false,
+                header_line: true,
+            }),
+            length: None,
+            decimals: None,
+            text: decl::text_after(file, s, 1),
+        }),
+        ..empty_declaration(name, m::DeclarationKind::Infotype, span)
+    })
 }
 
 fn empty_declaration(name: String, kind: m::DeclarationKind, span: m::Span) -> m::Declaration {

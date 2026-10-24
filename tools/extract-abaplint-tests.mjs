@@ -24,10 +24,25 @@ function checkout() {
   const dir = path.join(here, ".cache", `abaplint-${ABAPLINT_TAG}`);
   if (!fs.existsSync(path.join(dir, "packages"))) {
     fs.mkdirSync(path.dirname(dir), {recursive: true});
-    execFileSync("git", ["clone", "--depth", "1", "--branch", ABAPLINT_TAG, "--filter=blob:none",
-      "--no-checkout", "https://github.com/abaplint/abaplint.git", dir], {stdio: "inherit"});
-    execFileSync("git", ["-C", dir, "sparse-checkout", "set", "--no-cone",
-      "/LICENSE", "/packages/core/test/abap/"], {stdio: "inherit", env: {...process.env, MSYS_NO_PATHCONV: "1"}});
+    execFileSync(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        ABAPLINT_TAG,
+        "--filter=blob:none",
+        "--no-checkout",
+        "https://github.com/abaplint/abaplint.git",
+        dir,
+      ],
+      {stdio: "inherit"},
+    );
+    execFileSync("git", ["-C", dir, "sparse-checkout", "set", "--no-cone", "/LICENSE", "/packages/core/test/abap/"], {
+      stdio: "inherit",
+      env: {...process.env, MSYS_NO_PATHCONV: "1"},
+    });
     execFileSync("git", ["-C", dir, "checkout"], {stdio: "inherit"});
   }
   return dir;
@@ -105,8 +120,7 @@ async function extractFile(file) {
   it.skip = it;
   it.only = it;
   const module = {exports: {}};
-  new Function("module", "exports", "describe", "it", result.outputFiles[0].text)(
-    module, module.exports, describe, it);
+  new Function("module", "exports", "describe", "it", result.outputFiles[0].text)(module, module.exports, describe, it);
   return globalThis.__records;
 }
 
@@ -120,7 +134,10 @@ async function main() {
 
   let total = 0;
   const failed = [];
-  for (const f of fs.readdirSync(testDir).filter((f) => f.endsWith(".ts")).sort()) {
+  for (const f of fs
+    .readdirSync(testDir)
+    .filter((f) => f.endsWith(".ts"))
+    .sort()) {
     try {
       const records = await extractFile(path.join(testDir, f));
       if (records.length === 0) {
@@ -132,10 +149,12 @@ async function main() {
       failed.push(`${f}: ${e.message}`);
     }
   }
-  fs.writeFileSync(path.join(outDir, "SOURCE.md"),
+  fs.writeFileSync(
+    path.join(outDir, "SOURCE.md"),
     `Extracted from https://github.com/abaplint/abaplint tag ${ABAPLINT_TAG},\n` +
-    "packages/core/test/abap/statements, by tools/extract-abaplint-tests.mjs.\n" +
-    "abaplint is MIT licensed, see LICENSE in this folder.\n");
+      "packages/core/test/abap/statements, by tools/extract-abaplint-tests.mjs.\n" +
+      "abaplint is MIT licensed, see LICENSE in this folder.\n",
+  );
   console.log(`extracted ${total} statement cases`);
   if (failed.length > 0) {
     console.error(`failed files:\n  ${failed.join("\n  ")}`);

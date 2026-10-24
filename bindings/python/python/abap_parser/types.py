@@ -21,14 +21,14 @@ DbTableRole = Literal["main", "join", "subquery", "merge_source", "cte", "intern
 
 DbTargetKind = Literal["table", "structure", "list"]
 
-DeclarationKind = Literal["data", "class_data", "static", "constant", "type", "field_symbol", "parameter", "select_option", "range", "tables", "node", "include", "enum_value"]
+DeclarationKind = Literal["data", "class_data", "static", "constant", "type", "field_symbol", "parameter", "select_option", "range", "tables", "node", "infotype", "include", "enum_value"]
 
 Direction = Literal["importing", "exporting", "changing", "returning", "using", "tables"]
 
 OperandKind = Literal["literal", "data", "call", "constructor", "arithmetic", "template", "component"]
 """What an operand of a condition is."""
 
-Store = Literal["memory", "parameter", "file", "shared_buffer", "shared_memory"]
+Store = Literal["memory", "parameter", "file", "shared_buffer", "shared_memory", "lock"]
 """Where data outside of the program and the database is kept."""
 
 TypingKind = Literal["type", "like", "type_ref_to", "like_ref_to", "table", "range", "line_of", "structure", "for"]
@@ -245,6 +245,8 @@ class DataAccess(_DataAccessRequired, total=False):
     """writes through a call: what the written value depends on in the called procedure"""
     from_entry: bool
     """reads: the value may come from before the procedure, e.g. from a parameter or attribute"""
+    implicit: bool
+    """set by the statement without being named in it, like `sy-subrc` by READ TABLE or a call"""
     sources: List[int]
     """reads: statements whose writes may provide the value"""
     through: str
@@ -530,14 +532,19 @@ class GraphUnit(TypedDict):
     """like `CLAS:ZCL_X`, `CLAS:ZCL_X/implementations`, `PROG:ZREPORT_TOP`"""
 
 
-class Guard(TypedDict):
-    """A condition that holds when a step runs."""
+class _GuardRequired(TypedDict):
     negated: bool
     """the condition is false, e.g. in ELSE or after `IF x. RETURN. ENDIF.`"""
     statement: int
     """the step with the condition, e.g. an IF, WHEN or CHECK"""
     text: str
     """the condition as written"""
+
+
+class Guard(_GuardRequired, total=False):
+    """A condition that holds when a step runs."""
+    subrc: List[int]
+    """the condition checks `sy-subrc`: the statements that may have set the value it checks, like the READ TABLE before `IF sy-subrc = 0`"""
 
 
 class ImplementedInterface(TypedDict):
@@ -743,7 +750,7 @@ class _TableAccessRequired(TypedDict):
     access: AccessKind
     """`read`, or `write` for the changed table of INSERT, UPDATE, MODIFY, DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER, TRANSFER and their deletes"""
     name: str
-    """table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)`"""
+    """table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)`, `lock:EZ_ORDER`"""
     operation: DbOperation
     """for stores: `select` when read, `modify` when written, `delete`"""
 

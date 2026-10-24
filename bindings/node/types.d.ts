@@ -205,6 +205,8 @@ export interface DataAccess {
   depends?: Dependency;
   /** reads: the value may come from before the procedure, e.g. from a parameter or attribute */
   from_entry?: boolean;
+  /** set by the statement without being named in it, like `sy-subrc` by READ TABLE or a call */
+  implicit?: boolean;
   /** lower case; attributes of other objects with the path to them, e.g. `lo_order->items`, `zcl_x=>gv_count`; `me->` is left out */
   name: string;
   /** the operand as written, e.g. `ls_item-matnr` */
@@ -368,7 +370,7 @@ export interface Declaration {
   visibility?: Visibility;
 }
 
-export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "type" | "field_symbol" | "parameter" | "select_option" | "range" | "tables" | "node" | "include" | "enum_value";
+export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "type" | "field_symbol" | "parameter" | "select_option" | "range" | "tables" | "node" | "infotype" | "include" | "enum_value";
 
 /** What a value written by a called procedure depends on there, in names of the caller. */
 export interface Dependency {
@@ -483,6 +485,8 @@ export interface Guard {
   negated: boolean;
   /** the step with the condition, e.g. an IF, WHEN or CHECK */
   statement: number;
+  /** the condition checks `sy-subrc`: the statements that may have set the value it checks, like the READ TABLE before `IF sy-subrc = 0` */
+  subrc?: number[];
   /** the condition as written */
   text: string;
 }
@@ -671,7 +675,7 @@ export interface Step {
 }
 
 /** Where data outside of the program and the database is kept. */
-export type Store = "memory" | "parameter" | "file" | "shared_buffer" | "shared_memory";
+export type Store = "memory" | "parameter" | "file" | "shared_buffer" | "shared_memory" | "lock";
 
 /** A database table, or data kept outside the program (`store`), read or written by a statement. */
 export interface TableAccess {
@@ -679,7 +683,7 @@ export interface TableAccess {
   access: AccessKind;
   /** writes through a call: what the written rows depend on in the called procedure */
   depends?: Dependency;
-  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)` */
+  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)`, `lock:EZ_ORDER` */
   name: string;
   /** for stores: `select` when read, `modify` when written, `delete` */
   operation: DbOperation;

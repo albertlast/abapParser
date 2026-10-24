@@ -32,17 +32,29 @@ pub struct AdtOptions {
 
 impl ProviderOptions {
     pub fn build(&self) -> Result<Box<dyn SourceProvider>> {
+        self.build_with(None)
+    }
+
+    /// Like [`build`](Self::build), with a provider of the caller, like a
+    /// [`crate::FnProvider`], asked after the folders and before the SAP
+    /// system.
+    pub fn build_with(
+        &self,
+        host: Option<Box<dyn SourceProvider>>,
+    ) -> Result<Box<dyn SourceProvider>> {
         let mut providers: Vec<Box<dyn SourceProvider>> = Vec::new();
         if !self.src.is_empty() {
             let roots = self.src.iter().map(PathBuf::from).collect();
             providers.push(Box::new(crate::FsProvider::new(roots)?));
         }
+        providers.extend(host);
         if let Some(adt) = &self.adt {
             providers.push(adt_provider(adt, self.cache.as_deref())?);
         }
         if providers.is_empty() {
             return Err(SourceError::Other(
-                "no source: give folders (src) or an SAP system (adt)".to_string(),
+                "no source: give folders (src), a fetch function or an SAP system (adt)"
+                    .to_string(),
             ));
         }
         Ok(if providers.len() == 1 {

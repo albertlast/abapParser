@@ -111,6 +111,12 @@ pub enum DeclarationKind {
     Tables,
     /// NODES
     Node,
+    /// INFOTYPES: an internal table with header line, named `Pnnnn` after
+    /// the infotype unless NAME gives another name, with line type `Pnnnn`.
+    /// The logical database fills it, unless the clause has `MODE N`: PNP at
+    /// `GET PERNR` from `PAnnnn`, PCH at `GET OBJEC` from `HRPnnnn`. The
+    /// clause as written is in `typing.text`
+    Infotype,
     /// `INCLUDE TYPE|STRUCTURE` inside a structure
     Include,
     /// value of an enumerated type
@@ -849,6 +855,9 @@ pub enum Store {
     SharedBuffer,
     /// `EXPORT ... TO SHARED MEMORY`
     SharedMemory,
+    /// an SAP lock, set by the lock module `ENQUEUE_<lock object>` and
+    /// released by `DEQUEUE_<lock object>`
+    Lock,
 }
 
 /// A data object read or written by a statement.
@@ -867,6 +876,10 @@ pub struct DataAccess {
     /// declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub declared: bool,
+    /// set by the statement without being named in it, like `sy-subrc` by
+    /// READ TABLE or a call
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub implicit: bool,
     /// reads: statements whose writes may provide the value
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub sources: Vec<u32>,
@@ -909,7 +922,7 @@ pub struct TableAccess {
     /// table, view or CDS entity, upper case; a dynamic name resolved from
     /// a constant, or the operand as written in parentheses. For a store
     /// its kind and key: `memory:ZORDERS`, `parameter:VKO`,
-    /// `file:/tmp/out.csv`, `file:(lv_file)`
+    /// `file:/tmp/out.csv`, `file:(lv_file)`, `lock:EZ_ORDER`
     pub name: String,
     /// `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY,
     /// DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER,
@@ -938,6 +951,10 @@ pub struct Guard {
     pub negated: bool,
     /// the condition as written
     pub text: String,
+    /// the condition checks `sy-subrc`: the statements that may have set
+    /// the value it checks, like the READ TABLE before `IF sy-subrc = 0`
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub subrc: Vec<u32>,
 }
 
 /// One statement of a procedure.

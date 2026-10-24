@@ -8,10 +8,21 @@ export function symbols(source: string): FileSymbols;
 /** Database accesses of one ABAP source file: tables, fields, joins, conditions, targets. */
 export function dbAccess(source: string): DbAccess[];
 
-/** Where sources come from: local folders first, then an SAP system through ADT. */
+/**
+ * Where sources come from: local folders first, then the fetch function,
+ * then an SAP system through ADT.
+ */
 export interface SourceOptions {
   /** folders with abapGit or plain .abap files */
   src?: string[];
+  /**
+   * Sources of the host, e.g. from its own ADT client or cache: called with
+   * objects like "CLAS:ZCL_X", "CLAS:ZCL_X/implementations", "PROG:ZREPORT_TOP",
+   * "FUNC:Z_FM", it returns the source, or null or undefined when it has none.
+   * A thrown error or rejected promise is listed in `errors`. Only the async
+   * functions take it; the blocking ones throw a TypeError.
+   */
+  fetch?: (reference: string) => string | null | undefined | Promise<string | null | undefined>;
   /** cache folder for sources fetched from the SAP system */
   cache?: string;
   adt?: {
