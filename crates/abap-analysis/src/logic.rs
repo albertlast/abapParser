@@ -65,6 +65,7 @@ pub fn logic_of(file: &File) -> m::FileLogic {
         object: None,
         procedures: engine.finish(0),
         missing: Vec::new(),
+        skipped: Vec::new(),
         errors: Vec::new(),
         notes: Vec::new(),
     }
@@ -77,6 +78,7 @@ impl Workspace {
     /// are followed up to `depth` hops, calls within the object always.
     pub fn logic(&self, root: &SourceRef, depth: u32) -> m::FileLogic {
         // the engine loads callees one by one: load them before, several at once
+        self.add_roots(std::slice::from_ref(root));
         self.preload(std::slice::from_ref(root), depth);
         let mut engine = Engine::new(Some(self), depth);
         let procedures = match engine.load(root, 0) {
@@ -88,6 +90,7 @@ impl Workspace {
             object: Some(root.object().to_string()),
             procedures,
             missing: engine.missing.into_iter().collect(),
+            skipped: self.skipped(),
             errors: self.errors(),
             notes: self.notes(),
         }
@@ -223,7 +226,11 @@ impl<'w> Engine<'w> {
             return None;
         }
         let Some(object) = ws.object(&r) else {
-            self.missing.insert(r.to_string());
+            // not followed, beyond the limit or cancelled: in `skipped`;
+            // failed: in `errors`
+            if ws.skip_reason(&r).is_none() && !ws.failed(&r) {
+                self.missing.insert(r.to_string());
+            }
             self.loaded.insert(r, None);
             return None;
         };

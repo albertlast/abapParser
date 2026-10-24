@@ -213,8 +213,27 @@ Each call has its processing block, receiver, target class, options like `DESTIN
 
 Folders are asked first, then the fetch function, then the SAP system. Up to 8 objects, class parts or includes are loaded at once; an SAP system answers each request on its own, so most of the time is waiting. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
 
+An unresolved call says why in `unresolved`:
+
+| Reason                 | Meaning                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `dynamic`              | the target is known only at runtime                                                        |
+| `unknown_type`         | the class or interface of the receiver is not known                                        |
+| `missing`              | no source provider has the target                                                          |
+| `lookup_failed`        | loading the target failed, see `errors`                                                    |
+| `hierarchy_incomplete` | the method is not in the class, which inherits from or implements types not in the sources |
+| `not_followed`         | the target does not match the follow patterns                                              |
+| `limit`                | the maximum number of objects was reached                                                  |
+| `cancelled`            | the analysis was cancelled                                                                 |
+| `not_loaded`           | a transaction or transformation, which is not analyzed                                     |
+
+Errors of the source providers are listed in `errors`, each with a `code` (`auth`, `http`, `network`, `io`, `other`), the `object` or lookup it was for, the `cause` as text, the HTTP `status`, and whether trying again may succeed (`retryable`: network failures, HTTP 408, 429 and 5xx).
+
+Following calls into SAP standard code can take long. The follow options load only objects whose names match patterns, like `Z*` or a custom namespace `/ABC/*`, leave out others, and stop after a number of objects; the objects given are always loaded. Objects not loaded are listed in `skipped`, not in `missing`, and logic leaves out what they do. A progress function is called after each object, and an analysis can be cancelled: it then finishes with what it has.
+
 ```sh
 abap graph CLAS:ZCL_ORDERS --src ./src --depth 2
+abap logic CLAS:ZCL_ORDERS --adt-url https://sap:44300 --depth 2 --follow 'Z*' --follow '/ABC/*' --skip 'ZTEST*' --limit 500 --progress
 ABAP_ADT_USER=me ABAP_ADT_PASSWORD=... abap graph PROG:ZREPORT --adt-url https://sap:44300 --client 100 --cache ~/.cache/abap
 abap fetch CLAS:ZCL_ORDERS/implementations --adt-url https://sap:44300 --client 100
 ```
@@ -478,6 +497,22 @@ const graph = await abap.callGraphAsync(
 );
 ```
 
+`follow` limits which objects calls are followed into, `progress` is called with `{loaded, object}` after each object, and an aborted `signal` stops loading; the last two only in the `…Async` functions.
+
+```js
+const controller = new AbortController();
+const logic = await abap.logicObjectAsync(
+  "CLAS:ZCL_ORDERS",
+  {
+    adt,
+    follow: {include: ["Z*", "/ABC/*"], exclude: ["ZTEST*"], limit: 500},
+    progress: ({loaded, object}) => console.log(loaded, object),
+    signal: controller.signal,
+  },
+  2,
+);
+```
+
 Python (`pip install abap-parser`, or from this repository `cd bindings/python && maturin develop --release`):
 
 ```python
@@ -504,6 +539,18 @@ Every function has an `..._async` variant for asyncio, running in a worker threa
 
 ```python
 graph = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], {"fetch": lambda ref: my_cache.get(ref)}, 2)
+```
+
+`follow` limits which objects calls are followed into, `progress` is called with `{"loaded": n, "object": "..."}` after each object, and a `CancelToken` stops loading, also from another thread or the event loop.
+
+```python
+token = abap_parser.CancelToken()
+logic = await abap_parser.logic_object_async("CLAS:ZCL_ORDERS", {
+    "adt": adt,
+    "follow": {"include": ["Z*", "/ABC/*"], "exclude": ["ZTEST*"], "limit": 500},
+    "progress": lambda p: print(p["loaded"], p["object"]),
+    "cancel": token,          # token.cancel() stops loading
+}, 2)
 ```
 
 Rust:

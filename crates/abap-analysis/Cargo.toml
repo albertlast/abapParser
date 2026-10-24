@@ -12,6 +12,7 @@ abap-model.workspace = true
 abap-sql.workspace = true
 abap-source.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 serde = { workspace = true }

@@ -450,7 +450,7 @@ impl AdtProvider {
             .header("Authorization", &self.authorization)
             .header("Accept", accept)
             .call()
-            .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+            .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
         let status = response.status().as_u16();
         self.log_request("GET", path, status, started, None);
         match status {
@@ -458,7 +458,7 @@ impl AdtProvider {
                 .body_mut()
                 .read_to_string()
                 .map(Some)
-                .map_err(|e| SourceError::Other(format!("{url}: {e}"))),
+                .map_err(|e| SourceError::Network(format!("{url}: {e}"))),
             404 => Ok(None),
             401 | 403 => Err(SourceError::Auth { url }),
             _ => Err(SourceError::Http { status, url }),
@@ -476,7 +476,7 @@ impl AdtProvider {
             .header("X-CSRF-Token", "Fetch")
             .header("Accept", "application/atomsvc+xml")
             .call()
-            .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+            .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
         let status = response.status().as_u16();
         self.log_request("GET", "/sap/bc/adt/discovery", status, started, None);
         match status {
@@ -563,7 +563,7 @@ impl AdtProvider {
             }
             let mut response = request
                 .send(body)
-                .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+                .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
             let status = response.status().as_u16();
             self.log_request("POST", path, status, started, sql);
             let renew = response
@@ -577,7 +577,7 @@ impl AdtProvider {
             let text = response
                 .body_mut()
                 .read_to_string()
-                .map_err(|e| SourceError::Other(format!("{url}: {e}")))?;
+                .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
             return Ok((status, text));
         }
         Err(SourceError::Auth { url })

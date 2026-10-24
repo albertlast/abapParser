@@ -25,7 +25,7 @@ pub fn cds(source: &str) -> m::CdsDefinition {
     abap_sql::cds::parse(source)
 }
 pub mod text;
-pub use workspace::{merge_symbols, Object, Unit, Workspace};
+pub use workspace::{merge_symbols, Follow, Object, Progress, ProgressFn, Unit, Workspace};
 
 use abap_model as m;
 
@@ -102,12 +102,25 @@ pub fn release(source: &str, target: Option<abap_syntax::release::Release>) -> m
 }
 
 /// JSON entry points shared by the language bindings. Those loading
-/// sources take the provider options as JSON and a provider of the caller,
-/// like a [`abap_source::FnProvider`] calling back into Node.js or Python,
-/// asked after the folders and before the SAP system.
+/// sources take the options as JSON: the [`abap_source::ProviderOptions`],
+/// and under `follow` the [`crate::Follow`] patterns and limit; and the
+/// [`Hooks`] of the caller.
 pub mod json {
-    /// A provider of the caller.
-    pub type Host = Option<Box<dyn abap_source::SourceProvider>>;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
+    /// What the caller adds to an analysis loading sources.
+    #[derive(Default)]
+    pub struct Hooks {
+        /// a provider of the caller, like a [`abap_source::FnProvider`]
+        /// calling back into Node.js or Python, asked after the folders and
+        /// before the SAP system
+        pub host: Option<Box<dyn abap_source::SourceProvider>>,
+        /// called after each object loaded or looked for
+        pub progress: Option<crate::ProgressFn>,
+        /// once set, nothing more is loaded
+        pub cancel: Option<Arc<AtomicBool>>,
+    }
 
     pub fn symbols(source: &str) -> String {
         serde_json::to_string(&super::symbols(source)).expect("symbols serialize")
@@ -119,9 +132,9 @@ pub mod json {
         roots: &[String],
         options: &str,
         depth: u32,
-        host: Host,
+        hooks: Hooks,
     ) -> Result<String, String> {
-        let workspace = workspace(options, host)?;
+        let workspace = workspace(options, hooks)?;
         let roots = roots
             .iter()
             .map(|r| r.parse::<abap_source::SourceRef>())
@@ -131,23 +144,39 @@ pub mod json {
     }
 
     /// Source text of one object, `None` when no provider has it.
-    pub fn fetch(reference: &str, options: &str, host: Host) -> Result<Option<String>, String> {
+    pub fn fetch(reference: &str, options: &str, hooks: Hooks) -> Result<Option<String>, String> {
         let r: abap_source::SourceRef = reference.parse()?;
-        let provider = provider(options, host)?;
+        let (options, _) = split(options)?;
+        let provider = options.build_with(hooks.host).map_err(|e| e.to_string())?;
         provider
             .fetch(&r)
             .map(|s| s.map(|s| s.text))
             .map_err(|e| e.to_string())
     }
 
-    fn provider(options: &str, host: Host) -> Result<Box<dyn abap_source::SourceProvider>, String> {
-        let options: abap_source::ProviderOptions =
+    /// The source options and the follow options of a JSON object.
+    fn split(options: &str) -> Result<(abap_source::ProviderOptions, crate::Follow), String> {
+        let mut value: serde_json::Value =
             serde_json::from_str(options).map_err(|e| format!("invalid options: {e}"))?;
-        options.build_with(host).map_err(|e| e.to_string())
+        let follow = match value.as_object_mut().and_then(|o| o.remove("follow")) {
+            Some(f) => serde_json::from_value(f).map_err(|e| format!("invalid follow: {e}"))?,
+            None => crate::Follow::default(),
+        };
+        let sources = serde_json::from_value(value).map_err(|e| format!("invalid options: {e}"))?;
+        Ok((sources, follow))
     }
 
-    fn workspace(options: &str, host: Host) -> Result<crate::Workspace, String> {
-        Ok(crate::Workspace::new(provider(options, host)?))
+    fn workspace(options: &str, hooks: Hooks) -> Result<crate::Workspace, String> {
+        let (sources, follow) = split(options)?;
+        let provider = sources.build_with(hooks.host).map_err(|e| e.to_string())?;
+        let mut workspace = crate::Workspace::new(provider).with_follow(follow);
+        if let Some(p) = hooks.progress {
+            workspace = workspace.with_progress(p);
+        }
+        if let Some(c) = hooks.cancel {
+            workspace = workspace.with_cancel(c);
+        }
+        Ok(workspace)
     }
 
     pub fn calls(source: &str) -> String {
@@ -169,10 +198,10 @@ pub mod json {
         reference: &str,
         options: &str,
         depth: u32,
-        host: Host,
+        hooks: Hooks,
     ) -> Result<String, String> {
         let r: abap_source::SourceRef = reference.parse()?;
-        let logic = workspace(options, host)?.logic(&r, depth);
+        let logic = workspace(options, hooks)?.logic(&r, depth);
         Ok(serde_json::to_string(&logic).expect("logic serializes"))
     }
 
@@ -211,7 +240,7 @@ pub mod json {
         objects: &[String],
         options: &str,
         depth: u32,
-        host: Host,
+        hooks: Hooks,
     ) -> Result<String, String> {
         use crate::text;
         let objects = objects
@@ -219,14 +248,14 @@ pub mod json {
             .map(|r| r.parse::<abap_source::SourceRef>())
             .collect::<Result<Vec<_>, _>>()?;
         let first = objects.first().ok_or("no object given")?;
-        let workspace = workspace(options, host)?;
+        let workspace = workspace(options, hooks)?;
         match analysis {
             "symbols" if first.kind == abap_source::ObjectKind::Ddls => workspace
                 .unit(first)
                 .map(|u| text::cds(&super::cds(u.file.source())))
                 .ok_or_else(|| format!("{first} not found")),
             "symbols" => workspace
-                .object(first)
+                .root(first)
                 .map(|o| text::symbols(&o.symbols))
                 .ok_or_else(|| format!("{first} not found")),
             "logic" => Ok(text::logic(&workspace.logic(first, depth))),

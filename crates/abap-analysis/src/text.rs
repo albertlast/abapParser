@@ -505,13 +505,40 @@ pub fn call_graph(graph: &m::CallGraph) -> String {
     if !graph.missing.is_empty() {
         let _ = writeln!(out, "\nmissing: {}", graph.missing.join(", "));
     }
+    if !graph.skipped.is_empty() {
+        let _ = writeln!(out, "\nnot loaded: {}", graph.skipped.join(", "));
+    }
     if !graph.notes.is_empty() {
         let _ = writeln!(out, "\nnotes: {}", graph.notes.join("; "));
     }
     if !graph.errors.is_empty() {
-        let _ = writeln!(out, "\nerrors: {}", graph.errors.join("; "));
+        let _ = writeln!(out, "\nerrors: {}", errors(&graph.errors));
     }
     out
+}
+
+/// The reason of an unresolved call, as in the JSON.
+fn unresolved(why: m::Unresolved) -> &'static str {
+    use m::Unresolved as U;
+    match why {
+        U::Dynamic => "unresolved: dynamic",
+        U::UnknownType => "unresolved: unknown type",
+        U::Missing => "unresolved: missing",
+        U::LookupFailed => "unresolved: lookup failed",
+        U::HierarchyIncomplete => "unresolved: hierarchy incomplete",
+        U::NotFollowed => "unresolved: not followed",
+        U::Limit => "unresolved: limit",
+        U::Cancelled => "unresolved: cancelled",
+        U::NotLoaded => "unresolved: not loaded",
+    }
+}
+
+fn errors(errors: &[m::LoadError]) -> String {
+    errors
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Calls of one file, one line each.
@@ -533,8 +560,13 @@ fn call(c: &m::Call) -> String {
     if c.dynamic {
         flags.push("dynamic");
     }
-    if !c.resolved {
-        flags.push("unresolved");
+    // why, unless the flag says it already
+    match c.unresolved {
+        _ if c.resolved => {}
+        Some(why) if why != m::Unresolved::Dynamic => {
+            flags.push(unresolved(why));
+        }
+        _ => flags.push("unresolved"),
     }
     // CALL BADI with the BAdI, its interface is the class
     let options: Vec<String> = c
@@ -597,11 +629,14 @@ pub fn logic(logic: &m::FileLogic) -> String {
     if !logic.missing.is_empty() {
         let _ = writeln!(out, "missing: {}", logic.missing.join(", "));
     }
+    if !logic.skipped.is_empty() {
+        let _ = writeln!(out, "not loaded: {}", logic.skipped.join(", "));
+    }
     if !logic.notes.is_empty() {
         let _ = writeln!(out, "notes: {}", logic.notes.join("; "));
     }
     if !logic.errors.is_empty() {
-        let _ = writeln!(out, "errors: {}", logic.errors.join("; "));
+        let _ = writeln!(out, "errors: {}", errors(&logic.errors));
     }
     out
 }

@@ -3,13 +3,14 @@
 //! call graph.
 
 use std::cell::Cell;
-use std::collections::{BTreeSet, HashMap};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use abap_model as m;
-use abap_source::{Badi, ClassPart, ObjectKind, SourceProvider, SourceRef};
+use abap_source::{Badi, ClassPart, ObjectKind, SourceError, SourceProvider, SourceRef};
 use abap_syntax::{File, StatementKind as K};
+use serde::Deserialize;
 
 use crate::calls::{
     method_defined, type_info, CallExtractor, SymbolsResolver, TypeResolver, ValueType,
@@ -36,8 +37,77 @@ pub struct Object {
     pub enhancements: Vec<(String, String)>,
 }
 
+/// Which objects calls are followed into, and how many are loaded. Roots
+/// are always loaded.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Follow {
+    /// name patterns of the objects to load, like `Z*`, or `/ABC/*` for a
+    /// custom namespace; `*` for any characters, in any case; all objects
+    /// when empty
+    pub include: Vec<String>,
+    /// name patterns of objects not to load, also when `include` matches
+    pub exclude: Vec<String>,
+    /// at most this many objects are loaded or looked for, the roots
+    /// included
+    pub limit: Option<usize>,
+}
+
+impl Follow {
+    /// Whether an object of this name is loaded.
+    pub fn allows(&self, name: &str) -> bool {
+        (self.include.is_empty() || self.include.iter().any(|p| matches(p, name)))
+            && !self.exclude.iter().any(|p| matches(p, name))
+    }
+}
+
+/// Whether `name` matches `pattern`, `*` standing for any characters; case
+/// does not matter.
+fn matches(pattern: &str, name: &str) -> bool {
+    let pattern = pattern.trim().to_ascii_uppercase();
+    let name = name.to_ascii_uppercase();
+    let parts: Vec<&str> = pattern.split('*').collect();
+    if parts.len() == 1 {
+        return pattern == name;
+    }
+    let (first, last) = (parts[0], parts[parts.len() - 1]);
+    if !name.starts_with(first) || name.len() < first.len() + last.len() {
+        return false;
+    }
+    let mut rest = &name[first.len()..];
+    for part in &parts[1..parts.len() - 1] {
+        match rest.find(part) {
+            Some(i) => rest = &rest[i + part.len()..],
+            None => return false,
+        }
+    }
+    rest.ends_with(last)
+}
+
+/// How far loading is: objects loaded or looked for so far, and the last.
+#[derive(Debug, Clone)]
+pub struct Progress {
+    pub loaded: usize,
+    /// like `CLAS:ZCL_X`
+    pub object: String,
+}
+
+/// Called after each object loaded, from the loading threads.
+pub type ProgressFn = Box<dyn Fn(&Progress) + Send + Sync>;
+
 pub struct Workspace {
     provider: Box<dyn SourceProvider>,
+    follow: Follow,
+    progress: Option<ProgressFn>,
+    cancel: Option<Arc<AtomicBool>>,
+    /// objects always loaded: those an analysis starts from
+    roots: Mutex<HashSet<SourceRef>>,
+    /// objects not loaded, and why: not followed, limit, cancelled
+    skipped: Mutex<BTreeMap<SourceRef, m::Unresolved>>,
+    /// objects loaded or looked for
+    loads: AtomicUsize,
+    /// sources whose loading failed
+    failed: Mutex<HashSet<SourceRef>>,
     units: Mutex<HashMap<SourceRef, Slot<Unit>>>,
     objects: Mutex<HashMap<SourceRef, Slot<Object>>>,
     /// calls of each object, worked out once
@@ -46,7 +116,7 @@ pub struct Workspace {
     subclasses: Mutex<HashMap<String, Vec<String>>>,
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
-    errors: Mutex<Vec<String>>,
+    errors: Mutex<Vec<m::LoadError>>,
 }
 
 /// Requests to an SAP system mostly wait on the network: this many loads
@@ -237,6 +307,13 @@ impl Workspace {
     pub fn new(provider: Box<dyn SourceProvider>) -> Self {
         Workspace {
             provider,
+            follow: Follow::default(),
+            progress: None,
+            cancel: None,
+            roots: Mutex::new(HashSet::new()),
+            skipped: Mutex::new(BTreeMap::new()),
+            loads: AtomicUsize::new(0),
+            failed: Mutex::new(HashSet::new()),
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
             calls: Mutex::new(HashMap::new()),
@@ -248,15 +325,107 @@ impl Workspace {
         }
     }
 
+    /// Loads only the objects `follow` allows, the roots always.
+    pub fn with_follow(mut self, follow: Follow) -> Self {
+        self.follow = follow;
+        self
+    }
+
+    /// Calls `progress` after each object loaded or looked for.
+    pub fn with_progress(mut self, progress: ProgressFn) -> Self {
+        self.progress = Some(progress);
+        self
+    }
+
+    /// Loads nothing more once `cancel` is set; analyses then finish with
+    /// what they have.
+    pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// Objects an analysis starts from: loaded whatever `follow` says.
+    pub fn add_roots(&self, roots: &[SourceRef]) {
+        let mut set = self.roots.lock().unwrap();
+        set.extend(roots.iter().map(SourceRef::object));
+    }
+
+    /// An object asked for by name, loaded whatever `follow` says.
+    pub fn root(&self, r: &SourceRef) -> Option<Arc<Object>> {
+        self.add_roots(std::slice::from_ref(r));
+        self.object(r)
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel
+            .as_ref()
+            .is_some_and(|c| c.load(Ordering::Relaxed))
+    }
+
+    fn skip(&self, r: &SourceRef, why: m::Unresolved) {
+        self.skipped.lock().unwrap().entry(r.clone()).or_insert(why);
+    }
+
+    /// Why an object was not loaded, when `follow`, the limit or
+    /// cancelling kept it out.
+    pub fn skip_reason(&self, r: &SourceRef) -> Option<m::Unresolved> {
+        self.skipped.lock().unwrap().get(&r.object()).copied()
+    }
+
+    /// Objects not loaded because of `follow`, the limit or cancelling.
+    pub fn skipped(&self) -> Vec<String> {
+        self.skipped
+            .lock()
+            .unwrap()
+            .keys()
+            .map(|r| r.to_string())
+            .collect()
+    }
+
+    /// Whether loading this source failed with an error.
+    pub(crate) fn failed(&self, r: &SourceRef) -> bool {
+        self.failed.lock().unwrap().contains(r)
+    }
+
     /// Provider errors so far, e.g. failed authorization.
-    pub fn errors(&self) -> Vec<String> {
+    pub fn errors(&self) -> Vec<m::LoadError> {
         self.errors.lock().unwrap().clone()
     }
 
+    fn record(&self, object: String, e: &SourceError) {
+        let (code, status) = match e {
+            SourceError::Io(_) => (m::ErrorCode::Io, None),
+            SourceError::Http { status, .. } => (m::ErrorCode::Http, Some(*status)),
+            SourceError::Auth { .. } => (m::ErrorCode::Auth, None),
+            SourceError::Network(_) => (m::ErrorCode::Network, None),
+            SourceError::Other(_) => (m::ErrorCode::Other, None),
+        };
+        self.errors.lock().unwrap().push(m::LoadError {
+            code,
+            object,
+            cause: e.to_string(),
+            retryable: e.retryable(),
+            status,
+        });
+    }
+
     /// Lookups the system could not do, once each, like
-    /// `enhancements: not available (...)`. Not errors.
+    /// `enhancements: not available (...)`, and whether the limit or
+    /// cancelling stopped loading. Not errors.
     pub fn notes(&self) -> Vec<String> {
         let mut notes = self.provider.notes();
+        let skipped = self.skipped.lock().unwrap();
+        if let (Some(limit), true) = (
+            self.follow.limit,
+            skipped.values().any(|w| *w == m::Unresolved::Limit),
+        ) {
+            notes.push(format!(
+                "limit: {limit} objects loaded, more were not loaded"
+            ));
+        }
+        if skipped.values().any(|w| *w == m::Unresolved::Cancelled) {
+            notes.push("cancelled: objects after it were not loaded".to_string());
+        }
         notes.sort();
         notes.dedup();
         notes
@@ -282,7 +451,8 @@ impl Workspace {
             }
             Ok(None) => None,
             Err(e) => {
-                self.errors.lock().unwrap().push(format!("{r}: {e}"));
+                self.record(r.to_string(), &e);
+                self.failed.lock().unwrap().insert(r.clone());
                 None
             }
         }
@@ -293,7 +463,7 @@ impl Workspace {
         match self.provider.fetch(r) {
             Ok(s) => s.map(|s| s.text),
             Err(e) => {
-                self.errors.lock().unwrap().push(format!("{r}: {e}"));
+                self.record(r.to_string(), &e);
                 None
             }
         }
@@ -340,16 +510,42 @@ impl Workspace {
         if is_root_class(&r) {
             return None;
         }
+        let root = self.roots.lock().unwrap().contains(&r);
+        if !root {
+            if self.cancelled() {
+                self.skip(&r, m::Unresolved::Cancelled);
+                return None;
+            }
+            if !self.follow.allows(&r.name) {
+                self.skip(&r, m::Unresolved::NotFollowed);
+                return None;
+            }
+        }
         // another thread loading it is waited for
         let slot = slot(&self.objects, &r);
-        slot.get_or_init(|| self.load_object(&r).map(Arc::new))
-            .clone()
+        slot.get_or_init(|| {
+            let loaded = self.loads.fetch_add(1, Ordering::SeqCst) + 1;
+            if !root && self.follow.limit.is_some_and(|l| loaded > l) {
+                self.skip(&r, m::Unresolved::Limit);
+                return None;
+            }
+            let object = self.load_object(&r).map(Arc::new);
+            if let Some(progress) = &self.progress {
+                progress(&Progress {
+                    loaded,
+                    object: r.to_string(),
+                });
+            }
+            object
+        })
+        .clone()
     }
 
     /// Loads the objects calls lead to, up to `depth` hops from the roots,
     /// several at once: an SAP system answers each request on its own.
     /// Analyses after it find them loaded.
     pub fn preload(&self, roots: &[SourceRef], depth: u32) {
+        self.add_roots(roots);
         let mut level: Vec<SourceRef> = roots.iter().map(SourceRef::object).collect();
         let mut seen: BTreeSet<SourceRef> = level.iter().cloned().collect();
         for d in 0..=depth {
@@ -512,7 +708,7 @@ impl Workspace {
         let hooks = match self.provider.enhancements(&programs, &functions) {
             Ok(h) => h,
             Err(e) => {
-                self.errors.lock().unwrap().push(format!("{r}: {e}"));
+                self.record(format!("enhancements:{r}"), &e);
                 return (Vec::new(), Vec::new());
             }
         };
@@ -550,7 +746,7 @@ impl Workspace {
     pub fn badi(&self, name: &str) -> Option<Badi> {
         let key = name.to_ascii_uppercase();
         self.provider.badi(&key).unwrap_or_else(|e| {
-            self.errors.lock().unwrap().push(format!("{key}: {e}"));
+            self.record(format!("badi:{key}"), &e);
             None
         })
     }
@@ -559,7 +755,7 @@ impl Workspace {
     pub fn classic_badi(&self, interface: &str) -> Option<Badi> {
         let key = interface.to_ascii_uppercase();
         self.provider.classic_badi(&key).unwrap_or_else(|e| {
-            self.errors.lock().unwrap().push(format!("{key}: {e}"));
+            self.record(format!("classic_badi:{key}"), &e);
             None
         })
     }
@@ -583,7 +779,7 @@ impl Workspace {
         let candidates = match self.provider.implementations(&key) {
             Ok(c) => c,
             Err(e) => {
-                self.errors.lock().unwrap().push(format!("{key}: {e}"));
+                self.record(format!("implementations:{key}"), &e);
                 Vec::new()
             }
         };
@@ -622,7 +818,7 @@ impl Workspace {
         let classes = match self.provider.subclasses(&key) {
             Ok(c) => c,
             Err(e) => {
-                self.errors.lock().unwrap().push(format!("{key}: {e}"));
+                self.record(format!("subclasses:{key}"), &e);
                 Vec::new()
             }
         };
@@ -632,8 +828,13 @@ impl Workspace {
 
     /// The object of a class or interface name, whichever exists.
     pub fn type_object(&self, name: &str) -> Option<Arc<Object>> {
-        self.object(&SourceRef::class(name))
-            .or_else(|| self.object(&SourceRef::interface(name)))
+        let class = SourceRef::class(name);
+        self.object(&class).or_else(|| {
+            // a name not followed is skipped once, as a class
+            (self.skip_reason(&class).is_none())
+                .then(|| self.object(&SourceRef::interface(name)))
+                .flatten()
+        })
     }
 
     /// Calls of an object, types resolved through the workspace.
@@ -699,9 +900,11 @@ impl Workspace {
             units: Vec::new(),
             calls: Vec::new(),
             missing: Vec::new(),
+            skipped: Vec::new(),
             errors: Vec::new(),
             notes: Vec::new(),
         };
+        self.add_roots(roots);
         let mut level: Vec<SourceRef> = Vec::new();
         let mut seen: BTreeSet<SourceRef> = BTreeSet::new();
         for r in roots {
@@ -730,7 +933,7 @@ impl Workspace {
                 .collect();
             let facts = parallel_map(&each, |(i, k)| {
                 let (Some(object), c) = (&objects[*i], &calls[*i][*k]) else {
-                    return (Vec::new(), false, false);
+                    return (Vec::new(), false, false, None);
                 };
                 let resolved = self.resolved(c, object);
                 let incomplete = !resolved
@@ -738,13 +941,17 @@ impl Workspace {
                     && c.class
                         .as_deref()
                         .is_some_and(|class| !self.hierarchy_known(class, object, 0));
-                (self.targets(c), resolved, incomplete)
+                let why = (!resolved).then(|| self.unresolved(c, incomplete));
+                (self.targets(c), resolved, incomplete, why)
             });
             let mut facts = facts.into_iter();
             let mut next = Vec::new();
             for ((r, object), calls) in level.iter().zip(&objects).zip(calls) {
                 let Some(object) = object else {
-                    missing.insert(r.to_string());
+                    // not loaded on purpose, or failed: in `skipped`, `errors`
+                    if self.skip_reason(r).is_none() && !self.failed(r) {
+                        missing.insert(r.to_string());
+                    }
                     continue;
                 };
                 for u in &object.units {
@@ -764,7 +971,7 @@ impl Workspace {
                 }
                 missing.extend(object.missing_includes.iter().map(|i| i.to_string()));
                 for mut c in calls {
-                    let (targets, resolved, incomplete) = facts.next().unwrap_or_default();
+                    let (targets, resolved, incomplete, why) = facts.next().unwrap_or_default();
                     for target in targets {
                         if seen.insert(target.clone()) {
                             next.push(target);
@@ -772,6 +979,7 @@ impl Workspace {
                     }
                     c.resolved = resolved;
                     c.hierarchy_incomplete = incomplete;
+                    c.unresolved = why;
                     graph.calls.push(c);
                 }
             }
@@ -779,6 +987,7 @@ impl Workspace {
             d += 1;
         }
         graph.missing = missing.into_iter().collect();
+        graph.skipped = self.skipped();
         graph.errors = self.errors();
         graph.notes = self.notes();
         graph
@@ -834,6 +1043,34 @@ impl Workspace {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// Why the target of an unresolved call was not found.
+    fn unresolved(&self, c: &m::Call, incomplete: bool) -> m::Unresolved {
+        use m::Unresolved as U;
+        if c.dynamic {
+            return U::Dynamic;
+        }
+        let targets: Vec<SourceRef> = match c.kind {
+            m::CallKind::Function => vec![SourceRef::function_module(&c.name)],
+            m::CallKind::Submit | m::CallKind::Include => vec![SourceRef::program(&c.name)],
+            m::CallKind::Form => c.program.iter().map(|p| SourceRef::program(p)).collect(),
+            m::CallKind::Method | m::CallKind::Constructor => match &c.class {
+                Some(class) => vec![SourceRef::class(class), SourceRef::interface(class)],
+                None => return U::UnknownType,
+            },
+            m::CallKind::Transaction | m::CallKind::Transformation => return U::NotLoaded,
+        };
+        if let Some(why) = targets.iter().find_map(|t| self.skip_reason(t)) {
+            return why;
+        }
+        if targets.iter().any(|t| self.failed(t)) {
+            return U::LookupFailed;
+        }
+        if incomplete {
+            return U::HierarchyIncomplete;
+        }
+        U::Missing
     }
 
     /// Whether the target of a call exists in the loaded sources.
@@ -1356,6 +1593,196 @@ ENDCLASS."
         fn describe(&self) -> String {
             "test".to_string()
         }
+    }
+
+    #[test]
+    fn name_patterns() {
+        assert!(matches("Z*", "zcl_orders"));
+        assert!(matches("/ABC/*", "/ABC/CL_RATES"));
+        assert!(matches("*_ENQUEUE", "/ABC/LOCK_ENQUEUE"));
+        assert!(matches("Z*_TEST*", "ZCL_X_TEST_HELPER"));
+        assert!(!matches("Z*", "CL_ABAP_TYPEDESCR"));
+        assert!(matches("BAPI_USER_GET_DETAIL", "bapi_user_get_detail"));
+        assert!(!matches("Z*X", "ZX_Y"));
+        let f = Follow {
+            include: vec!["Z*".into(), "/ABC/*".into()],
+            exclude: vec!["ZTEST*".into()],
+            limit: None,
+        };
+        assert!(f.allows("ZCL_X") && f.allows("/ABC/CL_Y"));
+        assert!(!f.allows("ZTEST_X") && !f.allows("CL_GUI_ALV_GRID"));
+        assert!(Follow::default().allows("ANYTHING"));
+    }
+
+    /// Sources of a report calling custom and standard code.
+    fn report() -> MemoryProvider {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZMAIN"),
+            "REPORT zmain.
+START-OF-SELECTION.
+  CALL FUNCTION 'Z_ONE'.
+  CALL FUNCTION 'Z_TWO'.
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'.
+  CALL FUNCTION 'Z_GONE'.
+  CALL FUNCTION lv_name.
+  lo_unknown->run( ).
+  CALL TRANSACTION 'VA01'.",
+        );
+        for (name, body) in [
+            ("Z_ONE", "  DELETE FROM zone WHERE id = 1."),
+            ("Z_TWO", "  DELETE FROM ztwo WHERE id = 1."),
+            (
+                "BAPI_USER_GET_DETAIL",
+                "  SELECT * FROM usr02 INTO TABLE @DATA(lt).",
+            ),
+        ] {
+            p.insert(
+                SourceRef::function_module(name),
+                format!("FUNCTION {name}.\n{body}\nENDFUNCTION."),
+            );
+        }
+        p
+    }
+
+    fn reasons(g: &m::CallGraph) -> Vec<String> {
+        g.calls
+            .iter()
+            .map(|c| format!("{} {:?}", c.name, c.unresolved))
+            .collect()
+    }
+
+    #[test]
+    fn calls_say_why_they_are_unresolved() {
+        let ws = Workspace::new(Box::new(report()));
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        assert_eq!(
+            reasons(&g),
+            [
+                "Z_ONE None",
+                "Z_TWO None",
+                "BAPI_USER_GET_DETAIL None",
+                "Z_GONE Some(Missing)",
+                "lv_name Some(Dynamic)",
+                "run Some(UnknownType)",
+                "VA01 Some(NotLoaded)",
+            ]
+        );
+    }
+
+    #[test]
+    fn follow_patterns_and_limit() {
+        let follow = Follow {
+            include: vec!["Z*".into()],
+            exclude: vec![],
+            limit: None,
+        };
+        let ws = Workspace::new(Box::new(report())).with_follow(follow.clone());
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        assert!(reasons(&g).contains(&"BAPI_USER_GET_DETAIL Some(NotFollowed)".to_string()));
+        assert_eq!(g.skipped, ["FUNC:BAPI_USER_GET_DETAIL"]);
+        // not followed is not missing
+        assert_eq!(g.missing, ["FUNC:Z_GONE"]);
+        // the root is loaded even when the patterns leave it out
+        let ws = Workspace::new(Box::new(report())).with_follow(Follow {
+            include: vec!["Y*".into()],
+            ..follow.clone()
+        });
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        assert_eq!(g.units[0].reference, "PROG:ZMAIN");
+        // the root and one more object
+        let ws = Workspace::new(Box::new(report())).with_follow(Follow {
+            limit: Some(2),
+            ..Follow::default()
+        });
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        let limited: Vec<&str> = g
+            .calls
+            .iter()
+            .filter(|c| c.unresolved == Some(m::Unresolved::Limit))
+            .map(|c| c.name.as_str())
+            .collect();
+        assert_eq!(limited.len(), 3, "{limited:?}");
+        assert!(g.notes.iter().any(|n| n.starts_with("limit: 2 objects")));
+        // logic too: the effects of the objects followed only
+        let ws = Workspace::new(Box::new(report())).with_follow(follow);
+        let l = ws.logic(&SourceRef::program("ZMAIN"), 1);
+        let effects: Vec<&str> = l.procedures[0]
+            .effects
+            .iter()
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(effects, ["ZONE", "ZTWO"]);
+        assert_eq!(l.skipped, ["FUNC:BAPI_USER_GET_DETAIL"]);
+        assert_eq!(l.missing, ["FUNC:Z_GONE"]);
+    }
+
+    #[test]
+    fn progress_and_cancel() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (log, stop) = (seen.clone(), cancel.clone());
+        let ws = Workspace::new(Box::new(report()))
+            .with_progress(Box::new(move |p| {
+                log.lock().unwrap().push(p.object.clone());
+                // cancelled after the first object called
+                if p.object == "FUNC:Z_ONE" {
+                    stop.store(true, Ordering::Relaxed);
+                }
+            }))
+            .with_cancel(cancel);
+        // one by one, so the order is known
+        IN_PARALLEL.with(|p| p.set(true));
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        IN_PARALLEL.with(|p| p.set(false));
+        assert_eq!(*seen.lock().unwrap(), ["PROG:ZMAIN", "FUNC:Z_ONE"]);
+        assert!(reasons(&g).contains(&"Z_TWO Some(Cancelled)".to_string()));
+        assert!(g.notes.iter().any(|n| n.starts_with("cancelled")));
+    }
+
+    /// A provider failing for one object.
+    struct Failing(MemoryProvider);
+
+    impl SourceProvider for Failing {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            match r.name.as_str() {
+                "Z_TWO" => Err(SourceError::Http {
+                    status: 503,
+                    url: "https://sap/sap/bc/adt/functions/groups/z/fmodules/z_two".into(),
+                }),
+                "Z_ONE" => Err(SourceError::Auth {
+                    url: "https://sap/sap/bc/adt/functions/groups/z/fmodules/z_one".into(),
+                }),
+                _ => self.0.fetch(r),
+            }
+        }
+
+        fn describe(&self) -> String {
+            "test".to_string()
+        }
+    }
+
+    #[test]
+    fn errors_are_structured() {
+        let ws = Workspace::new(Box::new(Failing(report())));
+        let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        let mut errors = g.errors.clone();
+        errors.sort_by(|a, b| a.object.cmp(&b.object));
+        let summary: Vec<(&str, m::ErrorCode, bool, Option<u16>)> = errors
+            .iter()
+            .map(|e| (e.object.as_str(), e.code, e.retryable, e.status))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                ("FUNC:Z_ONE", m::ErrorCode::Auth, false, None),
+                ("FUNC:Z_TWO", m::ErrorCode::Http, true, Some(503)),
+            ]
+        );
+        assert!(errors[1].cause.starts_with("HTTP 503 for https://sap/"));
+        assert!(reasons(&g).contains(&"Z_TWO Some(LookupFailed)".to_string()));
+        // a failed object is not missing
+        assert_eq!(g.missing, ["FUNC:Z_GONE"]);
     }
 
     #[test]

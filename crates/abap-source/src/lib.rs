@@ -257,7 +257,21 @@ pub enum SourceError {
     Auth {
         url: String,
     },
+    /// no answer: connection, timeout, proxy, or the answer broke off
+    Network(String),
     Other(String),
+}
+
+impl SourceError {
+    /// Whether trying again may succeed: network failures, HTTP 408, 429
+    /// and 5xx.
+    pub fn retryable(&self) -> bool {
+        match self {
+            SourceError::Network(_) => true,
+            SourceError::Http { status, .. } => matches!(status, 408 | 429 | 500..=599),
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for SourceError {
@@ -266,7 +280,7 @@ impl fmt::Display for SourceError {
             SourceError::Io(e) => write!(f, "{e}"),
             SourceError::Http { status, url } => write!(f, "HTTP {status} for {url}"),
             SourceError::Auth { url } => write!(f, "not authorized for {url}"),
-            SourceError::Other(m) => write!(f, "{m}"),
+            SourceError::Network(m) | SourceError::Other(m) => write!(f, "{m}"),
         }
     }
 }

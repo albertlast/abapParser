@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Bumped on incompatible changes of the JSON shape.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// 1-based row and column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -670,11 +670,78 @@ pub struct Call {
     /// not in the sources, e.g. SAP standard classes; an unresolved method
     /// may be defined there
     pub hierarchy_incomplete: bool,
+    /// why the target was not found, when `resolved` is false; set by the
+    /// call graph
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub unresolved: Option<Unresolved>,
     /// object the call is in, like `CLAS:ZCL_X`; set by the call graph
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
     pub text: String,
     pub span: Span,
+}
+
+/// Why the target of a call was not found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Unresolved {
+    /// the target is known only at runtime
+    Dynamic,
+    /// the class or interface of the receiver is not known
+    UnknownType,
+    /// no source provider has the target
+    Missing,
+    /// loading the target failed, see `errors`
+    LookupFailed,
+    /// the method is not in the class, which inherits from or implements
+    /// types that are not in the sources: it may be defined there
+    HierarchyIncomplete,
+    /// the target does not match the follow patterns, see `skipped`
+    NotFollowed,
+    /// the target was not loaded: the maximum number of objects was reached
+    Limit,
+    /// the target was not loaded: the analysis was cancelled
+    Cancelled,
+    /// a transaction or transformation, which is not analyzed
+    NotLoaded,
+}
+
+/// What kind of failure an error is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCode {
+    /// not authorized, HTTP 401 or 403
+    Auth,
+    /// another HTTP status, in `status`
+    Http,
+    /// no answer: connection, timeout, proxy, or the answer broke off
+    Network,
+    /// reading or writing a file, e.g. the cache
+    Io,
+    Other,
+}
+
+/// A failure of a source provider; the analysis went on without what it
+/// could not load.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LoadError {
+    pub code: ErrorCode,
+    /// the object, like `CLAS:ZCL_X`, or the lookup, like
+    /// `implementations:ZIF_X`
+    pub object: String,
+    /// what failed, like `HTTP 500 for https://host/sap/bc/adt/...`
+    pub cause: String,
+    /// trying again may succeed: network failures, HTTP 408, 429 and 5xx
+    pub retryable: bool,
+    /// the HTTP status of `http`
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub status: Option<u16>,
+}
+
+impl std::fmt::Display for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.object, self.cause)
+    }
 }
 
 /// One loaded source of a call graph.
@@ -695,10 +762,15 @@ pub struct CallGraph {
     pub roots: Vec<String>,
     pub units: Vec<GraphUnit>,
     pub calls: Vec<Call>,
-    /// referenced objects no provider had
+    /// referenced objects no provider had; those whose loading failed are
+    /// in `errors`
     pub missing: Vec<String>,
+    /// referenced objects not loaded: not matching the follow patterns,
+    /// beyond the maximum number of objects, or after cancelling
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub skipped: Vec<String>,
     /// provider errors, e.g. authorization failures
-    pub errors: Vec<String>,
+    pub errors: Vec<LoadError>,
     /// lookups the system could not do, like `enhancements: not available
     /// (...)`; the graph is complete apart from them
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -1100,12 +1172,17 @@ pub struct FileLogic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object: Option<String>,
     pub procedures: Vec<Procedure>,
-    /// objects no provider had: includes, and called objects
+    /// objects no provider had: includes, and called objects; those whose
+    /// loading failed are in `errors`
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub missing: Vec<String>,
+    /// called objects not loaded: not matching the follow patterns, beyond
+    /// the maximum number of objects, or after cancelling
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub skipped: Vec<String>,
     /// provider errors, e.g. authorization failures
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub errors: Vec<String>,
+    pub errors: Vec<LoadError>,
     /// lookups the system could not do, like `enhancements: not available
     /// (...)`; the result is complete apart from them
     #[serde(skip_serializing_if = "Vec::is_empty", default)]

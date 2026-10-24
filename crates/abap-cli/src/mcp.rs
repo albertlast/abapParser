@@ -51,6 +51,12 @@ impl Server {
         }
     }
 
+    /// Loads only the objects `follow` allows when following calls.
+    pub fn with_follow(mut self, follow: abap_analysis::Follow) -> Self {
+        self.workspace = self.workspace.map(|w| w.with_follow(follow));
+        self
+    }
+
     /// Serves requests from `input` until it ends.
     pub fn run(&self, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
         for line in input.lines() {
@@ -226,9 +232,7 @@ impl Server {
 
     fn object(&self, args: &Value) -> Result<std::sync::Arc<abap_analysis::Object>, Failure> {
         let r = self.reference(args)?;
-        self.workspace()?
-            .object(&r)
-            .ok_or_else(|| self.not_found(&r))
+        self.workspace()?.root(&r).ok_or_else(|| self.not_found(&r))
     }
 
     fn not_found(&self, r: &SourceRef) -> Failure {
@@ -238,8 +242,8 @@ impl Server {
             .map(|w| w.errors())
             .unwrap_or_default();
         let mut text = format!("{r} not found in {}", self.sources);
-        if let Some(e) = errors.iter().rev().find(|e| e.starts_with(&r.to_string())) {
-            text.push_str(&format!(": {e}"));
+        if let Some(e) = errors.iter().rev().find(|e| e.object == r.to_string()) {
+            text.push_str(&format!(": {}", e.cause));
         }
         Failure::Tool(text)
     }
@@ -651,7 +655,7 @@ ENDCLASS.",
             json!({"objects": ["CLAS:ZCL_ORDERS"]}),
         );
         assert!(
-            text.contains("9 zcl_orders->save: function Z_LOG (unresolved)"),
+            text.contains("9 zcl_orders->save: function Z_LOG (unresolved: missing)"),
             "{text}"
         );
         assert!(text.contains("missing: FUNC:Z_LOG"), "{text}");
