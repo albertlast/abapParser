@@ -39,6 +39,10 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         K::UpdateDatabase => c.update_database(),
         K::Append => c.append(),
         K::Format | K::EditorCall => c.data_objects_only(file, s),
+        K::CallTransformation => c.call_transformation(),
+        K::CreateData => c.create_data(),
+        K::MergeDatabase => c.merge(),
+        K::ReadTable => c.read_table(),
         _ => None,
     };
     error.or_else(|| c.dynamic_component())
@@ -140,7 +144,111 @@ impl<'a> Check<'a> {
         None
     }
 
+    /// A method call starts at `i`: a name right before `(` followed by a
+    /// blank or by `)`; not an offset or length like `lv(10)`, not a
+    /// dynamic name like `(lt_stab)`.
+    fn call_at(&self, i: usize) -> bool {
+        let (Some(name), Some(open)) = (self.t.get(i), self.t.get(i + 1)) else {
+            return false;
+        };
+        name.kind == TokenKind::Identifier
+            && open.kind == TokenKind::ParenLeft
+            && !open.ws_before
+            && (open.ws_after
+                || self
+                    .t
+                    .get(i + 2)
+                    .is_some_and(|t| t.kind == TokenKind::ParenRight))
+    }
+
+    /// `CALL TRANSFORMATION name` takes PARAMETERS, OBJECTS, OPTIONS, SOURCE
+    /// and RESULT; the SOURCE operands are data objects.
+    fn call_transformation(&self) -> Option<SyntaxError> {
+        const ADDITIONS: [&str; 5] = ["PARAMETERS", "OBJECTS", "OPTIONS", "SOURCE", "RESULT"];
+        // the name, or (name)
+        let after = if self.word(2) == "(" {
+            (3..self.w.len()).find(|&k| self.depth[k] == 0 && self.word(k) == ")")? + 1
+        } else {
+            3
+        };
+        let next = self.word(after);
+        if !next.is_empty() && next != "." && !ADDITIONS.contains(&next) {
+            return error(after, "unknown addition");
+        }
+        let source = self.top("SOURCE").first().copied()?;
+        let end = (source + 1..self.w.len())
+            .find(|&k| self.depth[k] == 0 && ADDITIONS.contains(&self.word(k)))
+            .unwrap_or(self.w.len());
+        (source + 1..end)
+            .find(|&k| self.call_at(k))
+            .and_then(|k| error(k, "method call in SOURCE"))
+    }
+
+    /// `CREATE DATA ... TYPE HANDLE handle`: the handle is a data object.
+    fn create_data(&self) -> Option<SyntaxError> {
+        let at =
+            (1..self.w.len()).find(|&k| self.word(k - 1) == "TYPE" && self.word(k) == "HANDLE")?;
+        (at + 1..self.w.len())
+            .find(|&k| self.call_at(k))
+            .and_then(|k| error(k, "TYPE HANDLE takes a data object"))
+    }
+
+    /// MERGE: an internal table as source has an alias, `WHEN MATCHED`
+    /// comes before `WHEN NOT MATCHED`.
+    fn merge(&self) -> Option<SyntaxError> {
+        for &u in &self.top("USING") {
+            if self.word(u + 1) != "@" {
+                continue;
+            }
+            // @itab, written without blanks
+            let mut k = u + 2;
+            while self.t.get(k + 1).is_some_and(|t| !t.ws_before) {
+                k += 1;
+            }
+            if self.word(k + 1) != "AS" {
+                return error(u + 1, "internal table without an alias");
+            }
+        }
+        let mut not_matched = false;
+        for &w in &self.top("WHEN") {
+            match (self.word(w + 1), self.word(w + 2)) {
+                ("NOT", "MATCHED") => not_matched = true,
+                ("MATCHED", _) if not_matched => {
+                    return error(w, "WHEN MATCHED after WHEN NOT MATCHED");
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// `USING KEY` goes with an index or a work area, not with `WITH KEY`.
+    fn read_table(&self) -> Option<SyntaxError> {
+        let using = self
+            .top("USING")
+            .into_iter()
+            .any(|u| self.word(u + 1) == "KEY");
+        if !using {
+            return None;
+        }
+        self.top("WITH")
+            .into_iter()
+            .find(|&w| self.word(w + 1) == "KEY" || self.word(w + 1) == "TABLE")
+            .and_then(|w| error(w, "USING KEY with WITH KEY"))
+    }
+
     fn method_def(&self) -> Option<SyntaxError> {
+        // an event handler of an entity is an instance method
+        let class_method = self.word(0) == "CLASS-METHODS"
+            || (self.word(0) == "CLASS" && self.word(1) == "-" && self.word(2) == "METHODS");
+        if class_method {
+            let entity = (0..self.w.len()).find(|&k| {
+                self.word(k) == "FOR" && self.word(k + 1) == "ENTITY" && self.word(k + 2) == "EVENT"
+            });
+            if let Some(k) = entity {
+                return error(k, "entity event handler as a static method");
+            }
+        }
         const ORDER: [&str; 6] = [
             "IMPORTING",
             "EXPORTING",
@@ -195,6 +303,11 @@ impl<'a> Check<'a> {
     }
 
     fn data_type(&self) -> Option<SyntaxError> {
+        // WITH ends a key or header clause, it cannot end the statement
+        let last = self.w.iter().rposition(|w| w != ".").unwrap_or_default();
+        if last > 0 && self.word(last) == "WITH" && self.depth[last] == 0 {
+            return error(last, "WITH without a key");
+        }
         for i in 1..self.w.len() {
             match self.word(i) {
                 // TABLE OF without its line type
@@ -458,6 +571,38 @@ mod tests {
             check("ASSIGN ref->( comp ) TO <fs>."),
             Some("blank inside a dynamic component")
         );
+        assert_eq!(
+            check("CALL TRANSFORMATION id MOO."),
+            Some("unknown addition")
+        );
+        assert_eq!(
+            check("CALL TRANSFORMATION id SOURCE data = <fs> fields = list_key_fields( ) RESULT XML writer."),
+            Some("method call in SOURCE")
+        );
+        assert_eq!(
+            check("CREATE DATA lr_data TYPE HANDLE cl_abap_structdescr=>create( lt_comp )."),
+            Some("TYPE HANDLE takes a data object")
+        );
+        assert_eq!(
+            check("MERGE INTO ztarget AS a USING @itab ON 1 = 1 WHEN MATCHED THEN DELETE."),
+            Some("internal table without an alias")
+        );
+        assert_eq!(
+            check("MERGE INTO zt AS a USING zs AS b ON 1 = 1 WHEN NOT MATCHED THEN INSERT ALL WHEN MATCHED THEN DELETE."),
+            Some("WHEN MATCHED after WHEN NOT MATCHED")
+        );
+        assert_eq!(
+            check("CLASS-METHODS on_event FOR ENTITY EVENT events FOR root~raised."),
+            Some("entity event handler as a static method")
+        );
+        assert_eq!(
+            check("READ TABLE lt INTO ls USING KEY sha WITH KEY sha1 = lv."),
+            Some("USING KEY with WITH KEY")
+        );
+        assert_eq!(
+            check("TYPES moo TYPE SORTED TABLE OF foo_bar WITH NON-UNIQUE KEY and with."),
+            Some("WITH without a key")
+        );
     }
 
     #[test]
@@ -468,6 +613,15 @@ mod tests {
             "SELECT col FROM ztab INTO TABLE @lt PACKAGE SIZE 10.",
             "METHODS foo IMPORTING a TYPE i EXPORTING b TYPE i RAISING cx.",
             "CONCATENATE a b INTO c SEPARATED BY space.",
+            "CALL TRANSFORMATION (lv_name) PARAMETERS (lt_par) SOURCE (lt_stab) RESULT XML lv.",
+            "CALL TRANSFORMATION id SOURCE data = lv_x(10) RESULT XML lv.",
+            "CREATE DATA lr_data TYPE HANDLE lr_type->*.",
+            "MERGE INTO zt AS a USING @itab AS it ON a~kf = it~kf WHEN MATCHED THEN DELETE.",
+            "MERGE INTO zt AS a USING zs AS b ON 1 = 1 WHEN MATCHED THEN UPDATE ALL WHEN NOT MATCHED THEN INSERT ALL.",
+            "METHODS on_event FOR ENTITY EVENT events FOR root~raised.",
+            "READ TABLE lt INTO ls INDEX 1 USING KEY name.",
+            "READ TABLE lt INTO ls WITH KEY id = 1.",
+            "TYPES ty TYPE SORTED TABLE OF ts WITH NON-UNIQUE KEY and.",
             "INSERT row INTO TABLE tab REFERENCE INTO ref.",
             "ASSIGN ref->(comp) TO <fs>.",
             "UPDATE ztab SET column = column + 2 WHERE val = 1.",

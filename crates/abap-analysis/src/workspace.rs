@@ -1322,6 +1322,8 @@ pub fn merge_symbols<'a>(parts: impl Iterator<Item = &'a m::FileSymbols>) -> m::
             None => out.orphan_implementations.push(o),
         }
     }
+    // types declared in one part, like the TOP include, type the others
+    crate::symbols::resolve_types(&mut out);
     out
 }
 
