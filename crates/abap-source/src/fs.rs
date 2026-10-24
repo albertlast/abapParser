@@ -38,9 +38,9 @@ pub struct FsProvider {
 const BADI_TYPES: [&str; 4] = ["enhs", "enho", "sxsd", "sxci"];
 
 #[derive(Default)]
-struct Relations {
-    implementers: HashMap<String, Vec<String>>,
-    subclasses: HashMap<String, Vec<String>>,
+pub(crate) struct Relations {
+    pub implementers: HashMap<String, Vec<String>>,
+    pub subclasses: HashMap<String, Vec<String>>,
 }
 
 impl FsProvider {
@@ -161,7 +161,7 @@ pub(crate) fn superclass_of(text: &str, class: &str) -> Option<String> {
 }
 
 impl FsProvider {
-    fn badis(&self) -> &BadiIndex {
+    pub(crate) fn badis(&self) -> &BadiIndex {
         self.badis.get_or_init(|| {
             let mut index = BadiIndex::default();
             for (kind, path) in &self.enhancements {
@@ -175,7 +175,7 @@ impl FsProvider {
 
     /// The code files of enhancement implementations; abapGit writes the
     /// position into the first line, `"Name: \PR:ZREPORT\EX:ZPOINT\EI`.
-    fn hooks(&self) -> &[Hook] {
+    pub(crate) fn hooks(&self) -> &[Hook] {
         self.hooks.get_or_init(|| {
             let mut out = Vec::new();
             for (enhancement, path) in &self.hook_files {
@@ -208,7 +208,7 @@ impl FsProvider {
         })
     }
 
-    fn relations(&self) -> &Relations {
+    pub(crate) fn relations(&self) -> &Relations {
         self.relations.get_or_init(|| {
             let mut index = Relations::default();
             for (r, path) in &self.index {

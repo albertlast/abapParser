@@ -671,6 +671,10 @@ pub struct CallGraph {
     pub missing: Vec<String>,
     /// provider errors, e.g. authorization failures
     pub errors: Vec<String>,
+    /// lookups the system could not do, like `enhancements: not available
+    /// (...)`; the graph is complete apart from them
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub notes: Vec<String>,
 }
 
 /// One statement, as listed by the statements API.
@@ -681,6 +685,41 @@ pub struct StatementInfo {
     /// tokens joined by single spaces where the source has whitespace
     pub text: String,
     pub span: Span,
+    /// the oldest release that has all the statement uses, when that is
+    /// newer than 7.00
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub release: Option<ReleaseNeed>,
+    /// a syntax error found in the statement, like `keyword as a column`;
+    /// statements without one are not necessarily correct
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error: Option<String>,
+}
+
+/// The release a statement or source needs and the construct that needs it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReleaseNeed {
+    /// on premise, as SAP writes it: `7.02`, `7.40 SP05`, `7.50` to `7.58`, `8.16`
+    pub release: String,
+    /// the same as abaplint names it, for comparing: `v702`, `v740sp05`, `v750`
+    pub id: String,
+    /// like `inline declaration`, `host variable with @`, `string template`
+    pub construct: String,
+}
+
+/// The release a source needs, and what needs more than a given release.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReleaseReport {
+    pub schema_version: u32,
+    /// the highest release a statement needs; absent when 7.00 has it all
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub release: Option<ReleaseNeed>,
+    /// the release asked about, like `7.50`; absent for 7.00
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub target: Option<String>,
+    /// the statements that need a newer release than the target
+    pub statements: Vec<StatementInfo>,
+    /// the statements with a syntax error found
+    pub errors: Vec<StatementInfo>,
 }
 
 /// What an operand of a condition is.
@@ -1007,6 +1046,10 @@ pub struct FileLogic {
     /// provider errors, e.g. authorization failures
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<String>,
+    /// lookups the system could not do, like `enhancements: not available
+    /// (...)`; the result is complete apart from them
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub notes: Vec<String>,
 }
 
 /// A CDS definition, from its DDL source: what it reads and what its
@@ -1127,6 +1170,11 @@ pub fn call_graph_schema() -> serde_json::Value {
 /// JSON Schema of the statements API, an array of [`StatementInfo`].
 pub fn statements_schema() -> serde_json::Value {
     serde_json::to_value(schemars::schema_for!(Vec<StatementInfo>)).expect("schema serializes")
+}
+
+/// JSON Schema of the release API.
+pub fn release_schema() -> serde_json::Value {
+    serde_json::to_value(schemars::schema_for!(ReleaseReport)).expect("schema serializes")
 }
 
 /// JSON Schema of the logic API.

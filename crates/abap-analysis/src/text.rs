@@ -495,6 +495,9 @@ pub fn call_graph(graph: &m::CallGraph) -> String {
     if !graph.missing.is_empty() {
         let _ = writeln!(out, "\nmissing: {}", graph.missing.join(", "));
     }
+    if !graph.notes.is_empty() {
+        let _ = writeln!(out, "\nnotes: {}", graph.notes.join("; "));
+    }
     if !graph.errors.is_empty() {
         let _ = writeln!(out, "\nerrors: {}", graph.errors.join("; "));
     }
@@ -579,6 +582,9 @@ pub fn logic(logic: &m::FileLogic) -> String {
     }
     if !logic.missing.is_empty() {
         let _ = writeln!(out, "missing: {}", logic.missing.join(", "));
+    }
+    if !logic.notes.is_empty() {
+        let _ = writeln!(out, "notes: {}", logic.notes.join("; "));
     }
     if !logic.errors.is_empty() {
         let _ = writeln!(out, "errors: {}", logic.errors.join("; "));

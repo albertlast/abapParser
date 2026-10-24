@@ -5,6 +5,11 @@
   "type": "ModifyEntities"
  },
  {
+  "abap": "MODIFY ENTITIES OF a_product_2 PRIVILEGED\n    ENTITY ProductPlantSupplyPlanning\n      UPDATE SET FIELDS WITH lt_update\n    FAILED DATA(ls_failed)\n    REPORTED DATA(ls_reported).",
+  "expect": "match",
+  "type": "ModifyEntities"
+ },
+ {
   "abap": "MODIFY ENTITIES OF foo\n  ENTITY bar\n  CREATE FIELDS ( fielda fieldb ) WITH create\n  FAILED DATA(failed_modify)\n  REPORTED DATA(reported_modify).",
   "expect": "match",
   "type": "ModifyEntities"

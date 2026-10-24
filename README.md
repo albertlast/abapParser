@@ -35,20 +35,21 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 | 10. CDS data definitions | done |
 | 11. BAdIs, enhancements, customer exits | done |
 | 12. Parallel loading from SAP systems, cached lookups | done |
+| 13. ABAP releases per statement, syntax errors | done |
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
-The corpus is 1,897 files from eleven open source projects (MIT/Apache-2.0), see [tests/corpus](tests/corpus/README.md):
+The corpus is 1,929 files from fourteen open source projects (MIT/Apache-2.0), three of them classic HR code, see [tests/corpus](tests/corpus/README.md):
 
 - **Tokens:** identical in all files.
 - **Statement boundaries:** identical in 99.8% of the files, macro expansion included.
-- **Statement kinds:** 99.84% of 303,374 statements classified the same. Most of the rest are statements abaplint cannot parse, or macros defined twice, where we follow the ABAP documentation and abaplint does not.
-- **abaplint statement test cases:** 99.9% of 4,363 classified the same.
-- **Symbols:** identical to abaplint's file information in every compared category across 1,785 files: classes, interfaces, methods, parameters, attributes, aliases, implemented interfaces, forms, implementations. Files where abaplint itself fails to parse a statement are skipped.
+- **Statement kinds:** 99.85% of 321,856 statements classified the same. Most of the rest are statements abaplint cannot parse, or macros defined twice, where we follow the ABAP documentation and abaplint does not.
+- **abaplint statement test cases:** all 4,365 classified the same; cases for the ABAP Cloud language versions are left out.
+- **Symbols:** identical to abaplint's file information in every compared category across 1,861 files: classes, interfaces, methods, parameters, attributes, aliases, implemented interfaces, forms, implementations. Files where abaplint itself fails to parse a statement are skipped.
 
-- **Database access:** for 1,431 of the corpus's 1,432 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
+- **Database access:** for 1,474 of the corpus's 1,475 database statements, tables, INTO targets, joins and FOR ALL ENTRIES are identical to abaplint. The remaining one is `MODIFY lt_x FROM ls_x` in a loop, which abaplint takes for a database statement. Over abaplint's 1,668 SQL test cases, 99.8% or more agree per category. The remaining differences are intended: nested parenthesized joins count every join, and `PROVIDED BY schema` is not a table.
 
-- **Call graph:** each corpus is loaded through the folder provider. 97.2% of 58,178 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
+- **Call graph:** each corpus is loaded through the folder provider. 97.0% of 58,560 method calls get a receiver class; most of the rest are SAP standard types that are not in the sources. Every call into a class of the same corpus resolves to an existing method, inherited and interface methods included, unless the class inherits from an SAP standard class; those calls are marked `hierarchy_incomplete`.
 
 - **Data references:** abaplint's syntax check resolves every variable a statement reads or writes. In the 1,432 files whose objects pass that check (155k references), we find 99.85% of abaplint's references, and 94.8% of ours are also abaplint's. Most of the rest are names abaplint cannot resolve, like constants from SAP includes missing in the corpus. abaplint's conventions are translated before comparing, see `crates/abap-syntax/tests/refs_diff.rs`. For example, in `lo->attr = x` abaplint writes `lo`, while we read `lo` and write `attr`.
 
@@ -58,7 +59,34 @@ The corpus is 1,897 files from eleven open source projects (MIT/Apache-2.0), see
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
-Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Rejecting invalid syntax in general needs grammars for the remaining statements.
+- **Releases:** abaplint was run once per on-premise release. Of 265,817 corpus statements, 261,037 (98.2%) get the release abaplint gives. 4,777 differ where abaplint reads newer syntax as older or dates predicate functions later, see [Releases](#releases); 3 differ otherwise. Of abaplint's 1,016 release-tagged test cases that apply on premise, 98.0% are met.
+- **Syntax errors:** 69 of abaplint's 77 cases that are invalid at every release are reported; no statement abaplint accepts is reported, in the corpus or in its test cases.
+
+Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Syntax errors are found by checks for errors of known kinds, not by a full grammar of every statement.
+
+## Releases
+
+Each statement gets the oldest on-premise release whose syntax has everything it uses, with the construct that needs it: `DATA(x) = 1.` needs 7.40 SP02 for the inline declaration, `x += 1.` 7.54 for the calculation assignment, `SELECT a, b ...` 7.40 SP05 for the comma-separated list. The releases are 7.00, 7.02, 7.40 SP02, SP05 and SP08, 7.50 to 7.58 and 8.16. Covered:
+
+- string templates, inline declarations, constructor expressions with FOR, LET and table defaults, table expressions, built-in functions like `boolc` and `xsdbool`
+- predicate method calls, `IS INSTANCE OF`, `CASE TYPE OF`, enumerated types, meshes, test seams, calculation assignments, dynamic components, `RETURN` with a value
+- the strict mode of ABAP SQL (`@`, commas), SQL functions with the release of each, `FIELDS`, `UNION`, `INTERSECT`, common table expressions, `OFFSET`, path expressions, window functions, hierarchies
+- operand positions that took only data objects before 7.40 SP02, like `APPEND a + 1 TO itab`
+- RAP: EML statements, behavior pools, derived types like `TYPE TABLE FOR CREATE`
+
+The releases follow abaplint's grammar. Constructs abaplint dates by a cloud release count from the on-premise release that shipped it, 7.76 from 7.54. Where we differ:
+- abaplint's statement parser also reads `DATA(x)` and `FINAL(x)` as a length access of a field named `DATA` or `FINAL`, `xsdbool( )` and `boolc( )` as a method call, `struc-(name)` as older syntax. It then gives the older release; here the construct decides.
+- Built-in predicate functions like `contains( )` and `matches( )` came with the string functions of 7.02. abaplint dates them, as conditions of their own, with predicate method calls (7.40 SP08).
+- `MERGE` exists only in the cloud (9.17), so no on-premise release has it.
+
+The ABAP Cloud language versions, which restrict what a release allows, are not covered.
+
+```sh
+abap release zcl_orders.clas.abap --release 750    # the release the file needs, what needs more than 7.50
+abap statements zcl_orders.clas.abap               # each statement with its release and syntax errors
+```
+
+`statements` gives `release` (with `id` like `v740sp05` for comparing) and `error` for each statement where they apply, in the CLI, the Node and Python bindings and the MCP server.
 
 ## Symbols
 
@@ -193,7 +221,9 @@ const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
 }, 2);
 ```
 
-The ADT provider only reads. It is tested against the mock server below and by hand against the SAP ABAP Cloud Developer Trial.
+The ADT provider only reads. It is tested against the mock server below, and by hand against the SAP ABAP Cloud Developer Trial (SAP_BASIS 816) and an ERP on SAP_BASIS 750.
+
+Systems differ in what ADT offers. The provider reads the system's ADT discovery once and uses only what it lists. Data preview queries the system rejects are sent again through the table preview, as single-table queries. A lookup a system cannot do is reported in `notes` of the result; the analysis goes on without it. On SAP_BASIS 750, for example, ADT cannot read the code of enhancement implementations, so enhancements are left out there. `ABAP_ADT_LOG=1` writes every request to stderr, with the SQL of data preview queries but never credentials, to see what a system answers.
 
 ### BAdIs
 
@@ -220,6 +250,13 @@ An SAP system names the enhancements of a program in its index of enhancement in
 - the repository search that finds a function module's group
 - the where-used list of an interface, a POST that needs the CSRF token and the session cookie handed out with it
 
+With `--release 750` it acts like an ERP on SAP_BASIS 750, as measured on one:
+- the discovery and component list of that system: no collection for tables, lock objects or the code of enhancement implementations
+- data elements only in XML version 1, otherwise HTTP 406; structures, but no tables
+- the data preview, free-form and per table: it answers the queries the provider sends from the class relations, BAdIs and enhancements of the folders. Like 7.50, it rejects long strings such as `ENHINCINX-FULL_NAME` in `WHERE` and lines over 255 characters.
+
+Dictionary objects come as the abapGit XML of the folders, which the analysis reads like the formats of a system. Without `--release` the mock serves sources only, as above.
+
 Requests need basic authentication, and with `--client` only that client is accepted. The logon comes from `ABAP_ADT_USER` and `ABAP_ADT_PASSWORD`, or is `DEVELOPER`/`mock`, so a client started with the same environment logs on. Your own projects can use it to test code that loads ABAP from a system: keep part of the code locally and let the rest come over ADT.
 
 ```sh
@@ -227,7 +264,7 @@ abap mock-adt --src ./abap-src --port 50000
 ABAP_ADT_USER=DEVELOPER ABAP_ADT_PASSWORD=mock abap graph CLAS:ZCL_ORDERS --src ./local --adt-url http://127.0.0.1:50000 --cache ./.abap-cache
 ```
 
-In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `requests()` lists what was asked for. `crates/abap-analysis/tests/adt_mock.rs` uses it: one class is local, the classes it uses come over ADT into the cache, and a second run reads them from the cache.
+In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `requests()` lists what was asked for. `crates/abap-analysis/tests/adt_mock.rs` uses it: one class is local, the classes it uses come over ADT into the cache, and a second run reads them from the cache. Another test builds a call graph over the 7.50 mock and checks that it is the one of the folder, with one note about enhancements.
 
 ## Logic
 
@@ -438,6 +475,7 @@ git submodule update --init --depth 1
 npm ci --prefix tools
 node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt
 node tools/oracle.mjs --sql-cases tests/corpus/abaplint/statements tests/corpus/golden/sql_cases.json
+node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpus/corpora.txt
 cargo test --release -- --nocapture             # prints the coverage reports
 node tools/gen-types.mjs                          # after changing crates/abap-model
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation

@@ -35,6 +35,26 @@
   "type": "CreateData"
  },
  {
+  "abap": "CREATE DATA lr_data TYPE HANDLE <lo_type>.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE HANDLE ls_meta-type.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE HANDLE lr_type->*.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE HANDLE me->mo_type.",
+  "expect": "match",
+  "type": "CreateData"
+ },
+ {
   "abap": "CREATE DATA result TYPE n LENGTH lv_length.",
   "expect": "match",
   "type": "CreateData"
@@ -135,5 +155,9 @@
   "expect": "unknown",
   "release": "Newest",
   "lang": "KeyUser"
+ },
+ {
+  "abap": "CREATE DATA lr_data TYPE HANDLE cl_abap_structdescr=>create( lt_comp ).",
+  "expect": "unknown"
  }
 ]

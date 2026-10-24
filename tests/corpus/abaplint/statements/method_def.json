@@ -270,6 +270,16 @@
   "type": "MethodDef"
  },
  {
+  "abap": "METHODS m IMPORTING a TYPE i DEFAULT 5 optional TYPE i.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
+  "abap": "METHODS m IMPORTING a TYPE i OPTIONAL optional TYPE i OPTIONAL.",
+  "expect": "match",
+  "type": "MethodDef"
+ },
+ {
   "abap": "class-methods bar exceptions /space/cx_error.",
   "expect": "match",
   "type": "MethodDef"

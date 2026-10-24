@@ -9,7 +9,12 @@ const USAGE: &str = "usage: abap <command> [arguments]
 
 single file:
   tokens <file> [--json]      tokens
-  statements <file> [--json]  statements with their kind
+    statements <file> [--json]  statements with their kind, the release each
+                              needs and syntax errors found
+  release <file> [--release R] [--json]
+                              the ABAP release the file needs, the statements
+                              that need more than R (e.g. 750, 740sp05) and
+                              those with a syntax error
   symbols <file>              classes, interfaces, routines and declarations
   db <file>                   database accesses: tables, fields, joins, conditions
   calls <file>                calls: methods, function modules, forms, programs
@@ -37,16 +42,20 @@ source options:
   --cache <dir>        cache folder for sources from the SAP system
   --insecure           skip TLS certificate checks (test systems only)
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
+  ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,
+  duration, the SQL of data preview queries; never credentials
 
 for language models:
   mcp                  MCP server over stdio: the analyses as tools, sources
                        from the source options
 
 testing:
-  mock-adt --src <dir>... [--port N] [--client nnn]
+  mock-adt --src <dir>... [--port N] [--client nnn] [--release 750]
                        serve the folders like an SAP system through ADT, for
                        tests of loading sources; port 50000 by default, logon
-                       from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock
+                       from ABAP_ADT_USER/ABAP_ADT_PASSWORD or DEVELOPER/mock;
+                       --release 750 acts like SAP_BASIS 750 with its data
+                       preview, dictionary and limits
 
 output:
   JSON by default; --text for symbols, db, calls, logic, cds and graph gives a
@@ -63,6 +72,8 @@ struct Args {
     depth: u32,
     port: u16,
     client: Option<String>,
+    /// what `mock-adt` acts like, the release `release` compares with
+    release: Option<String>,
     options: ProviderOptions,
 }
 
@@ -74,6 +85,7 @@ fn parse_args() -> Result<Args, String> {
         depth: 1,
         port: 50000,
         client: None,
+        release: None,
         options: ProviderOptions::default(),
     };
     let mut adt_url = std::env::var("ABAP_ADT_URL").ok();
@@ -92,6 +104,7 @@ fn parse_args() -> Result<Args, String> {
             "--adt-url" => adt_url = Some(value("--adt-url")?),
             "--client" => client = Some(value("--client")?),
             "--language" => language = Some(value("--language")?),
+            "--release" => a.release = Some(value("--release")?),
             "--port" => {
                 a.port = value("--port")?
                     .parse()
@@ -140,7 +153,8 @@ fn main() -> ExitCode {
         "schema" => {
             print_json(&serde_json::json!({
                 "symbols": abap_model::symbols_schema(),
-                "statements": abap_model::statements_schema(),
+                                "statements": abap_model::statements_schema(),
+                "release": abap_model::release_schema(),
                 "db_access": abap_model::db_access_schema(),
                 "calls": abap_model::calls_schema(),
                 "call_graph": abap_model::call_graph_schema(),
@@ -170,7 +184,7 @@ fn main() -> ExitCode {
                 }
             }
         }
-        "tokens" | "statements" | "symbols" | "db" | "calls" | "logic" | "cds" => {
+        "tokens" | "statements" | "release" | "symbols" | "db" | "calls" | "logic" | "cds" => {
             file_command(command, &args)
         }
         _ => {
@@ -216,9 +230,44 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
             } else {
                 for s in &statements {
                     println!(
-                        "{}:{}\t{}\t{}",
-                        s.span.start.row, s.span.start.col, s.kind, s.text
+                        "{}:{}\t{}\t{}{}",
+                        s.span.start.row,
+                        s.span.start.col,
+                        s.kind,
+                        s.text,
+                        statement_notes(s)
                     );
+                }
+            }
+        }
+        "release" => {
+            let target = match args.release.as_deref().map(str::parse).transpose() {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return ExitCode::from(2);
+                }
+            };
+            let report = abap_analysis::release(&source, target);
+            if args.json {
+                print_json(&report);
+            } else {
+                let needs = report.release.as_ref().map_or("7.00".to_string(), |r| {
+                    format!("{} ({})", r.release, r.construct)
+                });
+                println!("needs {needs}");
+                if !report.statements.is_empty() {
+                    let target = report.target.as_deref().unwrap_or("7.00");
+                    println!("\nnewer than {target}:");
+                    for s in &report.statements {
+                        println!("{}\t{}{}", s.span.start.row, s.text, statement_notes(s));
+                    }
+                }
+                if !report.errors.is_empty() {
+                    println!("\nsyntax errors:");
+                    for s in &report.errors {
+                        println!("{}\t{}{}", s.span.start.row, s.text, statement_notes(s));
+                    }
                 }
             }
         }
@@ -237,8 +286,20 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `  [7.40 SP02: inline declaration]`, `  [error: ...]` after a statement.
+fn statement_notes(s: &abap_model::StatementInfo) -> String {
+    let mut out = String::new();
+    if let Some(r) = &s.release {
+        out.push_str(&format!("  [{}: {}]", r.release, r.construct));
+    }
+    if let Some(e) = &s.error {
+        out.push_str(&format!("  [error: {e}]"));
+    }
+    out
+}
+
 fn mock_adt(args: &Args) -> ExitCode {
-    use abap_analysis::abap_source::{FsProvider, MockAdtConfig, MockAdtServer};
+    use abap_analysis::abap_source::{FsProvider, MockAdtConfig, MockAdtServer, MockRelease};
     if args.options.src.is_empty() {
         eprintln!("mock-adt needs --src folders\n\n{USAGE}");
         return ExitCode::from(2);
@@ -259,6 +320,15 @@ fn mock_adt(args: &Args) -> ExitCode {
         config.password = password;
     }
     config.client = args.client.clone();
+    if let Some(release) = &args.release {
+        config.release = match release.parse::<MockRelease>() {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::from(2);
+            }
+        };
+    }
     let user = config.user.clone();
     match MockAdtServer::start(provider, &format!("127.0.0.1:{}", args.port), config) {
         Ok(server) => {

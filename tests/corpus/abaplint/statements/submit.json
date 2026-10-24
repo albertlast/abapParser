@@ -165,6 +165,11 @@
   "type": "Submit"
  },
  {
+  "abap": "SUBMIT (w_report)  WITH SELECTION-TABLE i_rsparams\n                     TO SAP-SPOOL\n                         DESTINATION              p_pdest\n                         COPIES                   '1'\n                         LIST NAME                v_nome_lista\n                         COVER TEXT               v_nome_job\n                         LIST AUTHORITY           space\n                         IMMEDIATELY              space\n                         KEEP IN SPOOL            space\n                         NEW LIST IDENTIFICATION  'X'\n                         DATASET EXPIRATION       p_pexpi\n                         LINE-COUNT               '65'\n                         LINE-SIZE                '132'\n                         LAYOUT                   'X_65_132'\n                         SAP COVER PAGE           'D'\n                         COVER PAGE               space\n                         RECEIVER                 sy-uname\n                         DEPARTMENT               space\n                         ARCHIVE MODE             '1'\n                         WITHOUT SPOOL DYNPRO\n                  USER sy-uname VIA JOB v_nome_job NUMBER v_numero_job\n                  AND RETURN.",
+  "expect": "match",
+  "type": "Submit"
+ },
+ {
   "abap": "SUBMIT zdemo.",
   "expect": "unknown",
   "release": "Newest",

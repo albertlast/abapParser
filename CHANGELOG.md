@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- **Releases:** each statement gets the oldest on-premise ABAP release that has everything it uses, from 7.02 to 8.16, with the construct that needs it, like `7.40 SP02: inline declaration`. New `release` and `error` on statements. New command `abap release <file> [--release 750]` gives the release a file needs and the statements newer than a given release. 98.2% of the corpus statements get the release abaplint gives; all but 3 of the rest are cases where abaplint reads newer syntax as older or dates predicate functions later. The oracle has a new mode, `--releases`, that parses the corpus once per release.
+- **Releases from SAP's release news:** where abaplint dates an ABAP SQL construct differently from SAP's ABAP release news, the release news win. `INTO @DATA(x)` needs 7.40 SP08 (abaplint: SP05), searched `CASE WHEN` SP08, path expressions 7.50 and with parameters or filters 7.52, `CROSS JOIN` 7.51, hierarchies 7.53, window expressions (`OVER`) and `INTO … INDICATORS` 7.54 (abaplint: 7.57 and 8.16), `LIKE_REGEXPR`, `OCCURRENCES_REGEXPR` and `REPLACE_REGEXPR` 7.55, `SUBSTRING_REGEXPR` 7.56. New: `FIRST_VALUE`, `LAST_VALUE`, `NTILE` and window frames (`ROWS BETWEEN`) 7.55, `INDICATORS … NULL BITFIELD` 7.56, inline declaration in `OPEN CURSOR` 7.51. The comparison with abaplint counts these apart: 146 corpus statements and 90 abaplint cases. abaplint cases met: 99.0%, from 98.0%.
+- **Syntax errors:** checks for errors of known kinds, like a keyword as a column, parameter sections out of order or `PACKAGE SIZE` without a table. They report 69 of abaplint's 77 cases that are invalid at every release, and none of the corpus statements abaplint accepts.
+- **SAP macros:** calls of the macros of the logical database PNP (`RP-PROVIDE-FROM-LAST`, `RP-PROVIDE-FROM-FRST`, `RP-READ-INFOTYPE`, `RP-SET-DATA-INTERVAL`), which HR reports use without defining them, are `MacroCall` statements instead of `Unknown`. Macros with dashes in their names, `DEFINE my-mac.`, are expanded; only the part before the first dash was the name.
+- **Field groups:** `INSERT f1 f2 INTO header` is `InsertFieldGroup`, not an internal table insert.
+- **Text literals:** a literal in quotes ends at its closing quote also when no blank follows, as in SQLScript `'x';`, like abaplint 2.120.86.
+- **abaplint 2.120.86:** the reference is updated from 2.120.60, with its statement test cases extracted again.
+- **Older SAP systems:** tested against an ERP on SAP_BASIS 750 SP35.
+  - What a system offers is read from its ADT discovery, not assumed from its release.
+  - Data preview queries the system rejects fall back to the table preview, with single-table queries.
+  - The enhancement lookup no longer filters on `ENHINCINX-FULL_NAME`, a long string that SAP_BASIS 750 rejects in a condition. This was the HTTP 400 for every function module.
+  - Data elements are requested in the version the system lists.
+- **Notes:** a lookup the system cannot do is no longer an error. It is a note in the new `notes` of call graph and logic results, like `enhancements: not available (the ADT discovery has no enhancements/enhoxhh to read their code, SAP_BASIS 750 SP 0035)`. Answers that could not be given are not cached.
+- **Mock of SAP_BASIS 750:** `abap mock-adt --release 750` (`MockRelease::Basis750` in Rust) acts like the ERP measured. It has that system's discovery and component list, and serves data elements only in XML version 1 (406 otherwise), structures but no tables, and no enhancement code. Its data preview answers the queries of the ADT provider from the class relations, BAdIs and enhancements of the served folders. It rejects what 7.50 rejects: long strings in `WHERE` and lines over 255 characters. A test checks that the call graph over it matches the one read from the folder, with one note.
+- **Request log:** `ABAP_ADT_LOG=1` writes every ADT request to stderr: method, path, status, duration, and the SQL of data preview queries. It never writes headers, cookies, tokens or credentials.
+- **Fix:** two parallel loads of the same object could make a cache write fail.
+- **Fix:** parallel loads asking for the same BAdI each sent the lookup to the system; now one asks and the others wait. The 7.50 mock showed it: one query went out six times in one call graph.
+- **Corpus:** three HR projects with logical database PNP, `INFOTYPES` and payroll clusters. The oracle reads plain `NAME.abap` files as programs.
+
 ## 0.3.0
 
 BAdIs, enhancements and customer exits are followed to the code that runs; loading from an SAP system is faster.

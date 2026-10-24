@@ -58,5 +58,17 @@
   "abap": "CONVERT DATE dat TIME tim DAYLIGHT SAVING TIME 'X' TIME ZONE 'EST' INTO UTCLONG DATA(time_stamp).",
   "expect": "match",
   "type": "Convert"
+ },
+ {
+  "abap": "CONVERT DATE dat TIME tim TIME ZONE tz INTO UTCLONG ts.",
+  "expect": "match",
+  "type": "Convert",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "CONVERT UTCLONG ts TIME ZONE tz INTO DATE ls_result-date TIME ls_result-time DAYLIGHT SAVING TIME ls_result-dst.",
+  "expect": "match",
+  "type": "Convert",
+  "release": "OpenABAP"
  }
 ]

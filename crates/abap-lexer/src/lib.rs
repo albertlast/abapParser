@@ -224,7 +224,8 @@ fn is_buf(c: i32) -> bool {
     )
 }
 
-/// separators accepted directly after literals and string templates
+/// separators accepted directly after backquote literals and string
+/// templates; text literals in quotes end at their closing quote anyway
 fn is_after_literal(c: i32) -> bool {
     matches!(
         c,
@@ -522,10 +523,9 @@ impl Lexer {
                 && ahead != QUOTE
                 && self.buf_count_is_even(QUOTE)
             {
-                // end of string; anything but a separator continues the token
-                if is_after_literal(ahead) {
-                    self.add();
-                }
+                // end of string: a text literal always ends at its closing
+                // quote, like abaplint since 2.120.86
+                self.add();
                 self.mode = if ahead == DQUOTE {
                     Mode::Comment
                 } else {
@@ -562,6 +562,13 @@ mod tests {
     #[test]
     fn simple_statement() {
         assert_eq!(texts("DATA foo TYPE i."), ["DATA", "foo", "TYPE", "i", "."]);
+    }
+
+    #[test]
+    fn text_literals_end_at_their_quote() {
+        // SQLScript of an AMDP body: `'x';` is a literal and `;`
+        assert_eq!(texts("a = 'x';"), ["a", "=", "'x'", ";"]);
+        assert_eq!(texts("a = `x`;"), ["a", "=", "`x`;"]);
     }
 
     #[test]

@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use abap_analysis::abap_source::{
-    AdtOptions, FsProvider, MockAdtConfig, MockAdtServer, ProviderOptions, SourceRef,
+    AdtOptions, FsProvider, MockAdtConfig, MockAdtServer, MockRelease, ProviderOptions, SourceRef,
 };
 use abap_analysis::Workspace;
 
@@ -193,4 +193,78 @@ fn interface_implementations_from_the_system() {
         .any(|r| r.contains("usageReferences")));
     drop(server);
     let _ = std::fs::remove_dir_all(work);
+}
+
+/// A system on SAP_BASIS 750 with the code of a folder: the call graph over
+/// ADT is the one of the folder, with one note that the code of
+/// enhancements cannot be read there.
+#[test]
+fn basis_750_gives_the_graph_of_the_folder() {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/corpus/abapgit/src");
+    if !corpus.exists() {
+        println!("skipped: abapGit submodule missing");
+        return;
+    }
+    // calls through interfaces: their implementations come from the class
+    // relations through the data preview
+    let root = SourceRef::class("ZCL_ABAPGIT_REPO_STATUS");
+    let local = ProviderOptions {
+        src: vec![corpus.display().to_string()],
+        cache: None,
+        adt: None,
+    };
+    let expected =
+        Workspace::new(local.build().unwrap()).call_graph(std::slice::from_ref(&root), 2);
+
+    let config = MockAdtConfig {
+        release: MockRelease::Basis750,
+        ..MockAdtConfig::default()
+    };
+    let server = MockAdtServer::start(
+        FsProvider::new(vec![corpus]).unwrap(),
+        "127.0.0.1:0",
+        config,
+    )
+    .unwrap();
+    let options = ProviderOptions {
+        src: Vec::new(),
+        cache: None,
+        adt: Some(AdtOptions {
+            url: server.url().to_string(),
+            user: "DEVELOPER".into(),
+            password: "mock".into(),
+            client: None,
+            language: None,
+            insecure: false,
+        }),
+    };
+    let graph = Workspace::new(options.build().unwrap()).call_graph(std::slice::from_ref(&root), 2);
+    assert!(graph.errors.is_empty(), "{:?}", graph.errors);
+    assert_eq!(
+        graph.notes,
+        ["enhancements: not available (the ADT discovery has no enhancements/enhoxhh to read their code, SAP_BASIS 750 SP 0035)"]
+    );
+    let sorted = |mut r: Vec<String>| {
+        r.sort();
+        r
+    };
+    assert_eq!(
+        sorted(graph.units.iter().map(|u| u.reference.clone()).collect()),
+        sorted(expected.units.iter().map(|u| u.reference.clone()).collect())
+    );
+    assert_eq!(graph.calls, expected.calls);
+    assert_eq!(graph.missing, expected.missing);
+    let requests = server.requests();
+    let previews = requests
+        .iter()
+        .filter(|r| r.contains("datapreview"))
+        .count();
+    assert!(previews > 0, "no data preview query");
+    println!(
+        "{} units, {} calls, {} requests, {previews} data preview queries",
+        graph.units.len(),
+        graph.calls.len(),
+        requests.len()
+    );
+    drop(server);
 }

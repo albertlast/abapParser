@@ -250,8 +250,9 @@ fn compare_members(r: &mut Report, at: &str, ours: Members, g: &GInterface) {
     let mut ours_attr: Vec<_> = ours
         .attributes
         .iter()
-        // abaplint leaves BEGIN OF ... END OF structures out of the attributes
-        .filter(|a| !a.is_structure)
+        // abaplint leaves CONSTANTS BEGIN OF ... END OF structures out of
+        // the attributes, but has DATA ones since 2.120.86
+        .filter(|a| !(a.is_structure && a.kind == m::DeclarationKind::Constant))
         .map(|a| {
             let level = match a.kind {
                 m::DeclarationKind::ClassData => "static",

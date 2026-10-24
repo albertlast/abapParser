@@ -260,6 +260,11 @@
   "type": "If"
  },
  {
+  "abap": "IF p_all = 'X'OR p_app = 'X'.",
+  "expect": "match",
+  "type": "If"
+ },
+ {
   "abap": "IF r_e071k->* IS INITIAL.",
   "expect": "match",
   "type": "If",

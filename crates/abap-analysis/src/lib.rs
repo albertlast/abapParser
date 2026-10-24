@@ -28,31 +28,76 @@ pub use workspace::{merge_symbols, Object, Unit, Workspace};
 
 use abap_model as m;
 
-/// The statements of `source` with kind, text and span.
+/// The statements of `source` with kind, text and span, the release each
+/// needs and syntax errors found.
 pub fn statements(source: &str) -> Vec<m::StatementInfo> {
     let file = abap_syntax::parse(source);
-    let tokens = file.tokens();
     file.statements
         .iter()
-        .map(|s| {
-            let first = &tokens[s.tokens[0]];
-            let last = tokens[*s.tokens.last().unwrap()].end();
-            m::StatementInfo {
-                kind: s.kind.as_str().to_string(),
-                text: file.statement_text(s),
-                span: m::Span {
-                    start: m::Position {
-                        row: first.start.row,
-                        col: first.start.col,
-                    },
-                    end: m::Position {
-                        row: last.row,
-                        col: last.col,
-                    },
-                },
-            }
-        })
+        .map(|s| statement_info(&file, s))
         .collect()
+}
+
+fn statement_info(file: &abap_syntax::File, s: &abap_syntax::Statement) -> m::StatementInfo {
+    let tokens = file.tokens();
+    let first = &tokens[s.tokens[0]];
+    let last = tokens[*s.tokens.last().unwrap()].end();
+    m::StatementInfo {
+        kind: s.kind.as_str().to_string(),
+        text: file.statement_text(s),
+        span: m::Span {
+            start: m::Position {
+                row: first.start.row,
+                col: first.start.col,
+            },
+            end: m::Position {
+                row: last.row,
+                col: last.col,
+            },
+        },
+        release: abap_syntax::release::statement_release(file, s).map(release_need),
+        error: abap_syntax::check::syntax_error(file, s).map(|e| e.message.to_string()),
+    }
+}
+
+fn release_need(n: abap_syntax::release::Need) -> m::ReleaseNeed {
+    m::ReleaseNeed {
+        release: n.release.name().to_string(),
+        id: n.release.id().to_string(),
+        construct: n.construct.to_string(),
+    }
+}
+
+/// The release `source` needs, the statements that need a newer one than
+/// `target` (7.00 when `None`) and the statements with a syntax error.
+pub fn release(source: &str, target: Option<abap_syntax::release::Release>) -> m::ReleaseReport {
+    use abap_syntax::release::{file_release, statement_release, Release};
+    let file = abap_syntax::parse(source);
+    let target_release = target.unwrap_or(Release::V700);
+    let mut statements = Vec::new();
+    let mut errors = Vec::new();
+    for s in &file.statements {
+        let newer = statement_release(&file, s).is_some_and(|n| n.release > target_release);
+        let error = abap_syntax::check::syntax_error(&file, s).is_some();
+        if newer || error {
+            let info = statement_info(&file, s);
+            if newer {
+                statements.push(info.clone());
+            }
+            if error {
+                errors.push(info);
+            }
+        }
+    }
+    m::ReleaseReport {
+        schema_version: m::SCHEMA_VERSION,
+        release: file_release(&file).map(|(_, n)| release_need(n)),
+        target: target
+            .filter(|t| *t != Release::V700)
+            .map(|t| t.name().to_string()),
+        statements,
+        errors,
+    }
 }
 
 /// JSON entry points shared by the language bindings.

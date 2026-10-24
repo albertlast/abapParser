@@ -190,6 +190,11 @@
   "type": "Parameter"
  },
  {
+  "abap": "PARAMETERS p_exec RADIOBUTTON GROUP rb1 DEFAULT 'X'user-command ucomm.",
+  "expect": "match",
+  "type": "Parameter"
+ },
+ {
   "abap": "PARAMETERS sdf RADIOBUTTON GROUP a USER-COMMAND /0.",
   "expect": "match",
   "type": "Parameter"

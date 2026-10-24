@@ -8,7 +8,7 @@
     "oracle": "node oracle.mjs"
   },
   "devDependencies": {
-    "@abaplint/core": "2.120.60",
+    "@abaplint/core": "2.120.86",
     "esbuild": "0.28.2"
   }
 }
