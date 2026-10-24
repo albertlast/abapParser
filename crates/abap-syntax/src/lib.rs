@@ -3,11 +3,13 @@
 //!
 //! Splitting follows abaplint (<https://github.com/abaplint/abaplint>, MIT).
 
+pub mod check;
 mod classify;
 pub mod decl;
 pub mod expr;
 mod kind;
 pub mod operands;
+pub mod release;
 pub mod structure;
 
 pub use abap_lexer::{lex, Lexed, Position, Token, TokenKind};

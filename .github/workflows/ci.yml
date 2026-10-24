@@ -39,6 +39,7 @@ jobs:
           npm ci --prefix tools
           node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt
           node tools/oracle.mjs --sql-cases tests/corpus/abaplint/statements tests/corpus/golden/sql_cases.json
+          node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpus/corpora.txt
 
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings

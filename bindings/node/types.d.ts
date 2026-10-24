@@ -608,6 +608,16 @@ export interface ProgramHeader {
   span: Span;
 }
 
+/** The release a statement or source needs and the construct that needs it. */
+export interface ReleaseNeed {
+  /** like `inline declaration`, `host variable with @`, `string template` */
+  construct: string;
+  /** the same as abaplint names it, for comparing: `v702`, `v740sp05`, `v750` */
+  id: string;
+  /** on premise, as SAP writes it: `7.02`, `7.40 SP05`, `7.50` to `7.58`, `8.16` */
+  release: string;
+}
+
 /** FORM subroutine or function module. */
 export interface Routine {
   /** classic exceptions of function modules */
@@ -627,8 +637,12 @@ export interface Span {
 
 /** One statement, as listed by the statements API. */
 export interface StatementInfo {
+  /** a syntax error found in the statement, like `keyword as a column`; statements without one are not necessarily correct */
+  error?: string;
   /** statement kind, e.g. `Data`, `Select`, `CallFunction`; same names as abaplint */
   kind: string;
+  /** the oldest release that has all the statement uses, when that is newer than 7.00 */
+  release?: ReleaseNeed;
   span: Span;
   /** tokens joined by single spaces where the source has whitespace */
   text: string;

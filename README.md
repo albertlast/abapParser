@@ -35,6 +35,7 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 | 10. CDS data definitions | done |
 | 11. BAdIs, enhancements, customer exits | done |
 | 12. Parallel loading from SAP systems, cached lookups | done |
+| 13. ABAP releases per statement, syntax errors | done |
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
@@ -58,7 +59,34 @@ The corpus is 1,929 files from fourteen open source projects (MIT/Apache-2.0), t
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
-Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Rejecting invalid syntax in general needs grammars for the remaining statements.
+- **Releases:** abaplint was run once per on-premise release. Of 265,811 corpus statements, 261,031 (98.2%) get the release abaplint gives. 4,777 differ where abaplint reads newer syntax as older or dates predicate functions later, see [Releases](#releases); 3 differ otherwise. Of abaplint's 1,012 release-tagged test cases that apply on premise, 98.0% are met.
+- **Syntax errors:** 69 of abaplint's 76 cases that are invalid at every release are reported; no statement abaplint accepts is reported, in the corpus or in its test cases.
+
+Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Syntax errors are found by checks for errors of known kinds, not by a full grammar of every statement.
+
+## Releases
+
+Each statement gets the oldest on-premise release whose syntax has everything it uses, with the construct that needs it: `DATA(x) = 1.` needs 7.40 SP02 for the inline declaration, `x += 1.` 7.54 for the calculation assignment, `SELECT a, b ...` 7.40 SP05 for the comma-separated list. The releases are 7.00, 7.02, 7.40 SP02, SP05 and SP08, 7.50 to 7.58 and 8.16. Covered:
+
+- string templates, inline declarations, constructor expressions with FOR, LET and table defaults, table expressions, built-in functions like `boolc` and `xsdbool`
+- predicate method calls, `IS INSTANCE OF`, `CASE TYPE OF`, enumerated types, meshes, test seams, calculation assignments, dynamic components, `RETURN` with a value
+- the strict mode of ABAP SQL (`@`, commas), SQL functions with the release of each, `FIELDS`, `UNION`, `INTERSECT`, common table expressions, `OFFSET`, path expressions, window functions, hierarchies
+- operand positions that took only data objects before 7.40 SP02, like `APPEND a + 1 TO itab`
+- RAP: EML statements, behavior pools, derived types like `TYPE TABLE FOR CREATE`
+
+The releases follow abaplint's grammar. Constructs abaplint dates by a cloud release count from the on-premise release that shipped it, 7.76 from 7.54. Where we differ:
+- abaplint's statement parser also reads `DATA(x)` and `FINAL(x)` as a length access of a field named `DATA` or `FINAL`, `xsdbool( )` and `boolc( )` as a method call, `struc-(name)` as older syntax. It then gives the older release; here the construct decides.
+- Built-in predicate functions like `contains( )` and `matches( )` came with the string functions of 7.02. abaplint dates them, as conditions of their own, with predicate method calls (7.40 SP08).
+- `MERGE` exists only in the cloud (9.17), so no on-premise release has it.
+
+The ABAP Cloud language versions, which restrict what a release allows, are not covered.
+
+```sh
+abap release zcl_orders.clas.abap --release 750    # the release the file needs, what needs more than 7.50
+abap statements zcl_orders.clas.abap               # each statement with its release and syntax errors
+```
+
+`statements` gives `release` (with `id` like `v740sp05` for comparing) and `error` for each statement where they apply, in the CLI, the Node and Python bindings and the MCP server.
 
 ## Symbols
 
@@ -447,6 +475,7 @@ git submodule update --init --depth 1
 npm ci --prefix tools
 node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt
 node tools/oracle.mjs --sql-cases tests/corpus/abaplint/statements tests/corpus/golden/sql_cases.json
+node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpus/corpora.txt
 cargo test --release -- --nocapture             # prints the coverage reports
 node tools/gen-types.mjs                          # after changing crates/abap-model
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation

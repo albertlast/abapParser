@@ -671,6 +671,16 @@ class ProgramHeader(TypedDict):
     span: Span
 
 
+class ReleaseNeed(TypedDict):
+    """The release a statement or source needs and the construct that needs it."""
+    construct: str
+    """like `inline declaration`, `host variable with @`, `string template`"""
+    id: str
+    """the same as abaplint names it, for comparing: `v702`, `v740sp05`, `v750`"""
+    release: str
+    """on premise, as SAP writes it: `7.02`, `7.40 SP05`, `7.50` to `7.58`, `8.16`"""
+
+
 class Routine(TypedDict):
     """FORM subroutine or function module."""
     exceptions: List[str]
@@ -688,13 +698,20 @@ class Span(TypedDict):
     start: Position
 
 
-class StatementInfo(TypedDict):
-    """One statement, as listed by the statements API."""
+class _StatementInfoRequired(TypedDict):
     kind: str
     """statement kind, e.g. `Data`, `Select`, `CallFunction`; same names as abaplint"""
     span: Span
     text: str
     """tokens joined by single spaces where the source has whitespace"""
+
+
+class StatementInfo(_StatementInfoRequired, total=False):
+    """One statement, as listed by the statements API."""
+    error: str
+    """a syntax error found in the statement, like `keyword as a column`; statements without one are not necessarily correct"""
+    release: ReleaseNeed
+    """the oldest release that has all the statement uses, when that is newer than 7.00"""
 
 
 class _StepRequired(TypedDict):

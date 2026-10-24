@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Releases:** each statement gets the oldest on-premise ABAP release that has everything it uses, from 7.02 to 8.16, with the construct that needs it, like `7.40 SP02: inline declaration`. New `release` and `error` on statements. New command `abap release <file> [--release 750]` gives the release a file needs and the statements newer than a given release. 98.2% of the corpus statements get the release abaplint gives; all but 3 of the rest are cases where abaplint reads newer syntax as older or dates predicate functions later. The oracle has a new mode, `--releases`, that parses the corpus once per release.
+- **Syntax errors:** checks for errors of known kinds, like a keyword as a column, parameter sections out of order or `PACKAGE SIZE` without a table. They report 69 of abaplint's 76 cases that are invalid at every release, and none of the corpus statements abaplint accepts.
 - **Older SAP systems:** tested against an ERP on SAP_BASIS 750 SP35.
   - What a system offers is read from its ADT discovery, not assumed from its release.
   - Data preview queries the system rejects fall back to the table preview, with single-table queries.

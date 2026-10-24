@@ -8,6 +8,11 @@
 //
 // usage: node oracle.mjs --sql-cases <statements-dir> <out-file>
 // Writes abaplint's SQL details for the extracted database statement cases.
+//
+// usage: node oracle.mjs --releases <out-dir> --list tests/corpus/corpora.txt
+// Parses every file once per on-premise release and writes, for each
+// statement that needs more than 7.00, the lowest release from which
+// abaplint parses it as it does on the newest: <out-dir>/<path>.json.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -198,17 +203,106 @@ function sqlCases(dir, outFile) {
   console.log(`oracle: ${out.length} sql cases`);
 }
 
+// on-premise releases, oldest first
+const RELEASES = ["v700", "v702", "v740sp02", "v740sp05", "v740sp08", "v750", "v751", "v752",
+  "v753", "v754", "v755", "v756", "v757", "v758", "v816"];
+
+// abaplint's file name for a path: a plain NAME.abap is a program
+function objectName(f) {
+  const name = path.basename(f).toLowerCase();
+  return name.split(".").length === 2 ? name.replace(/\.abap$/, ".prog.abap") : name;
+}
+
+function releases(outDir, inputs) {
+  let files = 0;
+  let needing = 0;
+  for (const input of inputs) {
+    const names = new Map();
+    const sources = [];
+    for (const f of walk(input)) {
+      names.set(objectName(f), path.relative(process.cwd(), f));
+      sources.push([objectName(f), fs.readFileSync(f, "utf8")]);
+    }
+    // per file: statement key -> type per release
+    const kinds = new Map();
+    for (const [r, release] of RELEASES.entries()) {
+      const reg = new Registry(Config.getDefault(Version[release]));
+      for (const [name, text] of sources) {
+        reg.addFile(new MemoryFile(name, text));
+      }
+      reg.parse();
+      for (const obj of reg.getObjects()) {
+        if (!(obj instanceof ABAPObject)) {
+          continue;
+        }
+        for (const file of obj.getABAPFiles()) {
+          const rel = names.get(file.getFilename());
+          if (rel === undefined) {
+            continue;
+          }
+          if (!kinds.has(rel)) {
+            kinds.set(rel, new Map());
+          }
+          const byKey = kinds.get(rel);
+          for (const s of file.getStatements()) {
+            const tokens = s.getTokens().map((t) => [t.getRow(), t.getCol()]);
+            const key = JSON.stringify(tokens);
+            if (!byKey.has(key)) {
+              byKey.set(key, {tokens, types: new Array(RELEASES.length).fill("Unknown")});
+            }
+            byKey.get(key).types[r] = s.get().constructor.name;
+          }
+        }
+      }
+    }
+    for (const [rel, byKey] of kinds) {
+      const statements = [];
+      for (const {tokens, types} of byKey.values()) {
+        const newest = types[types.length - 1];
+        if (newest === "Unknown" || newest === "Comment") {
+          continue;
+        }
+        // the lowest release from which every newer one parses it alike
+        let lowest = types.length - 1;
+        while (lowest > 0 && types[lowest - 1] === newest) {
+          lowest -= 1;
+        }
+        if (lowest > 0) {
+          statements.push({type: newest, tokens, release: RELEASES[lowest]});
+        }
+      }
+      const out = {file: rel.split(path.sep).join("/"), abaplint: abaplint.Registry.abaplintVersion(),
+        statements};
+      const dest = path.join(outDir, rel + ".json");
+      fs.mkdirSync(path.dirname(dest), {recursive: true});
+      fs.writeFileSync(dest, JSON.stringify(out) + "\n");
+      files += 1;
+      needing += statements.length;
+    }
+  }
+  console.log(`oracle: ${files} files, ${needing} statements newer than 7.00`);
+}
+
+function inputList(inputs) {
+  if (inputs[0] === "--list") {
+    // one folder per line, # comments
+    return fs.readFileSync(inputs[1], "utf8").split(/\r?\n/).map((l) => l.trim())
+      .filter((l) => l !== "" && !l.startsWith("#"));
+  }
+  return inputs;
+}
+
 function main() {
   if (process.argv[2] === "--sql-cases") {
     sqlCases(process.argv[3], process.argv[4]);
     return;
   }
-  let [outDir, ...inputs] = process.argv.slice(2);
-  if (inputs[0] === "--list") {
-    // one folder per line, # comments
-    inputs = fs.readFileSync(inputs[1], "utf8").split(/\r?\n/).map((l) => l.trim())
-      .filter((l) => l !== "" && !l.startsWith("#"));
+  if (process.argv[2] === "--releases") {
+    releases(process.argv[3], inputList(process.argv.slice(4)));
+    return;
   }
+  const [outDir, ...rest] = process.argv.slice(2);
+  const inputs = inputList(rest);
   if (outDir === undefined || inputs.length === 0) {
     console.error("usage: node oracle.mjs <out-dir> <input-dir-or-file>...");
     process.exit(2);
@@ -227,10 +321,7 @@ function main() {
     for (const f of walk(input)) {
       // abaplint derives the object type from the abapGit style file name;
       // a plain NAME.abap is a program
-      let name = path.basename(f).toLowerCase();
-      if (name.split(".").length === 2) {
-        name = name.replace(/\.abap$/, ".prog.abap");
-      }
+      const name = objectName(f);
       names.set(name, path.relative(process.cwd(), f));
       reg.addFile(new MemoryFile(name, fs.readFileSync(f, "utf8")));
     }

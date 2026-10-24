@@ -49,7 +49,10 @@ fn abaplint_statement_cases() {
             };
             if case.expect == "unknown" {
                 unknown_total += 1;
-                if got == "Unknown" {
+                let error = statements
+                    .first()
+                    .is_some_and(|s| abap_syntax::check::syntax_error(&file, s).is_some());
+                if got == "Unknown" || error {
                     unknown_passed += 1;
                 }
                 continue;
