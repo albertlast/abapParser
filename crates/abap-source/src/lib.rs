@@ -469,6 +469,45 @@ fn merged(answers: impl Iterator<Item = Result<Option<Badi>>>) -> Result<Option<
     Ok(out)
 }
 
+/// The function of [`FnProvider`]: the source of an object, `None` when
+/// there is none.
+pub type FetchFn = dyn Fn(&SourceRef) -> Result<Option<String>> + Send + Sync;
+
+/// Sources from a function of the caller, like a callback of the Node.js or
+/// Python package that reads them from its own ADT client or cache. It gets
+/// the object as written, like `CLAS:ZCL_X/implementations` or `FUNC:Z_FM`.
+pub struct FnProvider {
+    name: String,
+    fetch: Box<FetchFn>,
+}
+
+impl FnProvider {
+    /// `name` describes the provider in messages and in the origin of sources.
+    pub fn new(
+        name: impl Into<String>,
+        fetch: impl Fn(&SourceRef) -> Result<Option<String>> + Send + Sync + 'static,
+    ) -> Self {
+        FnProvider {
+            name: name.into(),
+            fetch: Box::new(fetch),
+        }
+    }
+}
+
+impl SourceProvider for FnProvider {
+    fn fetch(&self, reference: &SourceRef) -> Result<Option<Source>> {
+        Ok((self.fetch)(reference)?.map(|text| Source {
+            reference: reference.clone(),
+            text,
+            origin: format!("{}:{reference}", self.name),
+        }))
+    }
+
+    fn describe(&self) -> String {
+        self.name.clone()
+    }
+}
+
 /// A provider with fixed sources, for tests and for sources passed in by callers.
 #[derive(Default)]
 pub struct MemoryProvider {
@@ -573,6 +612,17 @@ impl SourceProvider for MemoryProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sources_from_a_function() {
+        let p = FnProvider::new("host", |r| {
+            Ok((r.name == "ZREPORT").then(|| format!("REPORT {}.", r.name.to_lowercase())))
+        });
+        let s = p.fetch(&SourceRef::program("zreport")).unwrap().unwrap();
+        assert_eq!(s.text, "REPORT zreport.");
+        assert_eq!(s.origin, "host:PROG:ZREPORT");
+        assert!(p.fetch(&SourceRef::program("ZOTHER")).unwrap().is_none());
+    }
 
     #[test]
     fn source_ref_roundtrip() {

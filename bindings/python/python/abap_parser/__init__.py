@@ -10,7 +10,7 @@ system does not block the event loop and several calls run in parallel.
 
 import asyncio
 import json
-from typing import List, Optional, TypedDict
+from typing import Any, Callable, List, Optional, Tuple, TypedDict
 
 from . import _native
 from .types import CdsDefinition, Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo
@@ -59,11 +59,28 @@ class AdtOptions(_AdtRequired, total=False):
 
 
 class SourceOptions(TypedDict, total=False):
-    """Where sources come from: local folders first, then an SAP system."""
+    """Where sources come from: local folders first, then the fetch function,
+    then an SAP system.
+
+    ``fetch`` gives sources of the host, e.g. from its own ADT client or cache:
+    called with objects like "CLAS:ZCL_X", "CLAS:ZCL_X/implementations",
+    "PROG:ZREPORT_TOP" or "FUNC:Z_FM", it returns the source, or None when it
+    has none. Exceptions it raises are listed in ``errors``. It is called from
+    worker threads, also several at once."""
 
     src: List[str]
     cache: str
     adt: AdtOptions
+    fetch: Callable[[str], Optional[str]]
+
+
+def _split(options: SourceOptions) -> Tuple[str, Any]:
+    """The options as JSON for the native module, and the fetch function."""
+    rest = dict(options)
+    fetch = rest.pop("fetch", None)
+    if fetch is not None and not callable(fetch):
+        raise TypeError("options['fetch'] must be callable")
+    return json.dumps(rest), fetch
 
 
 def symbols(source: str) -> FileSymbols:
@@ -83,10 +100,15 @@ def calls(source: str) -> List[Call]:
     return json.loads(_native.calls_json(source))
 
 
+def _with_depth(options: SourceOptions, depth: int) -> Tuple[str, int, Any]:
+    text, fetch = _split(options)
+    return text, depth, fetch
+
+
 def call_graph(roots: List[str], options: SourceOptions, depth: int = 1) -> CallGraph:
     """Call graph across objects like "CLAS:ZCL_ORDERS", sources loaded from
     folders and/or an SAP system. Raises RuntimeError for invalid options."""
-    return json.loads(_native.call_graph_json(list(roots), json.dumps(options), depth))
+    return json.loads(_native.call_graph_json(list(roots), *_with_depth(options, depth)))
 
 
 def logic(source: str) -> FileLogic:
@@ -103,13 +125,13 @@ def logic_object(reference: str, options: SourceOptions, depth: int = 1) -> File
     data and database tables, shows in the effects of the caller. Calls into
     other objects are followed `depth` hops. Raises RuntimeError for invalid
     options."""
-    return json.loads(_native.logic_object_json(reference, json.dumps(options), depth))
+    return json.loads(_native.logic_object_json(reference, *_with_depth(options, depth)))
 
 
 def fetch_source(reference: str, options: SourceOptions) -> Optional[str]:
     """Source text of one object, None when it does not exist.
     Raises RuntimeError for provider errors like failed authorization."""
-    return _native.fetch_source(reference, json.dumps(options))
+    return _native.fetch_source(reference, *_split(options))
 
 
 def statements(source: str) -> List[StatementInfo]:
@@ -138,7 +160,7 @@ def object_text(analysis: str, objects: List[str], options: SourceOptions, depth
     object, its "logic" with calls followed `depth` hops, or the call "graph"
     from all of them. Raises RuntimeError for invalid options or a missing
     object."""
-    return _native.object_text(analysis, list(objects), json.dumps(options), depth)
+    return _native.object_text(analysis, list(objects), *_with_depth(options, depth))
 
 
 def version() -> str:

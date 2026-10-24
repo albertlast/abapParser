@@ -56,8 +56,12 @@ function toText(html) {
     .replace(/<\/p>/g, "\n")
     .replace(/<li>/g, "- ")
     .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, "\"")
-    .replace(/&#x9;/g, "\t").replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x9;/g, "\t")
+    .replace(/&nbsp;/g, " ")
     .replace(/\\n/g, "\n")
     .trim();
 }

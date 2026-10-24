@@ -332,9 +332,19 @@ fn declaration(d: &m::Declaration) -> String {
         m::DeclarationKind::Range => "RANGES",
         m::DeclarationKind::Tables => "TABLES",
         m::DeclarationKind::Node => "NODES",
+        m::DeclarationKind::Infotype => "INFOTYPES",
         m::DeclarationKind::Include => "INCLUDE",
         m::DeclarationKind::EnumValue => "VALUE",
     };
+    // the clause as written names the infotype, not the table
+    if d.kind == m::DeclarationKind::Infotype {
+        let clause = d
+            .typing
+            .as_ref()
+            .map(|t| squeeze(&t.text))
+            .unwrap_or_default();
+        return format!("{keyword} {clause}.");
+    }
     format!("{keyword} {}.", declared(d))
 }
 
@@ -558,7 +568,11 @@ pub fn db_access(accesses: &[m::DbAccess]) -> String {
     let mut out = String::new();
     for a in accesses {
         let from = a.block.as_ref().map(block).unwrap_or_default();
-        let tables: Vec<&str> = a.tables.iter().map(|t| t.name.as_str()).collect();
+        let mut tables: Vec<String> = a.tables.iter().map(|t| t.name.clone()).collect();
+        // a cluster with its area: indx(mo)
+        if let (Some(c), Some(t)) = (&a.cluster, tables.first_mut()) {
+            let _ = write!(t, "({}) cluster", c.area);
+        }
         let _ = writeln!(
             out,
             "  {:>5} {from}: {} {} | {}",
@@ -672,11 +686,25 @@ fn procedure(out: &mut String, p: &m::Procedure) {
             .guards
             .iter()
             .map(|g| {
-                if g.negated {
+                let mut text = if g.negated {
                     format!("NOT ( {} )", squeeze(&g.text))
                 } else {
                     squeeze(&g.text)
+                };
+                // the rows of the statements setting the sy-subrc checked
+                let mut set: Vec<String> = Vec::new();
+                for id in &g.subrc {
+                    if let Some(s) = steps.iter().find(|s| s.id == *id) {
+                        let row = s.span.start.row.to_string();
+                        if !set.contains(&row) {
+                            set.push(row);
+                        }
+                    }
                 }
+                if !set.is_empty() {
+                    let _ = write!(text, " [sy-subrc of {}]", set.join(", "));
+                }
+                text
             })
             .collect();
         if !guards.is_empty() {
@@ -724,6 +752,7 @@ fn scope(s: m::DataScope) -> &'static str {
         m::DataScope::Global => "global",
         m::DataScope::Database => "database table",
         m::DataScope::External => "external",
+        m::DataScope::System => "system",
         m::DataScope::Other => "other",
     }
 }
@@ -790,7 +819,7 @@ ENDCLASS.
   parameters: importing iv_id, importing iv_status, exporting ev_count
   reads tables: ZORDERS
   writes ZORDERS (database table) at 24; from iv_id, iv_status
-  writes ev_count (parameter) at 25; from iv_id, sy
+  writes ev_count (parameter) at 25; from iv_id, iv_status
   statements:
        24 UPDATE zorders SET status = @iv_status WHERE id = @iv_id.  when iv_id > 0
        25 ev_count = sy-dbcnt.  when iv_id > 0

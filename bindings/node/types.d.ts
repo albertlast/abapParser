@@ -199,12 +199,16 @@ export type ConditionKind = "or" | "equiv" | "and" | "not" | "compare" | "is" | 
 /** A data object read or written by a statement. */
 export interface DataAccess {
   access: AccessKind;
+  /** the type, when known; for now that of system fields */
+  data_type?: DataType;
   /** declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable */
   declared?: boolean;
   /** writes through a call: what the written value depends on in the called procedure */
   depends?: Dependency;
   /** reads: the value may come from before the procedure, e.g. from a parameter or attribute */
   from_entry?: boolean;
+  /** set by the statement without being named in it, like `sy-subrc` by READ TABLE or a call */
+  implicit?: boolean;
   /** lower case; attributes of other objects with the path to them, e.g. `lo_order->items`, `zcl_x=>gv_count`; `me->` is left out */
   name: string;
   /** the operand as written, e.g. `ls_item-matnr` */
@@ -221,13 +225,26 @@ export interface DataAccess {
   whole?: boolean;
 }
 
-export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "other";
+export type DataScope = "parameter" | "local" | "attribute" | "global" | "database" | "external" | "system" | "other";
+
+/** A built-in elementary type, like that of a system field. */
+export interface DataType {
+  /** the data element typing it, like `SYST_DATUM` */
+  data_element?: string;
+  decimals?: number;
+  /** `i`, `b`, `c`, `n`, `d`, `t`, `x` or `p` */
+  kind: string;
+  /** characters of `c` and `n`, bytes of `x` and `p` */
+  length?: number;
+}
 
 /** One database access statement. */
 export interface DbAccess {
   block?: BlockRef;
   bypassing_buffer: boolean;
   client_specified: boolean;
+  /** a data cluster: `EXPORT ... TO DATABASE` (`modify`), `IMPORT ... FROM DATABASE` and `IMPORT DIRECTORY` (`select`), `DELETE FROM DATABASE` (`delete`); the exported data objects are in `source`, the imported ones in `target` */
+  cluster?: DbCluster;
   /** comparisons of WHERE, subqueries included */
   conditions: DbCondition[];
   connection?: string;
@@ -273,6 +290,16 @@ export interface DbAccess {
 export interface DbAssignment {
   column: DbColumn;
   value: string;
+}
+
+/** A data cluster in a database table, `EXPORT ... TO DATABASE dbtab(ar) ID id`. */
+export interface DbCluster {
+  /** the area, as written, like `mo` */
+  area: string;
+  /** the ID as written: a literal with its quotes, or a data object */
+  id?: string;
+  /** the names in the cluster, lower case: `orders` of `orders = lt_orders`; in the old form `EXPORT gt_rt TO ...` the data objects */
+  parameters?: string[];
 }
 
 /** A column reference, `qualifier~name` or `name`. */
@@ -368,7 +395,7 @@ export interface Declaration {
   visibility?: Visibility;
 }
 
-export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "type" | "field_symbol" | "parameter" | "select_option" | "range" | "tables" | "node" | "include" | "enum_value";
+export type DeclarationKind = "data" | "class_data" | "static" | "constant" | "type" | "field_symbol" | "parameter" | "select_option" | "range" | "tables" | "node" | "infotype" | "include" | "enum_value";
 
 /** What a value written by a called procedure depends on there, in names of the caller. */
 export interface Dependency {
@@ -483,6 +510,8 @@ export interface Guard {
   negated: boolean;
   /** the step with the condition, e.g. an IF, WHEN or CHECK */
   statement: number;
+  /** the condition checks `sy-subrc`: the statements that may have set the value it checks, like the READ TABLE before `IF sy-subrc = 0` */
+  subrc?: number[];
   /** the condition as written */
   text: string;
 }
@@ -671,7 +700,7 @@ export interface Step {
 }
 
 /** Where data outside of the program and the database is kept. */
-export type Store = "memory" | "parameter" | "file" | "shared_buffer" | "shared_memory";
+export type Store = "memory" | "parameter" | "file" | "shared_buffer" | "shared_memory" | "lock";
 
 /** A database table, or data kept outside the program (`store`), read or written by a statement. */
 export interface TableAccess {
@@ -679,7 +708,7 @@ export interface TableAccess {
   access: AccessKind;
   /** writes through a call: what the written rows depend on in the called procedure */
   depends?: Dependency;
-  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)` */
+  /** table, view or CDS entity, upper case; a dynamic name resolved from a constant, or the operand as written in parentheses. For a store its kind and key: `memory:ZORDERS`, `parameter:VKO`, `file:/tmp/out.csv`, `file:(lv_file)`, `lock:EZ_ORDER` */
   name: string;
   /** for stores: `select` when read, `modify` when written, `delete` */
   operation: DbOperation;

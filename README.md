@@ -20,22 +20,22 @@ The command line tool `abap` is attached to each [GitHub release](https://github
 
 ## Status
 
-| Milestone | State |
-|---|---|
-| 1. Workspace, corpus, abaplint oracle | done |
-| 2. Lexer, statement splitting, chain expansion, statement kinds | done |
-| 3. Declarations + structures → symbols API, Node/Python bindings | done |
-| 4. Open SQL → DB access API | done |
-| 5. Source providers (abapGit folders, ADT) + call graph | done |
-| 6. Expressions, control flow, data flow → logic API | done |
-| 6b. Native SQL (HANA SQL, SQLScript) for EXEC SQL and AMDP | done |
-| 7. Dictionary types (structures, data elements) | done, through ADT instead of a HANA connection |
-| 8. Tested against a real SAP system (ABAP Cloud Developer Trial 2025) | done |
-| 9. MCP server and compact text for language models | done |
-| 10. CDS data definitions | done |
-| 11. BAdIs, enhancements, customer exits | done |
-| 12. Parallel loading from SAP systems, cached lookups | done |
-| 13. ABAP releases per statement, syntax errors | done |
+| Milestone                                                             | State                                          |
+| --------------------------------------------------------------------- | ---------------------------------------------- |
+| 1. Workspace, corpus, abaplint oracle                                 | done                                           |
+| 2. Lexer, statement splitting, chain expansion, statement kinds       | done                                           |
+| 3. Declarations + structures → symbols API, Node/Python bindings      | done                                           |
+| 4. Open SQL → DB access API                                           | done                                           |
+| 5. Source providers (abapGit folders, ADT) + call graph               | done                                           |
+| 6. Expressions, control flow, data flow → logic API                   | done                                           |
+| 6b. Native SQL (HANA SQL, SQLScript) for EXEC SQL and AMDP            | done                                           |
+| 7. Dictionary types (structures, data elements)                       | done, through ADT instead of a HANA connection |
+| 8. Tested against a real SAP system (ABAP Cloud Developer Trial 2025) | done                                           |
+| 9. MCP server and compact text for language models                    | done                                           |
+| 10. CDS data definitions                                              | done                                           |
+| 11. BAdIs, enhancements, customer exits                               | done                                           |
+| 12. Parallel loading from SAP systems, cached lookups                 | done                                           |
+| 13. ABAP releases per statement, syntax errors                        | done                                           |
 
 Results against [abaplint](https://github.com/abaplint/abaplint), the reference implementation:
 
@@ -75,6 +75,7 @@ Each statement gets the oldest on-premise release whose syntax has everything it
 - RAP: EML statements, behavior pools, derived types like `TYPE TABLE FOR CREATE`
 
 The releases follow abaplint's grammar. Constructs abaplint dates by a cloud release count from the on-premise release that shipped it, 7.76 from 7.54. Where we differ:
+
 - abaplint's statement parser also reads `DATA(x)` and `FINAL(x)` as a length access of a field named `DATA` or `FINAL`, `xsdbool( )` and `boolc( )` as a method call, `struc-(name)` as older syntax. It then gives the older release; here the construct decides.
 - Built-in predicate functions like `contains( )` and `matches( )` came with the string functions of 7.02. abaplint dates them, as conditions of their own, with predicate method calls (7.40 SP08).
 - `MERGE` exists only in the cloud (9.17), so no on-premise release has it.
@@ -118,7 +119,7 @@ Structures declared with `BEGIN OF ... END OF` carry their `components`.
 
 ## Database access
 
-`db_access` lists every SELECT, INSERT, UPDATE, MODIFY, DELETE, MERGE, OPEN CURSOR and WITH, and also native SQL. For each one it reports:
+`db_access` lists every SELECT, INSERT, UPDATE, MODIFY, DELETE, MERGE, OPEN CURSOR and WITH, native SQL, and data clusters in tables: `EXPORT ... TO DATABASE indx(ar) ID id` (`modify`), `IMPORT ... FROM DATABASE` and `IMPORT DIRECTORY` (`select`), `DELETE FROM DATABASE` (`delete`), with area, ID and parameters in `cluster`, the exported data in `source`, the imported data in `target`. For each one it reports:
 
 - the tables, with alias and role (main, join, subquery, CTE, internal table)
 - the SELECT list, with the columns each element reads, aggregates and aliases
@@ -148,11 +149,13 @@ Classic and strict syntax are both supported. Column references are resolved to 
 ### Native SQL
 
 Native SQL is HANA SQL: the statements between `EXEC SQL` and `ENDEXEC`, and the SQLScript bodies of AMDP methods (`METHOD ... BY DATABASE PROCEDURE|FUNCTION FOR HDB LANGUAGE SQLSCRIPT`). It has its own parser. Each statement becomes one database access, with the same details as Open SQL:
+
 - tables, joins, conditions, the SELECT list, GROUP BY, ORDER BY, SET of UPDATE and MERGE
 - the target: a table variable (`lt_rows = SELECT ...`), `SELECT ... INTO var`, `RETURN SELECT ...` of a table function, or `INTO :wa` of EXEC SQL
 - `host_variables`: the `:name` variables read, which are the ABAP host variables of EXEC SQL, or the parameters and table variables of an AMDP
 
 Supported are:
+
 - SELECT with WITH, joins, subqueries, set operations, TOP and LIMIT
 - table variables in FROM (role `internal_table`), table functions and the hierarchy functions
 - INSERT, UPDATE, DELETE, UPSERT, REPLACE, MERGE, TRUNCATE and CALL
@@ -162,6 +165,7 @@ Supported are:
 Names in quotes keep their case. In AMDP bodies `"` quotes names; in EXEC SQL it starts an ABAP comment.
 
 AMDP methods have more information in other APIs:
+
 - In symbols, the method implementation lists the AMDP kind, language, OPTIONS and USING.
 - In calls, calls of other AMDP methods (`CALL "ZCL_X=>M"( ... )`) and their table functions in FROM are method calls.
 
@@ -190,6 +194,7 @@ abap fetch DDLS:I_COUNTRY --adt-url https://sap:44300
 ## Calls and sources
 
 `calls` lists the calls of one source:
+
 - method calls, functional and `CALL METHOD`
 - constructors, from `NEW` and `CREATE OBJECT`
 - `CALL FUNCTION`, `PERFORM`, `SUBMIT`, transactions, `CALL TRANSFORMATION` and `INCLUDE`
@@ -199,13 +204,14 @@ Each call has its processing block, receiver, target class, options like `DESTIN
 
 `call_graph` follows calls across objects. It loads them from source providers:
 
-| Provider | Reads |
-|---|---|
-| folders | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml`; BAdIs from `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml`; enhancement code from `.enho.<hash>.abap` |
-| SAP system | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
-| cache | sources fetched from the SAP system, one folder per system and client, and under `lookups/` the answers about them: enhancements, implementations, subclasses, BAdIs. Delete the folder to see changes made in the system since |
+| Provider       | Reads                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| folders        | abapGit layout (`zcl_x.clas.abap`, `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` namespaces) or plain `name.abap` files; dictionary types from `name.tabl.xml` and `name.dtel.xml`; BAdIs from `.enhs.xml`, `.enho.xml`, `.sxsd.xml` and `.sxci.xml`; enhancement code from `.enho.<hash>.abap`                                                        |
+| SAP system     | ADT REST API: programs, includes, classes and their local parts, interfaces, function groups and modules, dictionary structures, tables and data elements. A function module's group is found through the repository search, a generated lock module's group (`ENQUEUE_x`) through its lock object. Uses the operating system's certificate store, so corporate CAs work |
+| cache          | sources fetched from the SAP system, one folder per system and client, and under `lookups/` the answers about them: enhancements, implementations, subclasses, BAdIs. Delete the folder to see changes made in the system since                                                                                                                                          |
+| fetch function | sources of the host program: a function called with objects like `CLAS:ZCL_X/implementations`, returning the source or nothing, e.g. from the host's own ADT client or cache. Node.js and Python, see [Usage](#usage); in Rust a `FnProvider`                                                                                                                            |
 
-Folders are asked first, then the SAP system. Up to 8 objects, class parts or includes are loaded at once; an SAP system answers each request on its own, so most of the time is waiting. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
+Folders are asked first, then the fetch function, then the SAP system. Up to 8 objects, class parts or includes are loaded at once; an SAP system answers each request on its own, so most of the time is waiting. Includes are expanded. Types of other classes are loaded when needed, for example the superclass of an inherited method or the interface of a returned reference. Each call is marked `resolved` when its target exists. Objects that no provider had are listed in `missing`.
 
 ```sh
 abap graph CLAS:ZCL_ORDERS --src ./src --depth 2
@@ -214,11 +220,15 @@ abap fetch CLAS:ZCL_ORDERS/implementations --adt-url https://sap:44300 --client 
 ```
 
 ```js
-const graph = abap.callGraph(["CLAS:ZCL_ORDERS"], {
-  src: ["./src"],
-  adt: {url: "https://sap:44300", user, password, client: "100"},
-  cache: ".abap-cache",
-}, 2);
+const graph = abap.callGraph(
+  ["CLAS:ZCL_ORDERS"],
+  {
+    src: ["./src"],
+    adt: {url: "https://sap:44300", user, password, client: "100"},
+    cache: ".abap-cache",
+  },
+  2,
+);
 ```
 
 The ADT provider only reads. It is tested against the mock server below, and by hand against the SAP ABAP Cloud Developer Trial (SAP_BASIS 816) and an ERP on SAP_BASIS 750.
@@ -229,10 +239,10 @@ Systems differ in what ADT offers. The provider reads the system's ADT discovery
 
 Which classes a BAdI runs is not in the calling code, so the providers look it up:
 
-| Kind | Called with | Runs |
-|---|---|---|
-| BAdI of an enhancement spot | `GET BADI lo_badi.` `CALL BADI lo_badi->check( ).` | the classes of its active implementations, else its fallback class |
-| classic BAdI | `cl_exithandler=>get_instance( CHANGING instance = lo_exit )`, then `lo_exit->check( )` on its interface `IF_EX_<name>` | the classes of its active implementations, else its default implementation; with a BAdI it was migrated to, that one's too |
+| Kind                        | Called with                                                                                                             | Runs                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| BAdI of an enhancement spot | `GET BADI lo_badi.` `CALL BADI lo_badi->check( ).`                                                                      | the classes of its active implementations, else its fallback class                                                         |
+| classic BAdI                | `cl_exithandler=>get_instance( CHANGING instance = lo_exit )`, then `lo_exit->check( )` on its interface `IF_EX_<name>` | the classes of its active implementations, else its default implementation; with a BAdI it was migrated to, that one's too |
 
 A `CALL BADI` gets the BAdI in `badi` and its interface in `class`. The call graph loads the classes that run, and `logic` follows the call into them, up to 10 like other interface calls. Classes that implement the interface but are not active implementations, like the adapter class `CL_EX_<name>` of a classic BAdI, are left out. An SAP system answers from the BAdI tables (BADI_MAIN and BADI_IMPL; SXS_INTER, SXS_ATTR, SXC_CLASS and SXC_ATTR) through the data preview, folders from the abapGit files. Filters are not evaluated: every active implementation counts. Business transaction events (`OPEN_FI_PERFORM_...`) are not followed: which function modules run is customizing.
 
@@ -245,12 +255,14 @@ An SAP system names the enhancements of a program in its index of enhancement in
 ### Testing without an SAP system
 
 `abap mock-adt` serves folders of ABAP code like an SAP system does through ADT. It covers:
+
 - programs and includes
 - classes with their includes, interfaces, function groups and modules
 - the repository search that finds a function module's group
 - the where-used list of an interface, a POST that needs the CSRF token and the session cookie handed out with it
 
 With `--release 750` it acts like an ERP on SAP_BASIS 750, as measured on one:
+
 - the discovery and component list of that system: no collection for tables, lock objects or the code of enhancement implementations
 - data elements only in XML version 1, otherwise HTTP 406; structures, but no tables
 - the data preview, free-form and per table: it answers the queries the provider sends from the class relations, BAdIs and enhancements of the folders. Like 7.50, it rejects long strings such as `ENHINCINX-FULL_NAME` in `WHERE` and lines over 255 characters.
@@ -272,14 +284,18 @@ In Rust it is `abap_source::MockAdtServer`. Bind it to port 0 for a free port; `
 
 - **Steps:** the statements, nested along IF, CASE, LOOP, DO, WHILE and TRY. ELSEIF, ELSE, CATCH and CLEANUP follow their IF or TRY. The WHENs of a CASE are its children.
 - **Conditions:** parsed into a tree of AND, OR, NOT, comparisons, `IS INITIAL`/`BOUND`/`ASSIGNED`/`INSTANCE OF`, `IN` and `BETWEEN`. Operands are classified as literal (with its value), data, call, constructor or arithmetic. A WHEN becomes `operand = value OR ...`.
-- **Guards:** every condition that holds when a step runs, outermost first. ELSE and ELSEIF get the earlier conditions negated. Statements after `CHECK c` are guarded by `c`. Statements after `IF c. RETURN. ENDIF.` are guarded by `NOT c`.
+- **Guards:** every condition that holds when a step runs, outermost first. ELSE and ELSEIF get the earlier conditions negated. Statements after `CHECK c` are guarded by `c`. Statements after `IF c. RETURN. ENDIF.` are guarded by `NOT c`. A guard on `sy-subrc` names in `subrc` the statements that may have set the value it checks, so `IF sy-subrc = 0` after a READ TABLE and `IF sy-subrc <> 0` after a later call inside it are two different checks.
+- **`sy-subrc`:** statements that set it write it: READ TABLE, LOOP, the internal table and database statements, CALL FUNCTION, CREATE OBJECT, AUTHORITY-CHECK, FIND, REPLACE, CONCATENATE, SPLIT, IMPORT, GET PARAMETER, the dataset statements, COMMIT WORK and others, as SAP documents each; ASSIGN only when dynamic or of a table expression. Every method call sets it to 0 when the method is called, so the call is where the value comes from; a PERFORM may set it. These writes are `implicit`.
+- **System fields:** each is its own data object, `sy-subrc`, `sy-tabix`, not a component of `sy`, with scope `system` and its type in `data_type`: kind, length, decimals and data element, like `c`, 12, `SYST_UNAME` for `sy-uname`. The 171 fields and their types are those of the structure SYST in an SAP system (SAP_BASIS 816). Fields the runtime sets, like `sy-datum`, `sy-uzeit`, `sy-uname` or `sy-mandt`, are reads of scope `system`, not inputs of an effect: callers do not pass them. Fields that statements set come from those statements, as SAP documents each: `sy-tabix` from READ TABLE, LOOP AT, APPEND and COLLECT, `sy-index` from DO and WHILE, `sy-dbcnt` from the database statements, FETCH and EXEC SQL, `sy-fdpos` from SEARCH and the comparisons CO, CN, CA, NA, CS, NS, CP and NP, `sy-tfill` and `sy-tleng` from DESCRIBE TABLE, the message fields from MESSAGE. So `lv_count = sy-dbcnt` after a SELECT depends on what the SELECT read. After a loop its counter is again the value from before, which the data flow does not tell. System fields set by statements are no effects.
 - **Reads and writes:** each data object a statement reads, writes or changes in place (`APPEND ... TO itab`), with its position and scope: local, parameter, attribute, global (declared at program level, also in event blocks) or other.
 - **Field symbols and references:** a write through `<fs>` or `lr->` is a write of the data they point to. That is the data bound to them on the way to the statement, by `ASSIGN`, `LOOP AT ... ASSIGNING`, `READ TABLE ... REFERENCE INTO`, `GET REFERENCE OF`, `REF #( )`, or a call returning a reference. Such accesses name the field symbol or reference in `through`. Binding a field symbol to a table does not change the table. A write through a reference parameter is a write of what the caller passed: `set( lr )` changes what `lr` points to, `touch( lo )` changes `lo->mv_x` when `touch` writes `io->mv_x`.
 - **Database tables:** each step lists the tables it reads, and the table that INSERT, UPDATE, MODIFY, DELETE or MERGE writes. Open SQL and native SQL are both covered.
 - **Data flow:** each read lists the steps whose writes may provide its value, and whether the value may come from before the procedure. Computed by reaching definitions over the control flow graph, which is also part of the output.
 - **Calls:** a call into a procedure that is in the sources is followed. The calling step then also reads and writes what the called procedure does: attributes, global data and database tables. These accesses name the procedure in `via`. Attributes are renamed for the caller: through `lo->run( )` the attribute `mv_x` becomes `lo->mv_x`, through `zcl_x=>run( )` it becomes `zcl_x=>mv_x`. Arguments are matched to parameters by name, by position for PERFORM, and the single unnamed argument to the first importing parameter. Each value a call writes, into an argument, the receiving variable or through the called procedure, carries in `depends` what it depends on there: the caller's data passed to the parameters it uses, data read there, tables read there. A call through an interface is followed into each implementation, if there are no more than 10. Calls through aliases resolve to the interface method. A dynamic call like `CALL METHOD (lv_name)` or `CALL FUNCTION lv_fm` is followed into the names its operand can have on the way to the call, from literals assigned to it and from constants; the operand then counts as an input of what the call writes.
 - **Effects:** every parameter, attribute, global, database table or external store the procedure writes, directly or through calls. Each effect lists the inputs and tables the written values depend on, through assignments and through the conditions that decide them, and the procedures it is written through.
-- **External stores:** data kept outside the program is handled like a table, named with its kind: ABAP memory (`EXPORT/IMPORT ... MEMORY ID`, `memory:ZORDERS`), SAP memory (`SET/GET PARAMETER ID`, `parameter:VKO`), files (`TRANSFER`, `READ/DELETE DATASET`, `file:/tmp/out.csv`), shared buffers and shared memory. Data clusters in tables (`EXPORT ... TO DATABASE indx(ar)`) are accesses of that table. So a value exported by one program and imported by another connects the tables before and after.
+- **External stores:** data kept outside the program is handled like a table, named with its kind: ABAP memory (`EXPORT/IMPORT ... MEMORY ID`, `memory:ZORDERS`), SAP memory (`SET/GET PARAMETER ID`, `parameter:VKO`), files (`TRANSFER`, `READ/DELETE DATASET`, `file:/tmp/out.csv`), shared buffers and shared memory. Data clusters in tables (`EXPORT ... TO DATABASE indx(ar)`) are accesses of that table, as in the database accesses. So a value exported by one program and imported by another connects the tables before and after.
+- **Locks:** a lock module sets or releases an SAP lock, named after its lock object: `CALL FUNCTION 'ENQUEUE_EZ_ORDER'` writes `lock:EZ_ORDER`, `DEQUEUE_EZ_ORDER` deletes it, `DEQUEUE_ALL` deletes `lock:*`. Lock objects start with `E`, also after a namespace (`ENQUEUE_/ABC/ELOCK`); `ENQUEUE_READ` is no lock module. The generated modules are not followed, so what they do inside is not a table write of the caller.
+- **HR infotypes:** an infotype's table follows its number: personnel planning (1000 to 1999 and 5000 to 5999) is in `HRPnnnn`, recruitment (4000 to 4999) in `PBnnnn`, personnel administration and time management (0000 to 0999, 2000 to 2999) in `PAnnnn`, for applicants `PBnnnn`. Customer infotypes (9000 to 9999) can be either: the reader decides, `PA` for PNP and `HR_READ_INFOTYPE`, `HRP` for PCH and `RH_READ_INFTY`. `INFOTYPES nnnn` declares the program's table `pnnnn`. The logical database fills them, apart from those declared with `MODE N`: PNP at `GET PERNR` and PNPCE at `GET PERAS` those in `PA` tables, PCH at `GET OBJEC` those in `HRP` tables. `CALL FUNCTION 'HR_READ_INFOTYPE'` reads the table of its `infty` (`tclas = 'B'` for applicants), `RH_READ_INFTY` too, `RH_READ_INFTY_1001` reads `HRP1001`; the infotype as a literal or constant. The macros of PNP read and write their arguments: `RP-PROVIDE-FROM-LAST tab subty begda endda` and `RP-PROVIDE-FROM-FRST` set the header line of `tab` and `pnp-sw-found`, `RP-READ-INFOTYPE pernr infty tab begda endda` fills `tab` from `PA<infty>`, `RP-SET-DATA-INTERVAL` reads its dates. Their argument positions follow SAP's description of their use; the macro definitions (DBPNPMAC) are not read.
 
 ```abap
 FORM price USING iv_qty TYPE i CHANGING cv_price TYPE p.
@@ -314,6 +330,7 @@ abap logic FUGR:ZORDERS --src ./src --depth 2
 ```
 
 Not covered yet:
+
 - Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
 - Implementations of global interfaces and subclasses of global classes come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview. Where that is not allowed, implementations come from the where-used list, whose index may be incomplete for SAP standard code, and subclasses are not found.
 - A field symbol or reference stored in a structure, table or attribute is not followed.
@@ -322,17 +339,17 @@ Not covered yet:
 
 `abap mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio. It gives language models the analyses as tools, with sources from the same options as the other commands: folders, an SAP system, a cache. Loaded objects are kept for the session.
 
-| Tool | Answers |
-|---|---|
-| `get_source` | source of an object with row numbers, optionally a row range |
-| `get_symbols` | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP; for a CDS view (`DDLS:NAME`) its sources, associations and the fields of its elements |
-| `get_call_graph` | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON |
-| `get_logic` | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
-| `get_db_access` | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions |
-| `find_implementations` | global classes implementing an interface; for a classic BAdI's interface the active implementations |
-| `find_badi_implementations` | a BAdI by name or a classic one by interface: its interface, active implementations, fallback class |
-| `find_subclasses` | global classes inheriting directly from a class |
-| `analyze_source` | the analyses of ABAP code given as text, without a system |
+| Tool                        | Answers                                                                                                                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_source`                | source of an object with row numbers, optionally a row range                                                                                                                                             |
+| `get_symbols`               | classes, interfaces, methods with signatures, attributes, types, forms, declarations, written like ABAP; for a CDS view (`DDLS:NAME`) its sources, associations and the fields of its elements           |
+| `get_call_graph`            | calls from objects with calling procedure and row, followed `depth` hops; one line per call, `detail: "full"` for JSON                                                                                   |
+| `get_logic`                 | per procedure its parameters and effects: what it writes, in which statements, under which conditions, from which inputs; `procedure` for one, `detail: "full"` for every statement and the control flow |
+| `get_db_access`             | Open SQL and native SQL statements, one line each; `detail: "full"` adds fields, joins, conditions                                                                                                       |
+| `find_implementations`      | global classes implementing an interface; for a classic BAdI's interface the active implementations                                                                                                      |
+| `find_badi_implementations` | a BAdI by name or a classic one by interface: its interface, active implementations, fallback class                                                                                                      |
+| `find_subclasses`           | global classes inheriting directly from a class                                                                                                                                                          |
+| `analyze_source`            | the analyses of ABAP code given as text, without a system                                                                                                                                                |
 
 Answers are in the compact text form unless `detail: "full"` asks for JSON, and are cut at 80,000 characters with a hint to ask for less.
 
@@ -351,8 +368,12 @@ Other clients take the same as JSON:
     "abap": {
       "command": "abap",
       "args": ["mcp", "--src", "./src", "--cache", ".abap-cache"],
-      "env": {"ABAP_ADT_URL": "https://sap:44300", "ABAP_ADT_CLIENT": "100",
-              "ABAP_ADT_USER": "me", "ABAP_ADT_PASSWORD": "..."}
+      "env": {
+        "ABAP_ADT_URL": "https://sap:44300",
+        "ABAP_ADT_CLIENT": "100",
+        "ABAP_ADT_USER": "me",
+        "ABAP_ADT_PASSWORD": "..."
+      }
     }
   }
 }
@@ -414,13 +435,22 @@ Node.js (`npm install abap-parser`, or from this repository `cd bindings/node &&
 const abap = require("abap-parser");
 const s = abap.symbols(source);
 for (const c of s.classes) {
-  console.log(c.name, c.methods.map((m) => m.name));
+  console.log(
+    c.name,
+    c.methods.map((m) => m.name),
+  );
 }
 for (const a of abap.dbAccess(source)) {
-  console.log(a.operation, a.tables.map((t) => t.name));
+  console.log(
+    a.operation,
+    a.tables.map((t) => t.name),
+  );
 }
 for (const p of abap.logic(source).procedures) {
-  console.log(p.block.name, p.effects.map((e) => `${e.name} <- ${e.inputs.join(", ")}`));
+  console.log(
+    p.block.name,
+    p.effects.map((e) => `${e.name} <- ${e.inputs.join(", ")}`),
+  );
 }
 // a whole object with its includes, calls into other objects followed 1 hop
 const l = abap.logicObject("PROG:ZREPORT", {src: ["./src"]}, 1);
@@ -435,6 +465,18 @@ const outline = abap.objectText("symbols", ["CLAS:ZCL_ORDERS"], {src: ["./src"]}
 ```
 
 Every function has an `…Async` variant. It runs on the libuv thread pool, so loading sources from an SAP system or analyzing large files does not block the event loop, and several calls run in parallel.
+
+Sources can come from the host program: `fetch` in the options is called with each object the analysis needs and returns its source, a promise of it, or `null`. It is asked after the folders and before the SAP system, and only the `…Async` functions take it, since it runs in the JavaScript thread while the analysis waits for it; the blocking ones throw a `TypeError`.
+
+```js
+const graph = await abap.callGraphAsync(
+  ["CLAS:ZCL_ORDERS"],
+  {
+    fetch: async (reference) => myAdtClient.source(reference), // "CLAS:ZCL_ORDERS/implementations", "FUNC:Z_FM", ...
+  },
+  2,
+);
+```
 
 Python (`pip install abap-parser`, or from this repository `cd bindings/python && maturin develop --release`):
 
@@ -458,6 +500,12 @@ outline = abap_parser.object_text("symbols", ["CLAS:ZCL_ORDERS"], {"src": ["./sr
 
 Every function has an `..._async` variant for asyncio, running in a worker thread. The native code releases the GIL.
 
+`fetch` in the options gives sources of the host: a function called with each object the analysis needs, returning its source or `None`. It is asked after the folders and before the SAP system; the native code takes the GIL to call it, from worker threads, also several at once.
+
+```python
+graph = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], {"fetch": lambda ref: my_cache.get(ref)}, 2)
+```
+
 Rust:
 
 ```rust
@@ -479,7 +527,10 @@ node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpu
 cargo test --release -- --nocapture             # prints the coverage reports
 node tools/gen-types.mjs                          # after changing crates/abap-model
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation
+npm run --prefix tools format                     # Markdown, JavaScript, JSON with prettier, as CI checks
 ```
+
+Prettier's settings are in `.prettierrc.json`; editors that format with prettier pick them up. `.prettierignore` leaves out the corpus, build output, the generated `types.d.ts` and the release workflow's one-line build matrix.
 
 ### Testing against an SAP system
 
@@ -504,11 +555,13 @@ git tag v0.4.0 && git push origin v0.4.0
 ```
 
 The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:
+
 - the native Node.js module per platform, tested where the runner can load it;
 - Python wheels and the source distribution;
 - the command line tool per platform.
 
 It then publishes:
+
 - `abap-parser` and its platform packages (`abap-parser-linux-x64-gnu` and so on) to npm through trusted publishing, with provenance;
 - `abap-parser` to PyPI through trusted publishing, which needs a PyPI trusted publisher for this repository and the environment `pypi`;
 - a GitHub release with the command line tool and the changelog section.
@@ -516,6 +569,7 @@ It then publishes:
 Started by hand from the Actions tab, the workflow builds and tests everything and keeps the results as artifacts, without publishing.
 
 npm and PyPI trust the workflow through OIDC, no tokens are stored. Set up once:
+
 - PyPI: a pending trusted publisher for the project `abap-parser`, repository `albertlast/abapPaser`, workflow `release.yml`, environment `pypi`; and the environment `pypi` in the repository settings.
 - npm: a trusted publisher for each of the six packages, repository `albertlast/abapPaser`, workflow `release.yml`. npm sets this up only for packages that exist, so before the first release publish placeholders by hand:
 

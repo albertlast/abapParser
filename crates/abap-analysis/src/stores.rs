@@ -1,7 +1,8 @@
 //! Data a statement keeps outside the program or gets from there: ABAP
-//! memory, SAP memory, files, shared buffers and data clusters in database
-//! tables. Given as table accesses, so the data flow treats them like
-//! tables: what is written there depends on, what is read from there.
+//! memory, SAP memory, files, shared buffers and SAP locks. Given as table
+//! accesses, so the data flow treats them like tables: what is written
+//! there depends on, what is read from there. Data clusters in database
+//! tables are database accesses, see [`abap_sql::parse_cluster`].
 
 use std::collections::HashMap;
 
@@ -46,8 +47,8 @@ pub(crate) fn store_accesses(
             via: None,
             depends: None,
         };
-    // EXPORT ... TO MEMORY ID id / IMPORT ... FROM MEMORY ID id, and the
-    // clusters in tables: TO DATABASE dbtab(ar) ID id
+    // EXPORT ... TO MEMORY ID id / IMPORT ... FROM MEMORY ID id, and to
+    // shared buffers and shared memory
     let cluster = |written: bool, delete: bool| -> Vec<m::TableAccess> {
         let mut out = Vec::new();
         if let Some(i) = at(&["MEMORY", "ID"]) {
@@ -61,7 +62,6 @@ pub(crate) fn store_accesses(
             }
         }
         for (phrase, store) in [
-            (&["DATABASE"][..], None),
             (&["SHARED", "BUFFER"][..], Some(m::Store::SharedBuffer)),
             (&["SHARED", "MEMORY"][..], Some(m::Store::SharedMemory)),
         ] {
@@ -75,9 +75,8 @@ pub(crate) fn store_accesses(
                 .to_ascii_uppercase();
             let id = at(&["ID"]).and_then(key).unwrap_or_default();
             let name = match store {
-                None => table,
                 Some(m::Store::SharedBuffer) => format!("shared_buffer:{table}:{id}"),
-                Some(_) => format!("shared_memory:{table}:{id}"),
+                _ => format!("shared_memory:{table}:{id}"),
             };
             out.push(access(name, store, written, delete));
         }
@@ -132,8 +131,45 @@ pub(crate) fn store_accesses(
             })
             .into_iter()
             .collect(),
+        // CALL FUNCTION 'ENQUEUE_EZ_ORDER' sets a lock, DEQUEUE_ releases it
+        K::CallFunction => words
+            .get(2)
+            .and_then(|w| lock_module(&name(w, constants)))
+            .map(|(object, release)| {
+                access(
+                    format!("lock:{object}"),
+                    Some(m::Store::Lock),
+                    true,
+                    release,
+                )
+            })
+            .into_iter()
+            .collect(),
         _ => Vec::new(),
     }
+}
+
+/// The lock object of a lock module, and whether the module releases the
+/// lock: `ENQUEUE_<lock object>` sets it, `DEQUEUE_<lock object>` releases
+/// it, `DEQUEUE_ALL` releases all locks (`*`). Lock objects start with `E`,
+/// in a namespace after it, like `/ABC/ELOCK`; so `ENQUEUE_READ`, which
+/// reads the lock table, is not a lock module.
+pub(crate) fn lock_module(function: &str) -> Option<(String, bool)> {
+    let function = function.to_ascii_uppercase();
+    if function == "DEQUEUE_ALL" {
+        return Some(("*".to_string(), true));
+    }
+    let (object, release) = match function.strip_prefix("ENQUEUE_") {
+        Some(o) => (o, false),
+        None => (function.strip_prefix("DEQUEUE_")?, true),
+    };
+    let local = match object.strip_prefix('/') {
+        Some(rest) => rest.split_once('/')?.1,
+        None => object,
+    };
+    local
+        .starts_with('E')
+        .then(|| (object.to_string(), release))
 }
 
 /// A key as written: the text of a literal, the value of a constant of the
@@ -146,7 +182,7 @@ fn file_name(word: &str, constants: &HashMap<String, String>) -> String {
     format!("file:{}", raw(word, constants))
 }
 
-fn raw(word: &str, constants: &HashMap<String, String>) -> String {
+pub(crate) fn raw(word: &str, constants: &HashMap<String, String>) -> String {
     let literal = word
         .strip_prefix('\'')
         .and_then(|w| w.strip_suffix('\''))
@@ -176,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_parameters_files_clusters() {
+    fn memory_parameters_files_locks() {
         let got = accesses(
             "CONSTANTS c_key TYPE c LENGTH 10 VALUE 'ZORD'.
 EXPORT orders = lt_orders TO MEMORY ID 'ZORDERS'.
@@ -190,14 +226,17 @@ GET PARAMETER ID 'VKO' FIELD lv_vkorg.
 OPEN DATASET lv_file FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
 TRANSFER lv_line TO lv_file.
 READ DATASET '/tmp/in.csv' INTO lv_line.
-DELETE DATASET lv_file.",
+DELETE DATASET lv_file.
+CALL FUNCTION 'ENQUEUE_EZ_ORDER' EXPORTING vbeln = lv_vbeln.
+CALL FUNCTION 'DEQUEUE_/ABC/ELOCK'.
+CALL FUNCTION 'DEQUEUE_ALL'.
+CALL FUNCTION 'ENQUEUE_READ' TABLES enq = lt_enq.",
         );
         assert_eq!(
             got,
             [
                 "memory:ZORDERS Write Modify",
                 "memory:ZORD Read Select",
-                "INDX Write Modify",
                 "shared_buffer:INDX:K1 Read Select",
                 "memory:(LV_KEY) Write Delete",
                 "memory:* Write Delete",
@@ -206,6 +245,9 @@ DELETE DATASET lv_file.",
                 "file:(lv_file) Write Modify",
                 "file:/tmp/in.csv Read Select",
                 "file:(lv_file) Write Delete",
+                "lock:EZ_ORDER Write Modify",
+                "lock:/ABC/ELOCK Write Delete",
+                "lock:* Write Delete",
             ]
         );
     }

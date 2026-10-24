@@ -111,6 +111,12 @@ pub enum DeclarationKind {
     Tables,
     /// NODES
     Node,
+    /// INFOTYPES: an internal table with header line, named `Pnnnn` after
+    /// the infotype unless NAME gives another name, with line type `Pnnnn`.
+    /// The logical database fills it, unless the clause has `MODE N`: PNP at
+    /// `GET PERNR` from `PAnnnn`, PCH at `GET OBJEC` from `HRPnnnn`. The
+    /// clause as written is in `typing.text`
+    Infotype,
     /// `INCLUDE TYPE|STRUCTURE` inside a structure
     Include,
     /// value of an enumerated type
@@ -514,6 +520,22 @@ pub struct DbAssignment {
     pub value: String,
 }
 
+/// A data cluster in a database table, `EXPORT ... TO DATABASE dbtab(ar)
+/// ID id`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DbCluster {
+    /// the area, as written, like `mo`
+    pub area: String,
+    /// the ID as written: a literal with its quotes, or a data object
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// the names in the cluster, lower case: `orders` of
+    /// `orders = lt_orders`; in the old form `EXPORT gt_rt TO ...` the data
+    /// objects
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub parameters: Vec<String>,
+}
+
 /// The processing block a statement belongs to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct BlockRef {
@@ -572,6 +594,12 @@ pub struct DbAccess {
     /// native SQL (HANA SQL or SQLScript): the statement as written
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_sql: Option<String>,
+    /// a data cluster: `EXPORT ... TO DATABASE` (`modify`), `IMPORT ...
+    /// FROM DATABASE` and `IMPORT DIRECTORY` (`select`), `DELETE FROM
+    /// DATABASE` (`delete`); the exported data objects are in `source`,
+    /// the imported ones in `target`
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cluster: Option<DbCluster>,
     /// ABAP data read by the statement, as written: in Open SQL `@lv_x`
     /// without the `@`, the operands of `@( ... )` and the host variables of
     /// the classic syntax; in native SQL `:name` without the colon, the ABAP
@@ -830,7 +858,10 @@ pub enum DataScope {
     /// data kept outside the program: ABAP memory, SAP memory, files,
     /// shared buffers; named with the kind, e.g. `memory:ZORDERS`
     External,
-    /// constants of other classes, system fields, or not known
+    /// a system field, like `sy-datum`: set by the runtime, or implicitly
+    /// by statements, like `sy-tabix` by READ TABLE
+    System,
+    /// constants of other classes, or not known
     Other,
 }
 
@@ -849,6 +880,24 @@ pub enum Store {
     SharedBuffer,
     /// `EXPORT ... TO SHARED MEMORY`
     SharedMemory,
+    /// an SAP lock, set by the lock module `ENQUEUE_<lock object>` and
+    /// released by `DEQUEUE_<lock object>`
+    Lock,
+}
+
+/// A built-in elementary type, like that of a system field.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DataType {
+    /// `i`, `b`, `c`, `n`, `d`, `t`, `x` or `p`
+    pub kind: String,
+    /// characters of `c` and `n`, bytes of `x` and `p`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub length: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u32>,
+    /// the data element typing it, like `SYST_DATUM`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_element: Option<String>,
 }
 
 /// A data object read or written by a statement.
@@ -867,6 +916,13 @@ pub struct DataAccess {
     /// declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub declared: bool,
+    /// set by the statement without being named in it, like `sy-subrc` by
+    /// READ TABLE or a call
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub implicit: bool,
+    /// the type, when known; for now that of system fields
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub data_type: Option<DataType>,
     /// reads: statements whose writes may provide the value
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub sources: Vec<u32>,
@@ -909,7 +965,7 @@ pub struct TableAccess {
     /// table, view or CDS entity, upper case; a dynamic name resolved from
     /// a constant, or the operand as written in parentheses. For a store
     /// its kind and key: `memory:ZORDERS`, `parameter:VKO`,
-    /// `file:/tmp/out.csv`, `file:(lv_file)`
+    /// `file:/tmp/out.csv`, `file:(lv_file)`, `lock:EZ_ORDER`
     pub name: String,
     /// `read`, or `write` for the changed table of INSERT, UPDATE, MODIFY,
     /// DELETE and MERGE, and for stores written by EXPORT, SET PARAMETER,
@@ -938,6 +994,10 @@ pub struct Guard {
     pub negated: bool,
     /// the condition as written
     pub text: String,
+    /// the condition checks `sy-subrc`: the statements that may have set
+    /// the value it checks, like the READ TABLE before `IF sy-subrc = 0`
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub subrc: Vec<u32>,
 }
 
 /// One statement of a procedure.

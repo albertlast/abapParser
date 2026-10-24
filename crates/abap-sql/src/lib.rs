@@ -10,7 +10,10 @@ use abap_model as m;
 use abap_syntax::{File, Statement, StatementKind as K, Token, TokenKind};
 
 pub mod cds;
+mod cluster;
 pub mod hana;
+
+pub use cluster::parse_cluster;
 
 /// Statement kinds that access the database.
 pub fn is_db_statement(kind: K) -> bool {
@@ -50,7 +53,7 @@ pub fn parse_statement(file: &File, s: &Statement) -> Option<m::DbAccess> {
 
 /// ABAP data the statement reads, as written: `@lv_x`, the operands of
 /// `@( ... )`, and the unmarked host variables of the classic syntax.
-fn host_variables(file: &File, s: &Statement) -> Vec<String> {
+pub(crate) fn host_variables(file: &File, s: &Statement) -> Vec<String> {
     let all = file.tokens();
     let mut out: Vec<String> = Vec::new();
     for r in abap_syntax::operands::operands(file, s).refs() {
@@ -139,6 +142,7 @@ pub(crate) fn empty_access(kind: K) -> m::DbAccess {
         bypassing_buffer: false,
         connection: None,
         native_sql: None,
+        cluster: None,
         host_variables: Vec::new(),
         block: None,
         text: String::new(),

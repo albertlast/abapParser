@@ -21,13 +21,41 @@ function loadNative() {
   } catch (e) {
     throw new Error(
       `abap-parser: no native module for ${process.platform}-${process.arch}. ` +
-      `The optional dependency ${name} is missing or failed to load; ` +
-      `reinstall, or build from source with "npm run build" (needs Rust). ${e.message}`,
+        `The optional dependency ${name} is missing or failed to load; ` +
+        `reinstall, or build from source with "npm run build" (needs Rust). ${e.message}`,
     );
   }
 }
 
 const native = loadNative();
+
+/**
+ * The fetch function of the options for the native module: it always
+ * returns a promise, also when the host's function returns the source.
+ * @param {import("./index").SourceOptions} options
+ */
+function fetchOf(options) {
+  const fetch = options == null ? undefined : options.fetch;
+  if (fetch == null) {
+    return undefined;
+  }
+  if (typeof fetch !== "function") {
+    throw new TypeError("abap-parser: options.fetch must be a function");
+  }
+  return async (reference) => fetch(reference);
+}
+
+/**
+ * The blocking functions wait in the JavaScript thread, so a fetch function
+ * could never run: only the async ones take it.
+ * @param {import("./index").SourceOptions} options @param {string} name
+ */
+function withoutFetch(options, name) {
+  if (options != null && options.fetch != null) {
+    throw new TypeError(`abap-parser: options.fetch needs ${name}Async, ${name} blocks the event loop`);
+  }
+  return JSON.stringify(options);
+}
 
 /**
  * Classes, interfaces, routines and declarations of one ABAP source file.
@@ -67,7 +95,7 @@ function calls(source) {
  * @returns {import("./types").CallGraph}
  */
 function callGraph(roots, options, depth = 1) {
-  return JSON.parse(native.callGraphJson(roots, JSON.stringify(options), depth));
+  return JSON.parse(native.callGraphJson(roots, withoutFetch(options, "callGraph"), depth));
 }
 
 /**
@@ -78,7 +106,7 @@ function callGraph(roots, options, depth = 1) {
  * @returns {string | null}
  */
 function fetchSource(reference, options) {
-  return native.fetchSource(reference, JSON.stringify(options));
+  return native.fetchSource(reference, withoutFetch(options, "fetchSource"));
 }
 
 /**
@@ -103,7 +131,7 @@ function logic(source) {
  * @returns {import("./types").FileLogic}
  */
 function logicObject(reference, options, depth = 1) {
-  return JSON.parse(native.logicObjectJson(reference, JSON.stringify(options), depth));
+  return JSON.parse(native.logicObjectJson(reference, withoutFetch(options, "logicObject"), depth));
 }
 
 /**
@@ -150,7 +178,7 @@ function text(analysis, source) {
  * @returns {string}
  */
 function objectText(analysis, objects, options, depth = 1) {
-  return native.objectText(analysis, objects, JSON.stringify(options), depth);
+  return native.objectText(analysis, objects, withoutFetch(options, "objectText"), depth);
 }
 
 // The same on the libuv thread pool: promises, the event loop keeps running.
@@ -175,21 +203,21 @@ const statementsAsync = (source) => parsed(native.statementsJsonAsync(source));
  * @returns {Promise<import("./types").CallGraph>}
  */
 const callGraphAsync = (roots, options, depth = 1) =>
-  parsed(native.callGraphJsonAsync(roots, JSON.stringify(options), depth));
+  parsed(native.callGraphJsonAsync(roots, JSON.stringify(options), depth, fetchOf(options)));
 
 /**
  * @param {string} reference @param {import("./index").SourceOptions} options
  * @returns {Promise<string | null>}
  */
 const fetchSourceAsync = (reference, options) =>
-  parsed(native.fetchSourceJsonAsync(reference, JSON.stringify(options)));
+  parsed(native.fetchSourceJsonAsync(reference, JSON.stringify(options), fetchOf(options)));
 
 /**
  * @param {string} reference @param {import("./index").SourceOptions} options @param {number} [depth=1]
  * @returns {Promise<import("./types").FileLogic>}
  */
 const logicObjectAsync = (reference, options, depth = 1) =>
-  parsed(native.logicObjectJsonAsync(reference, JSON.stringify(options), depth));
+  parsed(native.logicObjectJsonAsync(reference, JSON.stringify(options), depth, fetchOf(options)));
 
 /** @param {string} analysis @param {string} source @returns {Promise<string>} */
 const textAsync = (analysis, source) => native.textAsync(analysis, source);
@@ -200,12 +228,30 @@ const textAsync = (analysis, source) => native.textAsync(analysis, source);
  * @returns {Promise<string>}
  */
 const objectTextAsync = (analysis, objects, options, depth = 1) =>
-  native.objectTextAsync(analysis, objects, JSON.stringify(options), depth);
+  native.objectTextAsync(analysis, objects, JSON.stringify(options), depth, fetchOf(options));
 
 module.exports = {
-  symbols, dbAccess, calls, callGraph, fetchSource, logic, logicObject, statements,
-  cds, text, objectText,
-  symbolsAsync, dbAccessAsync, callsAsync, callGraphAsync, fetchSourceAsync, logicAsync,
-  logicObjectAsync, statementsAsync, cdsAsync, textAsync, objectTextAsync,
+  symbols,
+  dbAccess,
+  calls,
+  callGraph,
+  fetchSource,
+  logic,
+  logicObject,
+  statements,
+  cds,
+  text,
+  objectText,
+  symbolsAsync,
+  dbAccessAsync,
+  callsAsync,
+  callGraphAsync,
+  fetchSourceAsync,
+  logicAsync,
+  logicObjectAsync,
+  statementsAsync,
+  cdsAsync,
+  textAsync,
+  objectTextAsync,
   version: native.version,
 };

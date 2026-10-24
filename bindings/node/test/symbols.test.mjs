@@ -28,11 +28,19 @@ test("symbols of a class", () => {
   const c = s.classes[0];
   assert.equal(c.name, "zcl_demo");
   assert.equal(c.is_global, true);
-  assert.deepEqual(c.methods[0].parameters.map((p) => [p.name, p.direction]),
-    [["iv_id", "importing"], ["rv_ok", "returning"]]);
+  assert.deepEqual(
+    c.methods[0].parameters.map((p) => [p.name, p.direction]),
+    [
+      ["iv_id", "importing"],
+      ["rv_ok", "returning"],
+    ],
+  );
   assert.equal(c.attributes[0].typing.kind, "table");
   assert.equal(c.attributes[0].visibility, "private");
-  assert.deepEqual(c.implementation.methods.map((m) => m.name), ["run"]);
+  assert.deepEqual(
+    c.implementation.methods.map((m) => m.name),
+    ["run"],
+  );
 });
 
 test("database access", () => {
@@ -44,14 +52,29 @@ ENDFORM.`);
   assert.equal(acc.length, 1);
   const a = acc[0];
   assert.equal(a.operation, "select");
-  assert.deepEqual(a.tables.map((t) => [t.name, t.role]), [["vbak", "main"], ["vbap", "join"]]);
-  assert.deepEqual(a.conditions[0].columns.map((c) => `${c.table}.${c.name}`), ["vbak.erdat"]);
+  assert.deepEqual(
+    a.tables.map((t) => [t.name, t.role]),
+    [
+      ["vbak", "main"],
+      ["vbap", "join"],
+    ],
+  );
+  assert.deepEqual(
+    a.conditions[0].columns.map((c) => `${c.table}.${c.name}`),
+    ["vbak.erdat"],
+  );
   assert.deepEqual(a.block, {kind: "form", name: "read"});
 });
 
 test("calls and call graph", () => {
   const c = abap.calls("FORM a.\n  CALL FUNCTION 'Z_FM'.\n  PERFORM b.\nENDFORM.\nFORM b.\nENDFORM.");
-  assert.deepEqual(c.map((x) => [x.kind, x.name, x.resolved]), [["function", "Z_FM", false], ["form", "b", true]]);
+  assert.deepEqual(
+    c.map((x) => [x.kind, x.name, x.resolved]),
+    [
+      ["function", "Z_FM", false],
+      ["form", "b", true],
+    ],
+  );
   const src = path.join(corpus, "abapgit", "src");
   if (fs.existsSync(src)) {
     const g = abap.callGraph(["CLAS:ZCL_ABAPGIT_APACK_MIGRATION"], {src: [src]});
@@ -65,7 +88,10 @@ test("calls and call graph", () => {
 
 test("statements", () => {
   const st = abap.statements("DATA: a TYPE i, b TYPE c.\nWRITE a.");
-  assert.deepEqual(st.map((s) => s.kind), ["Data", "Data", "Write"]);
+  assert.deepEqual(
+    st.map((s) => s.kind),
+    ["Data", "Data", "Write"],
+  );
   assert.equal(st[1].text, "DATA b TYPE c.");
   assert.deepEqual(st[2].span.start, {row: 2, col: 1});
 });
@@ -75,9 +101,15 @@ test("logic", () => {
   const [proc] = l.procedures;
   assert.equal(proc.block.name, "f");
   const step = proc.body[1];
-  assert.deepEqual(step.guards.map((g) => g.text), ["p > 0"]);
+  assert.deepEqual(
+    step.guards.map((g) => g.text),
+    ["p > 0"],
+  );
   assert.equal(step.reads[0].scope, "parameter");
-  assert.deepEqual(proc.effects.map((e) => [e.name, e.inputs]), [["x", ["p"]]]);
+  assert.deepEqual(
+    proc.effects.map((e) => [e.name, e.inputs]),
+    [["x", ["p"]]],
+  );
 });
 
 test("logic follows calls", () => {
@@ -123,7 +155,10 @@ test("cds", async () => {
   assert.equal(d.kind, "view entity");
   assert.deepEqual(d.elements[0].fields, ["T005.LAND1"]);
   assert.deepEqual(await abap.cdsAsync("define view entity zi_c as select from t005 { key land1 as Country }"), d);
-  assert.match(abap.text("cds", "define view entity zi_c as select from t005 { key land1 as Country }"), /key Country = T005.LAND1/);
+  assert.match(
+    abap.text("cds", "define view entity zi_c as select from t005 { key land1 as Country }"),
+    /key Country = T005.LAND1/,
+  );
 });
 
 test("async variants give the same results", async () => {
@@ -136,21 +171,60 @@ test("async variants give the same results", async () => {
   await assert.rejects(abap.logicObjectAsync("NOPE", {}), /KIND:NAME/);
 });
 
-test("loading objects does not block the event loop", {skip: !fs.existsSync(path.join(corpus, "abapgit", "src"))}, async () => {
-  const src = path.join(corpus, "abapgit", "src");
-  let ticks = 0;
-  const timer = setInterval(() => ticks++, 1);
-  const [graph, text, missing, l] = await Promise.all([
-    abap.callGraphAsync(["CLAS:ZCL_ABAPGIT_REPO_ONLINE"], {src: [src]}, 2),
-    abap.fetchSourceAsync("CLAS:ZCL_ABAPGIT_APACK_MIGRATION", {src: [src]}),
-    abap.fetchSourceAsync("CLAS:ZCL_NOPE", {src: [src]}),
-    abap.logicObjectAsync("CLAS:ZCL_ABAPGIT_REPO_ONLINE", {src: [src]}),
-  ]);
-  clearInterval(timer);
-  assert.ok(graph.calls.length > 100);
-  assert.ok(text.toLowerCase().includes("zcl_abapgit_apack_migration"));
-  assert.equal(missing, null);
-  assert.ok(l.procedures.length > 10);
-  // the timer ran while the native work was going on
-  assert.ok(ticks > 0, `${ticks} ticks`);
+test(
+  "loading objects does not block the event loop",
+  {skip: !fs.existsSync(path.join(corpus, "abapgit", "src"))},
+  async () => {
+    const src = path.join(corpus, "abapgit", "src");
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 1);
+    const [graph, text, missing, l] = await Promise.all([
+      abap.callGraphAsync(["CLAS:ZCL_ABAPGIT_REPO_ONLINE"], {src: [src]}, 2),
+      abap.fetchSourceAsync("CLAS:ZCL_ABAPGIT_APACK_MIGRATION", {src: [src]}),
+      abap.fetchSourceAsync("CLAS:ZCL_NOPE", {src: [src]}),
+      abap.logicObjectAsync("CLAS:ZCL_ABAPGIT_REPO_ONLINE", {src: [src]}),
+    ]);
+    clearInterval(timer);
+    assert.ok(graph.calls.length > 100);
+    assert.ok(text.toLowerCase().includes("zcl_abapgit_apack_migration"));
+    assert.equal(missing, null);
+    assert.ok(l.procedures.length > 10);
+    // the timer ran while the native work was going on
+    assert.ok(ticks > 0, `${ticks} ticks`);
+  },
+);
+
+test("sources from a fetch function of the host", async () => {
+  const sources = {
+    "PROG:ZMAIN": "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_SAVE'.\n  PERFORM run IN PROGRAM zother.",
+    "FUNC:Z_SAVE": "FUNCTION z_save.\n  DELETE FROM zlog WHERE id = 1.\nENDFUNCTION.",
+  };
+  const asked = [];
+  // answers from a promise, like an ADT client of the host
+  const fetch = async (reference) => {
+    asked.push(reference);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    return sources[reference] ?? null;
+  };
+  const graph = await abap.callGraphAsync(["PROG:ZMAIN"], {fetch}, 2);
+  assert.ok(graph.units.some((u) => u.reference === "FUNC:Z_SAVE" && u.origin === "fetch:FUNC:Z_SAVE"));
+  assert.ok(graph.missing.includes("PROG:ZOTHER"));
+  assert.ok(asked.includes("FUNC:Z_SAVE"));
+  const l = await abap.logicObjectAsync("PROG:ZMAIN", {fetch: (r) => sources[r]});
+  assert.ok(l.procedures[0].effects.some((e) => e.name === "ZLOG"));
+  assert.equal(await abap.fetchSourceAsync("PROG:ZMAIN", {fetch}), sources["PROG:ZMAIN"]);
+  assert.match(await abap.objectTextAsync("symbols", ["FUNC:Z_SAVE"], {fetch}), /z_save/i);
+  // a failing fetch is an error of the result, not a crash
+  const failing = await abap.callGraphAsync(["PROG:ZMAIN"], {
+    fetch: () => {
+      throw new Error("no connection");
+    },
+  });
+  assert.ok(
+    failing.errors.some((e) => e.includes("no connection")),
+    failing.errors.join("; "),
+  );
+  // the blocking functions cannot wait for it
+  assert.throws(() => abap.callGraph(["PROG:ZMAIN"], {fetch}), /callGraphAsync/);
+  assert.throws(() => abap.callGraphAsync(["PROG:ZMAIN"], {fetch: "nope"}), /must be a function/);
 });

@@ -18,8 +18,8 @@ import fs from "node:fs";
 import path from "node:path";
 import abaplint from "@abaplint/core";
 
-const {Registry, MemoryFile, ABAPObject, Version, Config, Expressions, SyntaxLogic, ReferenceType,
-  VirtualPosition} = abaplint;
+const {Registry, MemoryFile, ABAPObject, Version, Config, Expressions, SyntaxLogic, ReferenceType, VirtualPosition} =
+  abaplint;
 
 // Minimal definitions of the standard exception classes, so the syntax check
 // of the many classes inheriting from them does not stop at the superclass.
@@ -104,8 +104,18 @@ function dataReferences(reg, obj) {
   return {ok: result.issues.length === 0, byFile};
 }
 
-const DB_STATEMENTS = new Set(["Select", "SelectLoop", "InsertDatabase", "UpdateDatabase", "ModifyDatabase",
-  "DeleteDatabase", "OpenCursor", "With", "WithLoop", "MergeDatabase"]);
+const DB_STATEMENTS = new Set([
+  "Select",
+  "SelectLoop",
+  "InsertDatabase",
+  "UpdateDatabase",
+  "ModifyDatabase",
+  "DeleteDatabase",
+  "OpenCursor",
+  "With",
+  "WithLoop",
+  "MergeDatabase",
+]);
 
 /** what abaplint knows about the SQL of a database statement */
 function sqlInfo(s) {
@@ -156,7 +166,10 @@ function interfaceInfo(i) {
     aliases: i.aliases.map((a) => ({name: a.name, component: a.component, visibility: VISIBILITY[a.visibility]})),
     constants: i.constants.map((c) => ({name: c.name, visibility: VISIBILITY[c.visibility]})),
     attributes: i.attributes.map((a) => ({
-      name: a.name, level: a.level, readOnly: a.readOnly, visibility: VISIBILITY[a.visibility],
+      name: a.name,
+      level: a.level,
+      readOnly: a.readOnly,
+      visibility: VISIBILITY[a.visibility],
     })),
   };
 }
@@ -172,7 +185,8 @@ function fileInfo(info) {
       isForTesting: c.isForTesting,
     })),
     implementations: info.listClassImplementations().map((c) => ({
-      name: c.name, methods: c.methods.map((m) => m.getName()),
+      name: c.name,
+      methods: c.methods.map((m) => m.getName()),
     })),
     forms: info.listFormDefinitions().map((f) => f.name),
   };
@@ -222,8 +236,23 @@ function configFor(version) {
 }
 
 // on-premise releases, oldest first
-const RELEASES = ["v700", "v702", "v740sp02", "v740sp05", "v740sp08", "v750", "v751", "v752",
-  "v753", "v754", "v755", "v756", "v757", "v758", "v816"];
+const RELEASES = [
+  "v700",
+  "v702",
+  "v740sp02",
+  "v740sp05",
+  "v740sp08",
+  "v750",
+  "v751",
+  "v752",
+  "v753",
+  "v754",
+  "v755",
+  "v756",
+  "v757",
+  "v758",
+  "v816",
+];
 
 // abaplint's file name for a path: a plain NAME.abap is a program
 function objectName(f) {
@@ -244,7 +273,7 @@ function releases(outDir, inputs) {
     // per file: statement key -> type per release
     const kinds = new Map();
     for (const [r, release] of RELEASES.entries()) {
-            const reg = new Registry(new Config(JSON.stringify(configFor(Version[release]))));
+      const reg = new Registry(new Config(JSON.stringify(configFor(Version[release]))));
       for (const [name, text] of sources) {
         reg.addFile(new MemoryFile(name, text));
       }
@@ -289,8 +318,7 @@ function releases(outDir, inputs) {
           statements.push({type: newest, tokens, release: RELEASES[lowest]});
         }
       }
-      const out = {file: rel.split(path.sep).join("/"), abaplint: abaplint.Registry.abaplintVersion(),
-        statements};
+      const out = {file: rel.split(path.sep).join("/"), abaplint: abaplint.Registry.abaplintVersion(), statements};
       const dest = path.join(outDir, rel + ".json");
       fs.mkdirSync(path.dirname(dest), {recursive: true});
       fs.writeFileSync(dest, JSON.stringify(out) + "\n");
@@ -304,7 +332,10 @@ function releases(outDir, inputs) {
 function inputList(inputs) {
   if (inputs[0] === "--list") {
     // one folder per line, # comments
-    return fs.readFileSync(inputs[1], "utf8").split(/\r?\n/).map((l) => l.trim())
+    return fs
+      .readFileSync(inputs[1], "utf8")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
       .filter((l) => l !== "" && !l.startsWith("#"));
   }
   return inputs;
@@ -328,7 +359,7 @@ function main() {
 
   // unknown types are void instead of errors, so the syntax check of code
   // using SAP standard types goes on
-    const conf = configFor(Version.v816);
+  const conf = configFor(Version.v816);
   conf.syntax.errorNamespace = "^$";
   const config = new Config(JSON.stringify(conf));
   let files = 0;
