@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
+
+The release each statement needs, syntax checks, and lineage for SAP_BASIS 7.50 systems and HR code: sources from the host, `sy-subrc` and system fields per statement, infotypes, locks and data clusters.
+
+Changes to existing output: system fields are named by field (`sy-dbcnt`, before `sy`), steps carry implicit writes of system fields, and `GET` statements are steps. In Rust, the functions of `abap_analysis::json` that load sources take a source provider of the caller as a new last argument.
 
 - **Sources from the host:** `fetch` in the source options of Node.js and Python is a function of the host program, called with each object the analysis needs (`CLAS:ZCL_X/implementations`, `FUNC:Z_FM`, ...) and returning its source or nothing, e.g. from the host's own ADT client or cache. It is asked after the folders and before the SAP system; what it throws is listed in `errors`. In Node.js only the `…Async` functions take it, a promise as its result included; the blocking ones throw a `TypeError`. In Rust it is `abap_source::FnProvider`, with `ProviderOptions::build_with`. The JSON entry points in `abap_analysis::json` that load sources take it as a new last argument.
 - **`sy-subrc` per statement:** guards on `sy-subrc` name in the new `subrc` the statements that may have set the value they check. `IF sy-subrc = 0` after a READ TABLE and `IF sy-subrc NE 0` after a call inside it were one contradicting condition before. Statements that set `sy-subrc`, as SAP documents for each, write it (new `implicit` on data accesses), so the data flow gives its sources: a write under `IF sy-subrc = 0` after a READ TABLE now depends on the table read. Method calls set it, PERFORM may. The compact text writes `sy-subrc = 0 [sy-subrc of 70]`. System fields are each their own data object, `sy-subrc`, `sy-dbcnt`, no longer `sy`.
