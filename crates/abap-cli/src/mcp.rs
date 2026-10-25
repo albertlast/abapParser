@@ -21,7 +21,7 @@ const MAX_ANSWER: usize = 80_000;
 const INSTRUCTIONS: &str = "Static analysis of ABAP code. Objects are named \
 KIND:NAME: CLAS:ZCL_ORDERS, INTF:ZIF_X, PROG:ZREPORT (also includes), \
 FUNC:Z_FM, FUGR:ZGROUP, TABL:BAPIRET2 (dictionary structures and tables), \
-DTEL:XUBNAME, DDLS:I_COUNTRY (CDS views: get_symbols tells their sources and fields). Sources come from local folders and/or an SAP system and \
+DTEL:XUBNAME, TTYP:STRING_TABLE (table types), TYPE:ABAP (type groups), DDLS:I_COUNTRY (CDS views: get_symbols tells their sources and fields). Sources come from local folders and/or an SAP system and \
 include SAP standard code. Start with get_symbols or get_logic for an \
 object; follow calls with get_call_graph; read code with get_source using \
 the rows the other tools report.";

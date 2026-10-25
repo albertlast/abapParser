@@ -2,6 +2,8 @@
 //! and tables, and data elements typed as references. Read from the DDL
 //! source and XML an SAP system gives through ADT, or from abapGit files.
 
+use abap_model as m;
+
 use crate::calls::ValueType;
 
 /// A dictionary structure or table.
@@ -114,6 +116,106 @@ pub fn data_element_reference(text: &str) -> Option<String> {
         .flatten()
 }
 
+/// The line type of a dictionary table type: from the ADT XML
+/// (`ttyp:rowType`) or abapGit (`DD40V`). Dictionary types stay names,
+/// built-in ones are the ABAP types SAP maps them to.
+pub fn table_type_line(text: &str) -> Option<m::DataType> {
+    use crate::types;
+    if let Some(row) = text
+        .split("<ttyp:rowType>")
+        .nth(1)
+        .and_then(|r| r.split("</ttyp:rowType>").next())
+    {
+        let name = tag(row, "ttyp:typeName");
+        let builtin = || {
+            dictionary_builtin(
+                &tag(row, "ttyp:dataType")?,
+                number(tag(row, "ttyp:length")),
+                number(tag(row, "ttyp:decimals")),
+            )
+        };
+        return match tag(row, "ttyp:typeKind")?.as_str() {
+            "predefinedAbapType" => builtin(),
+            "dictionaryType" => Some(types::named(&name?)),
+            "refToPredefinedAbapType" => Some(m::DataType {
+                line: builtin().map(Box::new),
+                ..types::reference("data")
+            }),
+            "refToDictionaryType" => Some(m::DataType {
+                line: Some(Box::new(types::named(&name?))),
+                ..types::reference("data")
+            }),
+            "refToClassOrInterfaceType" => Some(types::reference(&name?)),
+            "rangeTypeOnPredefinedType" => Some(m::DataType {
+                line: builtin().map(Box::new),
+                ..types::range()
+            }),
+            "rangeTypeOnDataelement" => Some(m::DataType {
+                line: Some(Box::new(types::named(&name?))),
+                ..types::range()
+            }),
+            _ => None,
+        };
+    }
+    let entry = text.split("<DD40V>").nth(1)?.split("</DD40V>").next()?;
+    let row = tag(entry, "ROWTYPE");
+    match tag(entry, "ROWKIND").as_deref() {
+        // a data element, structure or table type
+        Some("E" | "S" | "L") => Some(types::named(&row?)),
+        Some("R") => Some(types::reference(&row?)),
+        None => dictionary_builtin(
+            &tag(entry, "DATATYPE")?,
+            number(tag(entry, "LENG")),
+            number(tag(entry, "DECIMALS")),
+        ),
+        _ => None,
+    }
+}
+
+/// The ABAP type of a built-in dictionary type, as SAP's overview of the
+/// dictionary types gives it: `CHAR` of length m is `c` of length m, `DEC`,
+/// `CURR` and `QUAN` are `p` of length m DIV 2 + 1, and so on. Also the
+/// short names abapGit writes, like `STRG` and `RSTR`.
+fn dictionary_builtin(
+    name: &str,
+    length: Option<u32>,
+    decimals: Option<u32>,
+) -> Option<m::DataType> {
+    use crate::types::builtin;
+    let upper = name.to_ascii_uppercase();
+    Some(match upper.as_str() {
+        "INT1" => builtin("b", None, None),
+        "INT2" | "PREC" => builtin("s", None, None),
+        "INT4" => builtin("i", None, None),
+        "INT8" => builtin("int8", None, None),
+        "DEC" | "CURR" | "QUAN" => builtin("p", length.map(|m| m / 2 + 1), decimals),
+        "FLTP" => builtin("f", None, None),
+        "CHAR" | "LCHR" | "UNIT" => builtin("c", length, None),
+        "CLNT" => builtin("c", Some(3), None),
+        "LANG" => builtin("c", Some(1), None),
+        "CUKY" => builtin("c", Some(5), None),
+        "NUMC" => builtin("n", length, None),
+        "ACCP" => builtin("n", Some(6), None),
+        "SSTRING" | "SSTR" | "STRING" | "STRG" => builtin("string", None, None),
+        "RAW" | "LRAW" => builtin("x", length, None),
+        "RAWSTRING" | "RSTR" | "GEOM_EWKB" | "GGM1" => builtin("xstring", None, None),
+        "DATS" | "DATN" => builtin("d", None, None),
+        "TIMS" | "TIMN" => builtin("t", None, None),
+        "UTCLONG" | "UTCL" => builtin("utclong", None, None),
+        u if u.starts_with("DECFLOAT16") || u.starts_with("DF16") || u.starts_with("D16") => {
+            builtin("decfloat16", None, None)
+        }
+        u if u.starts_with("DECFLOAT34") || u.starts_with("DF34") || u.starts_with("D34") => {
+            builtin("decfloat34", None, None)
+        }
+        _ => return None,
+    })
+}
+
+fn number(text: Option<String>) -> Option<u32> {
+    text?.trim().parse().ok().filter(|n| *n > 0)
+}
+
 /// Text of the first `<name>...</name>`, trimmed; `None` if missing or empty.
 fn tag(text: &str, name: &str) -> Option<String> {
     let start = text.find(&format!("<{name}>"))? + name.len() + 2;
@@ -125,6 +227,39 @@ fn tag(text: &str, name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn table_type_lines() {
+        let short = crate::types::tests::short;
+        let adt = |kind: &str, name: &str, ty: &str, len: &str| {
+            format!("<ttyp:tableType><ttyp:rowType><ttyp:typeKind>{kind}</ttyp:typeKind><ttyp:typeName>{name}</ttyp:typeName><ttyp:builtInType><ttyp:dataType>{ty}</ttyp:dataType><ttyp:length>{len}</ttyp:length><ttyp:decimals>000002</ttyp:decimals></ttyp:builtInType><ttyp:rangeType/></ttyp:rowType></ttyp:tableType>")
+        };
+        let line = |t: String| table_type_line(&t).as_ref().map(short);
+        assert_eq!(
+            line(adt("predefinedAbapType", "", "STRING", "000000")).as_deref(),
+            Some("string")
+        );
+        assert_eq!(
+            line(adt("predefinedAbapType", "", "CHAR", "000010")).as_deref(),
+            Some("c(10)")
+        );
+        assert_eq!(
+            line(adt("predefinedAbapType", "", "DEC", "000015")).as_deref(),
+            Some("p(8,2)")
+        );
+        assert_eq!(
+            line(adt("dictionaryType", "BAPIRET2", "STRU", "000000")).as_deref(),
+            Some("named bapiret2")
+        );
+        assert_eq!(
+            line(adt("refToClassOrInterfaceType", "IF_X", "", "")).as_deref(),
+            Some("ref if_x")
+        );
+        let git = "<DD40V><TYPENAME>ZTT</TYPENAME><ROWTYPE>ZS_ROW</ROWTYPE><ROWKIND>S</ROWKIND><DATATYPE>STRU</DATATYPE></DD40V>";
+        assert_eq!(line(git.to_string()).as_deref(), Some("named zs_row"));
+        let git = "<DD40V><TYPENAME>ZTT</TYPENAME><DATATYPE>STRG</DATATYPE></DD40V>";
+        assert_eq!(line(git.to_string()).as_deref(), Some("string"));
+    }
 
     #[test]
     fn ddl_structure() {

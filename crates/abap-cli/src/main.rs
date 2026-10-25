@@ -31,8 +31,9 @@ across objects, sources from folders and/or an SAP system:
   fetch <object>                  print the source of an object
   objects are written KIND:NAME, e.g. CLAS:ZCL_ORDERS, PROG:ZREPORT, FUNC:Z_FM,
   INTF:ZIF_X, FUGR:ZGROUP, CLAS:ZCL_ORDERS/implementations; dictionary types
-  TABL:BAPIRET2 (structures, tables) and DTEL:XUBNAME, and CDS data
-  definitions DDLS:I_COUNTRY can be fetched
+  TABL:BAPIRET2 (structures, tables), DTEL:XUBNAME and TTYP:STRING_TABLE
+  (table types), type groups TYPE:ABAP, and CDS data definitions
+  DDLS:I_COUNTRY can be fetched
 
 source options:
   --src <dir>          folder with abapGit or .abap files, repeatable

@@ -43,6 +43,10 @@ pub enum ObjectKind {
     Tabl,
     /// dictionary data element: ADT and abapGit give XML
     Dtel,
+    /// dictionary table type: ADT and abapGit give XML
+    Ttyp,
+    /// type group, `TYPE-POOL name.`; abapGit `.type.abap`
+    Type,
     /// CDS data definition, its DDL source; abapGit `.ddls.asddls`
     Ddls,
 }
@@ -57,6 +61,8 @@ impl ObjectKind {
             ObjectKind::Func => "FUNC",
             ObjectKind::Tabl => "TABL",
             ObjectKind::Dtel => "DTEL",
+            ObjectKind::Ttyp => "TTYP",
+            ObjectKind::Type => "TYPE",
             ObjectKind::Ddls => "DDLS",
         }
     }
@@ -137,6 +143,14 @@ impl SourceRef {
         Self::new(ObjectKind::Dtel, name)
     }
 
+    pub fn table_type(name: &str) -> Self {
+        Self::new(ObjectKind::Ttyp, name)
+    }
+
+    pub fn type_group(name: &str) -> Self {
+        Self::new(ObjectKind::Type, name)
+    }
+
     pub fn data_definition(name: &str) -> Self {
         Self::new(ObjectKind::Ddls, name)
     }
@@ -168,7 +182,8 @@ impl fmt::Display for SourceRef {
 impl FromStr for SourceRef {
     type Err = String;
 
-    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, DDLS
+    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, TTYP,
+    /// TYPE, DDLS
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -181,6 +196,8 @@ impl FromStr for SourceRef {
             "FUNC" => ObjectKind::Func,
             "TABL" => ObjectKind::Tabl,
             "DTEL" => ObjectKind::Dtel,
+            "TTYP" => ObjectKind::Ttyp,
+            "TYPE" => ObjectKind::Type,
             "DDLS" => ObjectKind::Ddls,
             other => return Err(format!("unknown object kind {other:?}")),
         };

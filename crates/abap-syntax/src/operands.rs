@@ -1401,7 +1401,7 @@ fn sql(sc: &mut Scan, kind: K) {
             sc.p.eat_seq("WITH HOLD");
             sc.p.eat("@");
             sc.operand(if write { Write } else { Read });
-        } else if into && t.kind == TokenKind::ParenLeft && t.ws_after {
+        } else if into && t.kind == TokenKind::ParenLeft {
             // INTO (a, b)
             sc.p.bump();
             while !sc.p.done()

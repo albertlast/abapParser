@@ -126,6 +126,8 @@ const PREVIEW_ACCEPT: &str = "application/xml, application/vnd.sap.adt.dataprevi
 const TABLE_PREVIEW: &str = "/sap/bc/adt/datapreview/ddic";
 const ENHANCEMENT_IMPLEMENTATIONS: &str = "/sap/bc/adt/enhancements/enhoxhh";
 const DATA_ELEMENTS: &str = "/sap/bc/adt/ddic/dataelements";
+const TABLE_TYPES: &str = "/sap/bc/adt/ddic/tabletypes";
+const TYPE_GROUPS: &str = "/sap/bc/adt/ddic/typegroups";
 
 /// The message of a rejected data preview query, on one line.
 fn rejection(xml: &str) -> String {
@@ -1032,6 +1034,31 @@ impl SourceProvider for AdtProvider {
                 r,
                 &format!("/sap/bc/adt/ddic/ddl/sources/{name}/source/main"),
             ),
+            // only where the discovery lists them
+            (ObjectKind::Ttyp, _) => {
+                let capabilities = self.capabilities();
+                if !capabilities.offers(TABLE_TYPES) {
+                    return Ok(None);
+                }
+                let path = format!("{TABLE_TYPES}/{name}");
+                let accept = capabilities
+                    .accepts(TABLE_TYPES)
+                    .into_iter()
+                    .find(|a| a.ends_with("+xml"))
+                    .unwrap_or("application/vnd.sap.adt.tabletype.v1+xml")
+                    .to_string();
+                Ok(self.get(&path, &accept)?.map(|text| Source {
+                    reference: r.clone(),
+                    text,
+                    origin: format!("{}{}", self.config.url, path),
+                }))
+            }
+            (ObjectKind::Type, _) => {
+                if !self.capabilities().offers(TYPE_GROUPS) {
+                    return Ok(None);
+                }
+                self.source(r, &format!("{TYPE_GROUPS}/{name}/source/main"))
+            }
             (ObjectKind::Dtel, _) => {
                 let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
                 let accept = data_element_type(&self.capabilities().accepts(DATA_ELEMENTS));

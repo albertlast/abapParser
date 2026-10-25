@@ -390,6 +390,14 @@ fn route(state: &State, path: &str, params: &HashMap<String, String>, accept: &s
             source(SourceRef::function_module(name), &any)
         }
         ["repository", "informationsystem", "search"] => search(state, params),
+        // the abapGit XML; the provider only passes the text on
+        ["ddic", "tabletypes", name] => match state.provider.fetch(&SourceRef::table_type(name)) {
+            Ok(Some(s)) => Response::ok("application/vnd.sap.adt.tabletype.v1+xml", s.text),
+            _ => Response::status(404),
+        },
+        ["ddic", "typegroups", name, "source", "main"] => {
+            source(SourceRef::type_group(name), &any)
+        }
         _ => Response::status(404),
     }
 }
@@ -816,6 +824,11 @@ mod tests {
             ),
             ("zif_a.intf.abap", "INTERFACE zif_a PUBLIC.\nENDINTERFACE."),
             (
+                "ztt_a.ttyp.xml",
+                "<DD40V><TYPENAME>ZTT_A</TYPENAME><ROWTYPE>ZS_A</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>",
+            ),
+            ("zabc.type.abap", "TYPE-POOL zabc.\nTYPES zabc_flag TYPE c LENGTH 1."),
+            (
                 "zcl_impl.clas.abap",
                 "CLASS zcl_impl DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    INTERFACES zif_a.\nENDCLASS.\nCLASS zcl_impl IMPLEMENTATION.\nENDCLASS.",
             ),
@@ -862,6 +875,8 @@ mod tests {
         assert!(text("FUGR:ZGRP").contains("FUNCTION-POOL"));
         // the group of the function module is found by the quick search
         assert!(text("FUNC:Z_FM").contains("FUNCTION z_fm"));
+        assert!(text("TTYP:ZTT_A").contains("<ROWTYPE>ZS_A<"));
+        assert!(text("TYPE:ZABC").contains("TYPE-POOL zabc"));
         assert!(adt
             .fetch(&"CLAS:ZCL_NOPE".parse().unwrap())
             .unwrap()
