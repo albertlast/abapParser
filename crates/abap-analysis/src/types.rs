@@ -187,6 +187,9 @@ pub(crate) struct Types<'a> {
     class: Option<String>,
     /// where classes outside the source are looked up
     classes: Option<&'a dyn Repository>,
+    /// the interface or superclass that declares the signature of the
+    /// method, for `zif_x~meth` and redefinitions, with the method's name
+    inherited: Option<(String, String)>,
     inline: RefCell<HashMap<String, m::DataType>>,
 }
 
@@ -198,6 +201,7 @@ impl<'a> Types<'a> {
         let mut data: Vec<&'a [m::Declaration]> = Vec::new();
         let mut parameters: Vec<&'a m::Parameter> = Vec::new();
         let mut class = None;
+        let mut inherited = None;
         match block.kind.as_str() {
             "method" => {
                 let name = block.class.as_deref().unwrap_or_default();
@@ -217,9 +221,21 @@ impl<'a> Types<'a> {
                 }
                 if let Some(c) = c {
                     let method = block.name.rsplit('~').next().unwrap_or(&block.name);
-                    if let Some(md) = c.methods.iter().find(|m| eq(&m.name, method)) {
+                    let md = c.methods.iter().find(|m| eq(&m.name, method));
+                    if let Some(md) = md {
                         parameters.extend(&md.parameters);
                     }
+                    // the signature is the interface's or the superclass's
+                    inherited = match (block.name.split_once('~'), md) {
+                        (Some((interface, m)), _) => {
+                            Some((interface.to_ascii_lowercase(), m.to_ascii_lowercase()))
+                        }
+                        (None, Some(md)) if md.is_redefinition => c
+                            .superclass
+                            .as_ref()
+                            .map(|s| (s.to_ascii_lowercase(), method.to_ascii_lowercase())),
+                        _ => None,
+                    };
                     data.push(&c.attributes);
                     data.push(&c.types);
                 }
@@ -244,6 +260,7 @@ impl<'a> Types<'a> {
             symbols,
             class,
             classes: None,
+            inherited,
             inline: RefCell::new(HashMap::new()),
         }
     }
@@ -262,6 +279,7 @@ impl<'a> Types<'a> {
             symbols,
             class: None,
             classes: None,
+            inherited: None,
             inline: RefCell::new(HashMap::new()),
         }
     }
@@ -494,6 +512,7 @@ impl<'a> Types<'a> {
             symbols,
             class: None,
             classes: self.classes,
+            inherited: None,
             inline: RefCell::new(HashMap::new()),
         };
         let mut found = scope.declared(d, depth + 1)?;
@@ -678,6 +697,16 @@ impl<'a> Types<'a> {
         if let Some(d) = self.find(name, false) {
             return self.declared(d, depth);
         }
+        // a parameter of zif_x~meth, or of a redefined method
+        if let Some((owner, method)) = &self.inherited {
+            let parameter = Member::Parameter {
+                method,
+                name: Some(name),
+            };
+            if let Some(ty) = self.member(owner, parameter, depth + 1) {
+                return Some(Found { ty, decl: None });
+            }
+        }
         // an attribute of a superclass
         let inherited = self
             .class
@@ -814,6 +843,7 @@ fn member_in(
         symbols,
         class: Some(class.to_string()),
         classes,
+        inherited: None,
         inline: RefCell::new(HashMap::new()),
     };
     // zif_x~name, directly or through an alias
@@ -1251,6 +1281,53 @@ ENDCLASS.",
     }
 
     #[test]
+    fn parameters_of_interface_and_redefined_methods() {
+        let l = crate::logic(
+            "INTERFACE lif_step.
+  METHODS execute IMPORTING io_memory TYPE REF TO lcl_memory RETURNING VALUE(rv_count) TYPE i.
+ENDINTERFACE.
+CLASS lcl_memory DEFINITION.
+  PUBLIC SECTION.
+    DATA mv_size TYPE int8.
+ENDCLASS.
+CLASS lcl_base DEFINITION.
+  PUBLIC SECTION.
+    METHODS run IMPORTING iv_text TYPE string.
+ENDCLASS.
+CLASS lcl_step DEFINITION INHERITING FROM lcl_base.
+  PUBLIC SECTION.
+    INTERFACES lif_step.
+    METHODS run REDEFINITION.
+ENDCLASS.
+CLASS lcl_memory IMPLEMENTATION.
+ENDCLASS.
+CLASS lcl_base IMPLEMENTATION.
+  METHOD run.
+  ENDMETHOD.
+ENDCLASS.
+CLASS lcl_step IMPLEMENTATION.
+  METHOD lif_step~execute.
+    DATA(lv_size) = io_memory->mv_size.
+    DATA(lv_count) = rv_count.
+  ENDMETHOD.
+  METHOD run.
+    DATA(lv_text) = iv_text.
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        let mut got: Vec<String> = Vec::new();
+        for p in &l.procedures {
+            for s in &p.body {
+                for w in s.writes.iter().filter(|w| w.declared) {
+                    let ty = w.data_type.as_ref().map(short).unwrap_or_default();
+                    got.push(format!("{} {ty}", w.name));
+                }
+            }
+        }
+        assert_eq!(got, ["lv_size int8", "lv_count i", "lv_text string"]);
+    }
+
+    #[test]
     fn type_group_names() {
         assert_eq!(type_groups_of("abap_compdescr_tab"), ["abap"]);
         assert_eq!(type_groups_of("ab_cd_ty"), ["ab", "ab_cd"]);
@@ -1306,6 +1383,10 @@ CLASS lcl IMPLEMENTATION.
     DATA(lv_sqrt) = sqrt( CONV decfloat34( '9' ) ).
     DATA(lv_sin) = sin( '30' ).
     DATA(lv_round) = round( val = iv_id dec = 2 ).
+    GET BIT 1 OF `FF` INTO DATA(lv_bit).
+    GET RUN TIME FIELD DATA(lv_runtime).
+    GET TIME FIELD DATA(lv_time).
+    GET TIME STAMP FIELD DATA(lv_stamp).
     DATA: BEGIN OF ls_s,
             comp1 TYPE i VALUE 1,
             comp2 TYPE string VALUE `hi`,
@@ -1354,6 +1435,10 @@ ENDCLASS.",
                 "lv_sqrt decfloat34",
                 "lv_sin f",
                 "lv_round decfloat34",
+                "lv_bit i",
+                "lv_runtime i",
+                "lv_time t",
+                "lv_stamp p(8) timestamp",
                 "comp1 i",
                 "comp2 string",
             ]
