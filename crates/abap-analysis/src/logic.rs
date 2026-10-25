@@ -4053,12 +4053,14 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
         }
     });
     // what the value of `var` written by a step depends on; without a
-    // variable, e.g. for a condition, everything the step reads
+    // variable, e.g. for a condition, everything the step reads. `seen` is
+    // shared by the statements of one effect: their results are joined, so
+    // a step reached from an earlier statement adds nothing new
     let inputs_of = |start: u32,
                      var: &str,
+                     seen: &mut HashSet<(u32, String)>,
                      inputs: &mut BTreeSet<String>,
                      tables: &mut BTreeSet<String>| {
-        let mut seen: HashSet<(u32, String)> = HashSet::new();
         let mut todo: Vec<(u32, String)> = vec![(start, var.to_string())];
         while let Some((id, var)) = todo.pop() {
             if !seen.insert((id, var.clone())) {
@@ -4158,8 +4160,9 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
     for e in out.values_mut() {
         let mut inputs = BTreeSet::new();
         let mut tables = BTreeSet::new();
+        let mut seen = HashSet::new();
         for s in &e.statements {
-            inputs_of(*s, &e.name, &mut inputs, &mut tables);
+            inputs_of(*s, &e.name, &mut seen, &mut inputs, &mut tables);
         }
         e.inputs = inputs.into_iter().collect();
         e.tables = tables.into_iter().collect();

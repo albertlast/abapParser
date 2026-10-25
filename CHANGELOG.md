@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Faster logic:** the inputs of an effect were traced from each statement writing it anew; the statements now share what was already traced. Logic over the corpus takes 30% less time than in 0.5.0, the logic of whole objects 21% less; the results are the same.
+- **Benchmark:** `cargo run --release -p abap-analysis --example bench` times each stage over the corpus, `node tools/bench.mjs v0.5.0 .` compares versions; the README has the times since 0.3.0.
+
 ## 0.5.0
 
 Data has types: from the source, from classes and interfaces, from the dictionary and from function modules. Screens and their dialog modules are in the call graph. Following calls can be limited and cancelled, and what was not found says why. Four corpora that their CI checks against an older release are checked here too, and all of abaplint's invalid test statements are rejected.

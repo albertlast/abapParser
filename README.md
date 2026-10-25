@@ -587,6 +587,29 @@ node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Ke
 npm run --prefix tools format                     # Markdown, JavaScript, JSON with prettier, as CI checks
 ```
 
+### Benchmark
+
+`crates/abap-analysis/examples/bench.rs` times each stage over the test corpus, best of three runs: every file through parse, symbols, calls, database access and logic on one thread, then per corpus the call graph and the logic of each object through the folder provider. `tools/bench.mjs` builds it for several versions, each in a git worktree under `target/bench/`, runs them on this checkout's corpus one after the other and prints a table:
+
+```sh
+cargo run --release -p abap-analysis --example bench     # this checkout
+node tools/bench.mjs v0.5.0 .                            # a release against this checkout
+```
+
+On the corpus of 3,305 files and 707k lines (Windows 11, one thread for the files):
+
+| stage         | 0.3.0    | 0.4.0    | 0.5.0    | unreleased |
+| ------------- | -------- | -------- | -------- | ---------- |
+| parse         | 527 ms   | 537 ms   | 537 ms   | 536 ms     |
+| symbols       | 655 ms   | 665 ms   | 700 ms   | 697 ms     |
+| calls         | 998 ms   | 1,009 ms | 978 ms   | 981 ms     |
+| db_access     | 740 ms   | 742 ms   | 736 ms   | 737 ms     |
+| logic         | 3,300 ms | 3,490 ms | 3,713 ms | 2,603 ms   |
+| call_graph    | 632 ms   | 645 ms   | 615 ms   | 617 ms     |
+| logic_objects |          |          | 5,595 ms | 4,394 ms   |
+
+Times differ between machines and runs by a few percent; compare versions in one run of `tools/bench.mjs`.
+
 Prettier's settings are in `.prettierrc.json`; editors that format with prettier pick them up. `.prettierignore` leaves out the corpus, build output, the generated `types.d.ts` and the release workflow's one-line build matrix.
 
 ### Testing against an SAP system
@@ -606,9 +629,10 @@ ADT is then at `http://localhost:50000`, client 001, user `DEVELOPER` with the p
 The version is kept in the Cargo workspace; `bindings/node/package.json` follows it and the Python package reads it through maturin.
 
 ```sh
-node tools/version.mjs 0.4.0          # set it in Cargo.toml, Cargo.lock, package.json
-# add a "## 0.4.0" section to CHANGELOG.md, commit, then
-git tag v0.4.0 && git push origin v0.4.0
+node tools/bench.mjs v0.4.0 .         # speed against the last release, for the changelog
+node tools/version.mjs 0.5.0          # set it in Cargo.toml, Cargo.lock, package.json
+# add a "## 0.5.0" section to CHANGELOG.md, commit, then
+git tag v0.5.0 && git push origin v0.5.0
 ```
 
 The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:
