@@ -15,3 +15,5 @@ tests/corpus/abap_interface_framework
 tests/corpus/sap_to_active_directory
 tests/corpus/hr_dme/src
 tests/corpus/abap-wasm/src
+tests/corpus/abapPGP/src
+tests/corpus/abapNTLM/src
