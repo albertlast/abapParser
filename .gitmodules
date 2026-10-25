@@ -57,3 +57,11 @@
 	path = tests/corpus/abap-wasm
 	url = https://github.com/abap-wasm/abap-wasm.git
 	shallow = true
+[submodule "tests/corpus/abapPGP"]
+	path = tests/corpus/abapPGP
+	url = https://github.com/larshp/abapPGP.git
+	shallow = true
+[submodule "tests/corpus/abapNTLM"]
+	path = tests/corpus/abapNTLM
+	url = https://github.com/larshp/abapNTLM.git
+	shallow = true
