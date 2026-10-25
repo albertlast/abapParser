@@ -53,3 +53,7 @@
 	path = tests/corpus/hr_dme
 	url = https://github.com/ysichov/HR_DME.git
 	shallow = true
+[submodule "tests/corpus/abap-wasm"]
+	path = tests/corpus/abap-wasm
+	url = https://github.com/abap-wasm/abap-wasm.git
+	shallow = true

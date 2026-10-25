@@ -14,3 +14,4 @@ tests/corpus/spma-2025-08/src
 tests/corpus/abap_interface_framework
 tests/corpus/sap_to_active_directory
 tests/corpus/hr_dme/src
+tests/corpus/abap-wasm/src
