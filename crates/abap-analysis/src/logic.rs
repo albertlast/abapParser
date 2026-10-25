@@ -2307,6 +2307,15 @@ fn inline_type(
             .get(1)
             .filter(|t| !t.is("BEFORE"))
             .map(|t| types::reference(&t.text)),
+        // as SAP documents each: GET BIT ... INTO DATA(b) and GET RUN TIME
+        // FIELD DATA(t) i, GET TIME FIELD DATA(t) t, GET TIME STAMP FIELD
+        // DATA(ts) the dictionary type TIMESTAMP, p of length 8
+        K::GetBit | K::GetRunTime => Some(types::builtin("i", None, None)),
+        K::GetTime if has("TIME", "STAMP") => Some(m::DataType {
+            name: Some("timestamp".to_string()),
+            ..types::builtin("p", Some(8), None)
+        }),
+        K::GetTime => Some(types::builtin("t", None, None)),
         // FIND ... MATCH COUNT DATA(n), RESULTS DATA(r), SUBMATCHES DATA(s)
         K::Find | K::Replace => {
             match keyword(&["COUNT", "OFFSET", "LENGTH", "LINE", "RESULTS", "SUBMATCHES"])?.as_str()
