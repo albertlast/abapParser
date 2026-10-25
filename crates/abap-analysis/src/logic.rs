@@ -2310,6 +2310,15 @@ fn inline_type(
         // as SAP documents each: GET BIT ... INTO DATA(b) and GET RUN TIME
         // FIELD DATA(t) i, GET TIME FIELD DATA(t) t, GET TIME STAMP FIELD
         // DATA(ts) the dictionary type TIMESTAMP, p of length 8
+        // CALL FUNCTION 'NAME' ... IMPORTING p = DATA(x): the type of p
+        K::CallFunction => {
+            let name = toks.get(2).filter(|t| t.text.starts_with('\''))?;
+            if inline_at < 2 || toks[inline_at - 1].text != "=" {
+                return None;
+            }
+            ctx.types
+                .function_parameter(name.text.trim_matches('\''), &toks[inline_at - 2].text)
+        }
         K::GetBit | K::GetRunTime => Some(types::builtin("i", None, None)),
         K::GetTime if has("TIME", "STAMP") => Some(m::DataType {
             name: Some("timestamp".to_string()),
@@ -2553,7 +2562,10 @@ fn constructor_type(
     c: &abap_syntax::expr::Constructor,
 ) -> Option<m::DataType> {
     use crate::types;
-    let name = &toks[c.type_name].text;
+    let name = &toks[c.type_name..=c.type_end]
+        .iter()
+        .map(|t| t.text.as_str())
+        .collect::<String>();
     let first_value = || {
         c.items.iter().find_map(|i| match i {
             Item::Value(v) => expr_type(ctx, toks, v),

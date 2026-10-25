@@ -28,7 +28,7 @@ export interface Amdp {
 export interface BlockRef {
   /** class of a method */
   class?: string;
-  /** `method`, `form`, `function_module`, `module`, `event` or `program` */
+  /** `method`, `form`, `function_module`, `module`, `event`, `program`, or `screen` with the number as name */
   kind: string;
   name: string;
 }
@@ -82,7 +82,7 @@ export interface CallGraph {
   units: GraphUnit[];
 }
 
-export type CallKind = "method" | "constructor" | "function" | "form" | "submit" | "transaction" | "include" | "transformation";
+export type CallKind = "method" | "constructor" | "function" | "form" | "submit" | "transaction" | "include" | "transformation" | "screen" | "module";
 
 export interface CdsAssociation {
   /** e.g. `[0..*]` */

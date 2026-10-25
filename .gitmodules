@@ -65,3 +65,7 @@
 	path = tests/corpus/abapNTLM
 	url = https://github.com/larshp/abapNTLM.git
 	shallow = true
+[submodule "tests/corpus/open-abap-gui"]
+	path = tests/corpus/open-abap-gui
+	url = https://github.com/open-abap/open-abap-gui.git
+	shallow = true

@@ -1,7 +1,8 @@
 //! Source files on disk: abapGit layout (`zcl_x.clas.abap`,
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
 //! namespaces), or plain `name.abap` files taken as programs; dictionary
-//! types from `name.tabl.xml`, `name.dtel.xml` and `name.ttyp.xml`, type
+//! types from `name.tabl.xml`, `name.dtel.xml`, `name.doma.xml` and
+//! `name.ttyp.xml`, type
 //! groups from `name.type.abap`, CDS data definitions from
 //! `name.ddls.asddls`; BAdIs from enhancement spots and implementations
 //! (`.enhs.xml`, `.enho.xml`) and classic ones (`.sxsd.xml`, `.sxci.xml`);
@@ -13,7 +14,8 @@ use std::sync::OnceLock;
 
 use crate::badi::BadiIndex;
 use crate::{
-    hook_matches, Badi, ClassPart, Hook, ObjectKind, Result, Source, SourceProvider, SourceRef,
+    hook_matches, Badi, ClassPart, Hook, ObjectKind, Result, Screen, Source, SourceProvider,
+    SourceRef,
 };
 
 pub struct FsProvider {
@@ -21,6 +23,15 @@ pub struct FsProvider {
     index: HashMap<SourceRef, PathBuf>,
     /// function group (upper case) -> function modules
     groups: HashMap<String, Vec<String>>,
+    /// function group (upper case) -> its `.fugr.xml`
+    group_files: HashMap<String, PathBuf>,
+    /// abapGit files that may hold screens, `.prog.xml` and `.fugr.xml`
+    /// with `DYNPROS`; the flow logic of one screen with its program and
+    /// number, `<prog>.prog.screen_0100.abap`
+    dynpro_files: Vec<PathBuf>,
+    flow_logic_files: Vec<(String, String, PathBuf)>,
+    /// program (upper case) -> screens, read on first use
+    screens: OnceLock<HashMap<String, Vec<Screen>>>,
     /// interface -> global classes implementing it, and superclass ->
     /// global classes inheriting from it, upper case; read from the class
     /// sources on first use
@@ -51,6 +62,10 @@ impl FsProvider {
             roots: roots.clone(),
             index: HashMap::new(),
             groups: HashMap::new(),
+            group_files: HashMap::new(),
+            dynpro_files: Vec::new(),
+            flow_logic_files: Vec::new(),
+            screens: OnceLock::new(),
             relations: OnceLock::new(),
             enhancements: Vec::new(),
             badis: OnceLock::new(),
@@ -117,6 +132,26 @@ impl FsProvider {
         if let [name, "enho", _, "abap"] = lower.split('.').collect::<Vec<_>>().as_slice() {
             self.hook_files.push((decode(name), path.to_path_buf()));
             return;
+        }
+        match lower.split('.').collect::<Vec<_>>().as_slice() {
+            [group, "fugr", "xml"] => {
+                self.group_files.insert(decode(group), path.to_path_buf());
+                self.dynpro_files.push(path.to_path_buf());
+                return;
+            }
+            [_, "prog", "xml"] => {
+                self.dynpro_files.push(path.to_path_buf());
+                return;
+            }
+            [program, "prog", screen, "abap"] if screen.starts_with("screen_") => {
+                self.flow_logic_files.push((
+                    decode(program),
+                    screen["screen_".len()..].to_string(),
+                    path.to_path_buf(),
+                ));
+                return;
+            }
+            _ => {}
         }
         if let Some((reference, group)) = parse_file_name(name) {
             if let Some(group) = group {
@@ -209,6 +244,45 @@ impl FsProvider {
         })
     }
 
+    /// The screens of all programs: from the `DYNPROS` of the XML files,
+    /// with their flow logic there or in a file of its own.
+    pub(crate) fn all_screens(&self) -> &HashMap<String, Vec<Screen>> {
+        self.screens.get_or_init(|| {
+            let mut index: HashMap<String, Vec<Screen>> = HashMap::new();
+            for path in &self.dynpro_files {
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                for (program, screen) in dynpros(&text, &path.display().to_string()) {
+                    index.entry(program).or_default().push(screen);
+                }
+            }
+            for (program, number, path) in &self.flow_logic_files {
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                let screens = index.entry(program.clone()).or_default();
+                let at = match screens.iter().position(|s| &s.number == number) {
+                    Some(at) => at,
+                    None => {
+                        screens.push(Screen {
+                            number: number.clone(),
+                            flow_logic: String::new(),
+                            origin: String::new(),
+                        });
+                        screens.len() - 1
+                    }
+                };
+                screens[at].flow_logic = text;
+                screens[at].origin = path.display().to_string();
+            }
+            for screens in index.values_mut() {
+                screens.sort_by(|a, b| a.number.cmp(&b.number));
+            }
+            index
+        })
+    }
+
     pub(crate) fn relations(&self) -> &Relations {
         self.relations.get_or_init(|| {
             let mut index = Relations::default();
@@ -240,6 +314,67 @@ impl FsProvider {
             index
         })
     }
+}
+
+/// The screens in the `DYNPROS` of an abapGit XML file with their program,
+/// upper case; the flow logic from the lines of `FLOW_LOGIC`.
+fn dynpros(xml: &str, origin: &str) -> Vec<(String, Screen)> {
+    let Some(list) = xml
+        .split("<DYNPROS>")
+        .nth(1)
+        .and_then(|l| l.split("</DYNPROS>").next())
+    else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for item in list.split("<item>").skip(1) {
+        let item = item.split("</item>").next().unwrap_or_default();
+        let (Some(program), Some(number)) = (tag(item, "PROGRAM"), tag(item, "SCREEN")) else {
+            continue;
+        };
+        // <RPY_DYFLOW/> is an empty line
+        let lines: Vec<String> = item
+            .split("<FLOW_LOGIC>")
+            .nth(1)
+            .and_then(|f| f.split("</FLOW_LOGIC>").next())
+            .map(|f| {
+                f.split("<RPY_DYFLOW")
+                    .skip(1)
+                    .map(|l| tag(l, "LINE").unwrap_or_default())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let flow_logic = if lines.is_empty() {
+            String::new()
+        } else {
+            lines.join("\n") + "\n"
+        };
+        out.push((
+            program.trim().to_ascii_uppercase(),
+            Screen {
+                number: number.trim().to_string(),
+                flow_logic,
+                origin: origin.to_string(),
+            },
+        ));
+    }
+    out
+}
+
+/// The text of `<name>...</name>`, XML entities decoded and not trimmed,
+/// as flow logic keeps its indentation; `None` if missing or blank.
+fn tag(text: &str, name: &str) -> Option<String> {
+    let start = text.find(&format!("<{name}>"))? + name.len() + 2;
+    let end = start + text[start..].find(&format!("</{name}>"))?;
+    let value = &text[start..end];
+    (!value.trim().is_empty()).then(|| {
+        value
+            .replace("&apos;", "'")
+            .replace("&quot;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+    })
 }
 
 /// Interfaces named by the INTERFACES statements of a source, upper case.
@@ -295,6 +430,7 @@ fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
         return match stem.split('.').collect::<Vec<_>>().as_slice() {
             [name, "tabl"] => Some((SourceRef::table(&decode(name)), None)),
             [name, "dtel"] => Some((SourceRef::data_element(&decode(name)), None)),
+            [name, "doma"] => Some((SourceRef::domain(&decode(name)), None)),
             [name, "ttyp"] => Some((SourceRef::table_type(&decode(name)), None)),
             _ => None,
         };
@@ -368,6 +504,32 @@ impl SourceProvider for FsProvider {
             .unwrap_or_default();
         fms.sort();
         Ok(fms)
+    }
+
+    fn screens(&self, program: &str) -> Result<Vec<Screen>> {
+        Ok(self
+            .all_screens()
+            .get(&program.to_ascii_uppercase())
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    fn function_interface(&self, function: &str) -> Result<Option<String>> {
+        let function = function.to_ascii_uppercase();
+        let Some(group) = self
+            .groups
+            .iter()
+            .find(|(_, fms)| fms.contains(&function))
+            .map(|(g, _)| g)
+        else {
+            return Ok(None);
+        };
+        match self.group_files.get(group) {
+            Some(path) => Ok(Some(
+                String::from_utf8_lossy(&std::fs::read(path)?).into_owned(),
+            )),
+            None => Ok(None),
+        }
     }
 
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {
@@ -452,6 +614,7 @@ mod tests {
         assert_eq!(p("zs_x.tabl.xml"), Some(("TABL:ZS_X".into(), None)));
         assert_eq!(p("#abc#d.dtel.xml"), Some(("DTEL:/ABC/D".into(), None)));
         assert_eq!(p("ztt_x.ttyp.xml"), Some(("TTYP:ZTT_X".into(), None)));
+        assert_eq!(p("zdom.doma.xml"), Some(("DOMA:ZDOM".into(), None)));
         assert_eq!(p("zzaoc.type.abap"), Some(("TYPE:ZZAOC".into(), None)));
         assert_eq!(p("zcl_a.clas.xml"), None);
         assert_eq!(p("zi_x.ddls.asddls"), Some(("DDLS:ZI_X".into(), None)));

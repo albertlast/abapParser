@@ -31,7 +31,7 @@ impl<P: SourceProvider> CachedProvider<P> {
             name.push_str(p.as_str());
         }
         let extension = match r.kind {
-            ObjectKind::Dtel | ObjectKind::Ttyp => "xml",
+            ObjectKind::Dtel | ObjectKind::Doma | ObjectKind::Ttyp => "xml",
             ObjectKind::Tabl => "ddl",
             ObjectKind::Ddls => "asddls",
             _ => "abap",
@@ -129,6 +129,14 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
 
     fn function_modules(&self, group: &str) -> Result<Vec<String>> {
         self.inner.function_modules(group)
+    }
+
+    fn function_interface(&self, function: &str) -> Result<Option<String>> {
+        self.inner.function_interface(function)
+    }
+
+    fn screens(&self, program: &str) -> Result<Vec<crate::Screen>> {
+        self.inner.screens(program)
     }
 
     fn implementations(&self, interface: &str) -> Result<Vec<String>> {

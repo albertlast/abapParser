@@ -117,6 +117,7 @@ pub struct Workspace {
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     table_types: Mutex<HashMap<String, Option<m::DataType>>>,
+    dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
     /// failed lookups that only add types, per kind: how many, the first
     lookups_failed: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
     errors: Mutex<Vec<m::LoadError>>,
@@ -237,6 +238,100 @@ fn program_name(r: &SourceRef) -> String {
     }
 }
 
+/// The numbers of the selection screens of an object, four digits: those of
+/// `SELECTION-SCREEN BEGIN OF SCREEN n`, and 1000 where PARAMETERS or
+/// SELECT-OPTIONS are outside of them.
+fn selection_screens(object: &Object) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut nested = 0;
+    for u in &object.units {
+        for s in &u.file.statements {
+            match s.kind {
+                K::SelectionScreen => {
+                    let text = u.file.statement_text(s).to_ascii_uppercase();
+                    let words: Vec<&str> = text
+                        .split(|c: char| c.is_whitespace() || c == '.' || c == ',')
+                        .filter(|w| !w.is_empty())
+                        .collect();
+                    if let Some(at) = words
+                        .windows(3)
+                        .position(|w| w == ["BEGIN", "OF", "SCREEN"])
+                    {
+                        if let Some(n) = words.get(at + 3).and_then(|n| n.parse::<u32>().ok()) {
+                            out.push(format!("{n:04}"));
+                        }
+                        nested += 1;
+                    } else if words.windows(3).any(|w| w == ["END", "OF", "SCREEN"]) {
+                        nested -= 1;
+                    }
+                }
+                K::Parameter | K::SelectOption if nested == 0 => out.push("1000".to_string()),
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// The dialog modules the flow logic of a screen calls, `MODULE x` alone or
+/// after `FIELD`, with the event they run at, like `AFTER INPUT`.
+fn flow_logic_calls(screen: &abap_source::Screen) -> Vec<m::Call> {
+    let file = abap_syntax::parse(&screen.flow_logic);
+    let mut event = String::new();
+    let mut out = Vec::new();
+    for s in &file.statements {
+        let tokens: Vec<&abap_syntax::Token> = file.statement_tokens(s).collect();
+        let words: Vec<String> = tokens.iter().map(|t| t.text.to_ascii_uppercase()).collect();
+        if words.first().is_some_and(|w| w == "PROCESS") {
+            event = words[1..]
+                .iter()
+                .take_while(|w| *w != ".")
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ");
+            continue;
+        }
+        let Some(at) = words.iter().position(|w| w == "MODULE") else {
+            continue;
+        };
+        let Some(name) = tokens.get(at + 1).filter(|t| t.text != ".") else {
+            continue;
+        };
+        let mut options = vec![event.clone()];
+        // the additions after the name, words with dashes as written
+        let text = file.statement_text(s).to_ascii_uppercase();
+        let rest: Vec<&str> = text.split_whitespace().skip(2).collect();
+        let rest = format!(" {} ", rest.join(" ").trim_end_matches('.'));
+        for o in [
+            "AT EXIT-COMMAND",
+            "AT CURSOR-SELECTION",
+            "ON INPUT",
+            "ON REQUEST",
+            "ON CHAIN-INPUT",
+            "ON CHAIN-REQUEST",
+        ] {
+            if rest.contains(&format!(" {o} ")) {
+                options.push(o.to_string());
+            }
+        }
+        let mut c = crate::calls::new_call(
+            m::CallKind::Module,
+            name.text.to_ascii_lowercase(),
+            false,
+            options,
+        );
+        c.from = Some(m::BlockRef {
+            kind: "screen".to_string(),
+            name: screen.number.clone(),
+            class: None,
+        });
+        c.text = file.statement_text(s);
+        c.span = crate::calls::span_of(&file, s);
+        out.push(c);
+    }
+    out
+}
+
 /// `SAPL<group>`, after the namespace of the group: `/ABC/SAPLGRP`.
 pub(crate) fn main_program_of_group(group: &str) -> String {
     match group.strip_prefix('/').and_then(|g| g.split_once('/')) {
@@ -325,6 +420,7 @@ impl Workspace {
             structures: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
             table_types: Mutex::new(HashMap::new()),
+            dictionary_types: Mutex::new(HashMap::new()),
             lookups_failed: Mutex::new(BTreeMap::new()),
             errors: Mutex::new(Vec::new()),
         }
@@ -400,7 +496,10 @@ impl Workspace {
     /// An error of a source; of a table type or type group, which only add
     /// types, a note instead.
     fn record_of(&self, r: &SourceRef, e: &SourceError) {
-        if matches!(r.kind, ObjectKind::Ttyp | ObjectKind::Type) {
+        if matches!(
+            r.kind,
+            ObjectKind::Ttyp | ObjectKind::Type | ObjectKind::Dtel | ObjectKind::Doma
+        ) {
             let mut failed = self.lookups_failed.lock().unwrap();
             let entry = failed
                 .entry(r.kind)
@@ -448,6 +547,8 @@ impl Workspace {
         for (kind, (count, first)) in self.lookups_failed.lock().unwrap().iter() {
             let what = match kind {
                 ObjectKind::Ttyp => "table types",
+                ObjectKind::Dtel => "data elements",
+                ObjectKind::Doma => "domains",
                 _ => "type groups",
             };
             notes.push(format!(
@@ -469,7 +570,10 @@ impl Workspace {
         match self.provider.fetch(r) {
             Ok(Some(source)) => {
                 let file = abap_syntax::parse(&source.text);
-                let symbols = crate::symbols_of(&file);
+                let mut symbols = crate::symbols_of(&file);
+                if r.kind == ObjectKind::Func {
+                    self.complete_signature(&r.name, &mut symbols);
+                }
                 Some(Arc::new(Unit {
                     reference: r.clone(),
                     origin: source.origin,
@@ -483,6 +587,32 @@ impl Workspace {
                 self.failed.lock().unwrap().insert(r.clone());
                 None
             }
+        }
+    }
+
+    /// The signature of a function module whose source has none, from the
+    /// XML of its function group.
+    fn complete_signature(&self, function: &str, symbols: &mut m::FileSymbols) {
+        let Some(f) = symbols
+            .function_modules
+            .iter_mut()
+            .find(|f| f.name.eq_ignore_ascii_case(function))
+        else {
+            return;
+        };
+        if !f.parameters.is_empty() || !f.exceptions.is_empty() {
+            return;
+        }
+        let Ok(Some(xml)) = self.provider.function_interface(function) else {
+            return;
+        };
+        let Some(source) = crate::fugr::interface_source(&xml, function) else {
+            return;
+        };
+        let parsed = crate::symbols_of(&abap_syntax::parse(&source));
+        if let Some(g) = parsed.function_modules.into_iter().next() {
+            f.parameters = g.parameters;
+            f.exceptions = g.exceptions;
         }
     }
 
@@ -529,6 +659,71 @@ impl Workspace {
         };
         self.table_types.lock().unwrap().insert(key, t.clone());
         t
+    }
+
+    /// The type of a dictionary type other than a table type: that of a
+    /// data element, through its domain where abapGit keeps the type there,
+    /// or a structure or table. `None` if no provider has it.
+    pub fn dictionary_type(&self, name: &str) -> Option<m::DataType> {
+        let key = name.to_ascii_uppercase();
+        if let Some(t) = self.dictionary_types.lock().unwrap().get(&key) {
+            return t.clone();
+        }
+        let t = if is_builtin_type(&key) || key.contains(['-', '=', ' ', '~']) {
+            None
+        } else {
+            self.load_dictionary_type(&key)
+        };
+        self.dictionary_types.lock().unwrap().insert(key, t.clone());
+        t
+    }
+
+    fn load_dictionary_type(&self, key: &str) -> Option<m::DataType> {
+        if let Some(text) = self.fetch_text(&SourceRef::data_element(key)) {
+            let ty = match ddic::data_element(&text)? {
+                ddic::Element::Type(t) => t,
+                ddic::Element::Domain(d) => {
+                    ddic::domain_type(&self.fetch_text(&SourceRef::domain(&d))?)?
+                }
+                ddic::Element::Reference(r) => return Some(r),
+            };
+            return Some(m::DataType {
+                data_element: Some(key.to_string()),
+                ..ty
+            });
+        }
+        self.structure(key).map(|_| m::DataType {
+            name: Some(key.to_ascii_lowercase()),
+            ..crate::types::structure()
+        })
+    }
+
+    /// The type of a component of a dictionary structure or table, also of
+    /// a structure it includes.
+    pub fn dictionary_component(&self, structure: &str, component: &str) -> Option<m::DataType> {
+        self.component_in(structure, &component.to_ascii_lowercase(), 0)
+    }
+
+    fn component_in(&self, structure: &str, component: &str, level: u32) -> Option<m::DataType> {
+        if level > 10 {
+            return None;
+        }
+        let s = self.structure(structure)?;
+        if let Some((_, b)) = s.builtins.iter().find(|(n, _)| n == component) {
+            return Some(b.clone());
+        }
+        match s.component(component) {
+            Some(Some(ValueType::Data(t))) => Some(
+                self.dictionary_type(t)
+                    .unwrap_or_else(|| crate::types::named(t)),
+            ),
+            Some(Some(ValueType::Ref(t))) => Some(crate::types::reference(t)),
+            Some(None) => None,
+            None => s
+                .includes
+                .iter()
+                .find_map(|i| self.component_in(i, component, level + 1)),
+        }
     }
 
     /// A type group, like `abap` with `abap_bool` and `abap_compdescr_tab`.
@@ -931,7 +1126,23 @@ impl Workspace {
                 out.push(c);
             }
         }
+        if let Some(program) =
+            program.filter(|_| matches!(object.reference.kind, ObjectKind::Prog | ObjectKind::Fugr))
+        {
+            for screen in self.screens(&program) {
+                for mut c in flow_logic_calls(&screen) {
+                    c.unit = Some(object.reference.to_string());
+                    out.push(c);
+                }
+            }
+        }
         out
+    }
+
+    /// The screens of a program with their flow logic; none where the
+    /// provider does not know them.
+    pub fn screens(&self, program: &str) -> Vec<abap_source::Screen> {
+        self.provider.screens(program).unwrap_or_default()
     }
 
     /// `CALL BADI` names the BAdI where a class goes: its interface has the
@@ -1119,6 +1330,8 @@ impl Workspace {
                 None => return U::UnknownType,
             },
             m::CallKind::Transaction | m::CallKind::Transformation => return U::NotLoaded,
+            // in the calling object: its flow logic or dialog module is missing
+            m::CallKind::Screen | m::CallKind::Module => return U::Missing,
         };
         if let Some(why) = targets.iter().find_map(|t| self.skip_reason(t)) {
             return why;
@@ -1161,6 +1374,23 @@ impl Workspace {
                     .any(|f| f.name.eq_ignore_ascii_case(&c.name))
             }
             m::CallKind::Include => self.object(&SourceRef::program(&c.name)).is_some(),
+            // a screen of the program, a dialog module of it
+            m::CallKind::Screen => {
+                let program = crate::calls::main_program(&from.symbols).or_else(|| {
+                    match from.reference.kind {
+                        ObjectKind::Prog => Some(from.reference.name.clone()),
+                        ObjectKind::Fugr => Some(main_program_of_group(&from.reference.name)),
+                        _ => None,
+                    }
+                });
+                program.is_some_and(|p| self.screens(&p).iter().any(|s| s.number == c.name))
+                    || selection_screens(from).contains(&c.name)
+            }
+            m::CallKind::Module => from
+                .symbols
+                .modules
+                .iter()
+                .any(|d| d.kind.is_some() && d.name.eq_ignore_ascii_case(&c.name)),
             m::CallKind::Method | m::CallKind::Constructor => {
                 let Some(class) = c.class.as_deref() else {
                     return false;
@@ -2341,5 +2571,251 @@ CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA lt_names TYPE string_table
         assert!(notes[1].starts_with(
             "type groups: 1 lookups failed, their types stay names (first: TYPE:ABAP: HTTP 500"
         ));
+    }
+
+    #[test]
+    fn types_of_data_elements_domains_and_structures() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_DD"),
+            "CLASS zcl_dd DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\n\
+CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA ls_order TYPE zs_order.\n    DATA(ls_copy) = ls_order.\n    DATA(lv_id) = ls_order-id.\n    DATA(lv_created) = ls_order-created.\n    DATA(lv_amount) = ls_order-amount.\n    DATA(lv_text) = ls_order-text.\n    DATA(lv_kind) = VALUE zd_kind( ).\n    DATA(lo_x) = VALUE zd_ref( ).\n    DATA(lv_other) = VALUE zd_unknown( ).\n  ENDMETHOD.\nENDCLASS.",
+        );
+        // abapGit: a structure with an include, a column of a built-in type
+        p.insert(
+            SourceRef::table("ZS_ORDER"),
+            "<abapGit><DD03P_TABLE>\
+<DD03P><FIELDNAME>.INCLUDE</FIELDNAME><PRECFIELD>ZS_KEY</PRECFIELD></DD03P>\
+<DD03P><FIELDNAME>AMOUNT</FIELDNAME><DATATYPE>CURR</DATATYPE><LENG>000015</LENG><DECIMALS>000002</DECIMALS></DD03P>\
+<DD03P><FIELDNAME>TEXT</FIELDNAME><ROLLNAME>ZD_TEXT</ROLLNAME><COMPTYPE>E</COMPTYPE></DD03P>\
+</DD03P_TABLE></abapGit>",
+        );
+        // ADT: the DDL source
+        p.insert(
+            SourceRef::table("ZS_KEY"),
+            "define structure zs_key {\n  id      : zd_id;\n  created : abap.dats not null;\n}",
+        );
+        // abapGit keeps the type of a data element in its domain
+        p.insert(
+            SourceRef::data_element("ZD_ID"),
+            "<DD04V><ROLLNAME>ZD_ID</ROLLNAME><DOMNAME>ZDOM_ID</DOMNAME><REFKIND>D</REFKIND></DD04V>",
+        );
+        p.insert(
+            SourceRef::domain("ZDOM_ID"),
+            "<DD01V><DOMNAME>ZDOM_ID</DOMNAME><DATATYPE>NUMC</DATATYPE><LENG>000010</LENG></DD01V>",
+        );
+        // ADT gives the type of the domain with the data element
+        p.insert(
+            SourceRef::data_element("ZD_TEXT"),
+            "<dtel:dataElement><dtel:typeKind>domain</dtel:typeKind><dtel:typeName>ZDOM_TEXT</dtel:typeName><dtel:dataType>CHAR</dtel:dataType><dtel:dataTypeLength>000040</dtel:dataTypeLength><dtel:dataTypeDecimals>000000</dtel:dataTypeDecimals></dtel:dataElement>",
+        );
+        p.insert(
+            SourceRef::data_element("ZD_KIND"),
+            "<DD04V><ROLLNAME>ZD_KIND</ROLLNAME><DATATYPE>CHAR</DATATYPE><LENG>000002</LENG></DD04V>",
+        );
+        p.insert(
+            SourceRef::data_element("ZD_REF"),
+            "<DD04V><ROLLNAME>ZD_REF</ROLLNAME><DOMNAME>ZCL_X</DOMNAME><REFKIND>R</REFKIND><REFTYPE>C</REFTYPE></DD04V>",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::class("ZCL_DD"), 1);
+        assert!(l.errors.is_empty(), "{:?}", l.errors);
+        let got: Vec<String> = l.procedures[0]
+            .body
+            .iter()
+            .flat_map(|s| s.writes.iter().filter(|w| w.declared))
+            .map(|w| {
+                let ty = w.data_type.as_ref().unwrap();
+                let element = ty.data_element.as_deref().unwrap_or_default();
+                format!("{} {} {element}", w.name, crate::types::tests::short(ty))
+                    .trim_end()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "ls_copy structure zs_order",
+                "lv_id n(10) ZD_ID",
+                "lv_created d",
+                "lv_amount p(8,2)",
+                "lv_text c(40) ZD_TEXT",
+                "lv_kind c(2) ZD_KIND",
+                "lo_x ref zcl_x",
+                "lv_other named zd_unknown",
+            ]
+        );
+    }
+
+    #[test]
+    fn inline_declarations_typed_by_function_module_parameters() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZCALLER"),
+            "REPORT zcaller.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_GET'\n    EXPORTING\n      iv_key = 1\n    IMPORTING\n      ev_id    = DATA(lv_id)\n      et_rows  = DATA(lt_rows)\n      ev_count = DATA(lv_count)\n      ev_gone  = DATA(lv_gone).\n  CALL FUNCTION lv_name IMPORTING ev_id = DATA(lv_dynamic).",
+        );
+        p.insert(
+            SourceRef::function_module("Z_GET"),
+            "FUNCTION z_get.\n*\"----------------------------------------------------------------------\n*\"*\"Local Interface:\n*\"  IMPORTING\n*\"     VALUE(IV_KEY) TYPE I\n*\"  EXPORTING\n*\"     VALUE(EV_ID) TYPE ZD_ID\n*\"     VALUE(ET_ROWS) TYPE STRING_TABLE\n*\"     VALUE(EV_COUNT) TYPE I\n*\"----------------------------------------------------------------------\nENDFUNCTION.",
+        );
+        p.insert(
+            SourceRef::data_element("ZD_ID"),
+            "<DD04V><ROLLNAME>ZD_ID</ROLLNAME><DATATYPE>NUMC</DATATYPE><LENG>000008</LENG></DD04V>",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::program("ZCALLER"), 1);
+        assert!(l.errors.is_empty(), "{:?}", l.errors);
+        let mut got = Vec::new();
+        fn walk(steps: &[m::Step], got: &mut Vec<String>) {
+            for s in steps {
+                for w in s.writes.iter().filter(|w| w.declared) {
+                    let ty = w.data_type.as_ref().map(crate::types::tests::short);
+                    got.push(
+                        format!("{} {}", w.name, ty.unwrap_or_default())
+                            .trim_end()
+                            .to_string(),
+                    );
+                }
+                walk(&s.children, got);
+            }
+        }
+        for p in &l.procedures {
+            walk(&p.body, &mut got);
+        }
+        assert_eq!(
+            got,
+            [
+                "lv_id n(8)",
+                "lt_rows named string_table",
+                "lv_count i",
+                "lv_gone",
+                "lv_dynamic"
+            ]
+        );
+    }
+
+    #[test]
+    fn signatures_from_function_group_xml() {
+        let dir = std::env::temp_dir().join(format!("abap-ws-fugr-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let files = [
+            (
+                "zcaller.prog.abap",
+                "REPORT zcaller.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_VIEW'\n    IMPORTING\n      ev_name  = DATA(lv_name)\n      ev_count = DATA(lv_count).",
+            ),
+            // generated code: no signature in the source
+            ("zgrp.fugr.z_view.abap", "FUNCTION z_view.\n  ev_count = 1.\nENDFUNCTION."),
+            ("zgrp.fugr.saplzgrp.abap", "FUNCTION-POOL zgrp."),
+            (
+                "zgrp.fugr.xml",
+                "<abapGit><asx:abap><asx:values><FUNCTIONS><item><FUNCNAME>Z_VIEW</FUNCNAME>\
+<EXPORT><RSEXP><PARAMETER>EV_NAME</PARAMETER><DBFIELD>ZS_ROW-NAME</DBFIELD></RSEXP>\
+<RSEXP><PARAMETER>EV_COUNT</PARAMETER><TYP>I</TYP></RSEXP></EXPORT>\
+</item></FUNCTIONS></asx:values></asx:abap></abapGit>",
+            ),
+            (
+                "zs_row.tabl.xml",
+                "<abapGit><DD03P_TABLE><DD03P><FIELDNAME>NAME</FIELDNAME><ROLLNAME>ZD_NAME</ROLLNAME></DD03P></DD03P_TABLE></abapGit>",
+            ),
+            (
+                "zd_name.dtel.xml",
+                "<abapGit><DD04V><ROLLNAME>ZD_NAME</ROLLNAME><DATATYPE>CHAR</DATATYPE><LENG>000030</LENG></DD04V></abapGit>",
+            ),
+        ];
+        for (name, text) in files {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        let ws = Workspace::new(Box::new(
+            abap_source::FsProvider::new(vec![dir.clone()]).unwrap(),
+        ));
+        let fm = ws.object(&SourceRef::function_module("Z_VIEW")).unwrap();
+        let params: Vec<&str> = fm.symbols.function_modules[0]
+            .parameters
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
+        assert_eq!(params, ["EV_NAME", "EV_COUNT"]);
+        let l = ws.logic(&SourceRef::program("ZCALLER"), 1);
+        let got: Vec<String> = l
+            .procedures
+            .iter()
+            .flat_map(|p| &p.body)
+            .flat_map(|s| s.writes.iter().filter(|w| w.declared))
+            .map(|w| {
+                let ty = w.data_type.as_ref().map(crate::types::tests::short);
+                format!("{} {}", w.name, ty.unwrap_or_default())
+            })
+            .collect();
+        assert_eq!(got, ["lv_name c(30)", "lv_count i"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn screens_and_their_dialog_modules() {
+        let dir = std::env::temp_dir().join(format!("abap-ws-dynpro-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let files = [
+            (
+                "zdialog.prog.abap",
+                "REPORT zdialog.\nSELECTION-SCREEN BEGIN OF SCREEN 500.\nPARAMETERS p_x TYPE i.\nSELECTION-SCREEN END OF SCREEN 500.\n\
+START-OF-SELECTION.\n  CALL SCREEN 100.\n\
+MODULE status_0100 OUTPUT.\n  SET SCREEN 200.\nENDMODULE.\n\
+MODULE user_command_0100 INPUT.\n  LEAVE TO SCREEN 0.\n  CALL SCREEN 300 STARTING AT 5 5.\n  LEAVE TO SCREEN 500.\n  CALL SCREEN 1000.\nENDMODULE.",
+            ),
+            // flow logic in the XML
+            (
+                "zdialog.prog.xml",
+                "<abapGit><asx:abap><asx:values><DYNPROS><item><HEADER><PROGRAM>ZDIALOG</PROGRAM><SCREEN>0100</SCREEN></HEADER>\
+<FLOW_LOGIC><RPY_DYFLOW><LINE>PROCESS BEFORE OUTPUT.</LINE></RPY_DYFLOW><RPY_DYFLOW><LINE> MODULE status_0100.</LINE></RPY_DYFLOW><RPY_DYFLOW/>\
+<RPY_DYFLOW><LINE>PROCESS AFTER INPUT.</LINE></RPY_DYFLOW><RPY_DYFLOW><LINE> MODULE user_command_0100 AT EXIT-COMMAND.</LINE></RPY_DYFLOW></FLOW_LOGIC></item>\
+<item><HEADER><PROGRAM>ZDIALOG</PROGRAM><SCREEN>0200</SCREEN></HEADER></item></DYNPROS></asx:values></asx:abap></abapGit>",
+            ),
+            // in a file of its own, as abapGit can write it
+            (
+                "zdialog.prog.screen_0200.abap",
+                "PROCESS BEFORE OUTPUT.\n  MODULE status_0200.\nPROCESS AFTER INPUT.\n  FIELD gv_x MODULE check_x ON REQUEST.",
+            ),
+        ];
+        for (name, text) in files {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        let ws = Workspace::new(Box::new(
+            abap_source::FsProvider::new(vec![dir.clone()]).unwrap(),
+        ));
+        let graph = ws.call_graph(&[SourceRef::program("ZDIALOG")], 1);
+        let got: Vec<String> = graph
+            .calls
+            .iter()
+            .filter(|c| matches!(c.kind, m::CallKind::Screen | m::CallKind::Module))
+            .map(|c| {
+                let from = c.from.as_ref().map(|b| format!("{} {}", b.kind, b.name));
+                format!(
+                    "{:?} {} from {} resolved {} [{}]",
+                    c.kind,
+                    c.name,
+                    from.unwrap_or_default(),
+                    c.resolved,
+                    c.options.join(", ")
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "Screen 0100 from event START-OF-SELECTION resolved true [CALL]",
+                "Screen 0200 from module status_0100 resolved true [SET]",
+                "Screen 0300 from module user_command_0100 resolved false [CALL, STARTING AT]",
+                // a selection screen; PARAMETERS only in it: no screen 1000
+                "Screen 0500 from module user_command_0100 resolved true [LEAVE]",
+                "Screen 1000 from module user_command_0100 resolved false [CALL]",
+                "Module status_0100 from screen 0100 resolved true [BEFORE OUTPUT]",
+                "Module user_command_0100 from screen 0100 resolved true [AFTER INPUT, AT EXIT-COMMAND]",
+                "Module status_0200 from screen 0200 resolved false [BEFORE OUTPUT]",
+                "Module check_x from screen 0200 resolved false [AFTER INPUT, ON REQUEST]",
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

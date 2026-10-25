@@ -11,7 +11,7 @@ use abap_syntax::release::{statement_release, Release};
 use abap_syntax::StatementKind;
 
 /// Corpus folder, the release its CI checks against, files at least.
-const CHECKED: [(&str, Release, usize); 3] = [
+const CHECKED: [(&str, Release, usize); 6] = [
     // github.com/abap-wasm/abap-wasm: .github/workflows/test.yaml runs
     // `npm test`, which runs abaplint with abaplint.json, syntax v750
     ("abap-wasm/src", Release::V750, 300),
@@ -19,6 +19,12 @@ const CHECKED: [(&str, Release, usize); 3] = [
     ("abapPGP/src", Release::V750, 143),
     // github.com/larshp/abapNTLM: .github/workflows/test.yml, v740sp02
     ("abapNTLM/src", Release::V740Sp02, 14),
+    // github.com/open-abap/open-abap-gui: .github/workflows/test.yml runs
+    // `npm test`, which runs abaplint with abaplint.jsonc, v740sp08, on
+    // these three folders
+    ("open-abap-gui/src", Release::V740Sp08, 170),
+    ("open-abap-gui/framework", Release::V740Sp08, 70),
+    ("open-abap-gui/examples", Release::V740Sp08, 600),
 ];
 
 fn abap_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -26,7 +32,10 @@ fn abap_files(dir: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.unwrap().path();
         if path.is_dir() {
             abap_files(&path, out);
-        } else if path.extension().is_some_and(|e| e == "abap") {
+        } else if path.extension().is_some_and(|e| e == "abap")
+            // screen flow logic, which the abaplint configs exclude
+            && !path.to_string_lossy().contains(".prog.screen_")
+        {
             out.push(path);
         }
     }

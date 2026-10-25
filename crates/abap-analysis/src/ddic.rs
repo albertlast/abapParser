@@ -1,5 +1,5 @@
-//! Dictionary types as far as calls need them: the components of structures
-//! and tables, and data elements typed as references. Read from the DDL
+//! Dictionary types: the components of structures and tables, the types of
+//! data elements and domains, the lines of table types. Read from the DDL
 //! source and XML an SAP system gives through ADT, or from abapGit files.
 
 use abap_model as m;
@@ -13,6 +13,8 @@ pub struct Structure {
     pub components: Vec<(String, Option<ValueType>)>,
     /// included structures, upper case
     pub includes: Vec<String>,
+    /// the components of a built-in type with that type, like `c(10)`
+    pub builtins: Vec<(String, m::DataType)>,
 }
 
 impl Structure {
@@ -58,8 +60,13 @@ pub fn structure(text: &str) -> Option<Structure> {
                     {
                         Some(ValueType::Ref(target.to_string()))
                     }
-                    // abap.char(10), abap.string(0): built in
-                    [t, ..] if t.to_ascii_lowercase().starts_with("abap.") => None,
+                    // abap.char(10), abap.dec(15,2), abap.string(0): built in
+                    [t, ..] if t.to_ascii_lowercase().starts_with("abap.") => {
+                        if let Some(b) = ddl_builtin(&t[5..]) {
+                            out.builtins.push((name.to_ascii_lowercase(), b));
+                        }
+                        None
+                    }
                     [t, ..] => Some(ValueType::Data(t.to_string())),
                     [] => None,
                 };
@@ -96,6 +103,16 @@ fn structure_xml(text: &str) -> Option<Structure> {
                 ValueType::Data(r)
             }
         });
+        if ty.is_none() {
+            let builtin = dictionary_builtin(
+                &tag(entry, "DATATYPE").unwrap_or_default(),
+                number(tag(entry, "LENG")),
+                number(tag(entry, "DECIMALS")),
+            );
+            if let Some(b) = builtin {
+                out.builtins.push((field.to_ascii_lowercase(), b));
+            }
+        }
         out.components.push((field.to_ascii_lowercase(), ty));
     }
     Some(out)
@@ -114,6 +131,88 @@ pub fn data_element_reference(text: &str) -> Option<String> {
     (tag(text, "REFKIND").as_deref() == Some("R"))
         .then(|| tag(text, "DOMNAME"))
         .flatten()
+}
+
+/// The type of a DDL built-in type after `abap.`, like `char(10)` or
+/// `dec(15,2)`.
+fn ddl_builtin(text: &str) -> Option<m::DataType> {
+    let (name, rest) = text.split_once('(').unwrap_or((text, ""));
+    let mut numbers = rest
+        .trim_end_matches(|c: char| c == ')' || c.is_whitespace() || c == ';')
+        .split(',')
+        .map(|n| n.trim().parse::<u32>().ok().filter(|n| *n > 0));
+    let (length, decimals) = (numbers.next().flatten(), numbers.next().flatten());
+    dictionary_builtin(name.trim(), length, decimals)
+}
+
+/// What a data element is.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Element {
+    /// of a built-in type, its own or that of its domain as ADT gives it
+    Type(m::DataType),
+    /// of the domain, whose type abapGit keeps in the domain
+    Domain(String),
+    /// a reference, to a class, an interface or data
+    Reference(m::DataType),
+}
+
+/// The type of a data element: from the ADT XML (`dtel:typeKind`, with the
+/// type of the domain in `dtel:dataType`) or abapGit (`DD04V`).
+pub fn data_element(text: &str) -> Option<Element> {
+    use crate::types;
+    if let Some(kind) = tag(text, "dtel:typeKind") {
+        let name = tag(text, "dtel:typeName");
+        let builtin = || {
+            dictionary_builtin(
+                &tag(text, "dtel:dataType")?,
+                number(tag(text, "dtel:dataTypeLength")),
+                number(tag(text, "dtel:dataTypeDecimals")),
+            )
+        };
+        return match kind.as_str() {
+            "refToClifType" => Some(Element::Reference(types::reference(&name?))),
+            "refToDictionaryType" => Some(Element::Reference(m::DataType {
+                line: Some(Box::new(types::named(&name?))),
+                ..types::reference("data")
+            })),
+            "refToPredefinedAbapType" => Some(Element::Reference(m::DataType {
+                line: builtin().map(Box::new),
+                ..types::reference("data")
+            })),
+            _ => builtin().map(Element::Type),
+        };
+    }
+    let entry = text.split("<DD04V>").nth(1)?.split("</DD04V>").next()?;
+    let target = tag(entry, "DOMNAME");
+    if tag(entry, "REFKIND").as_deref() == Some("R") {
+        return Some(Element::Reference(match tag(entry, "REFTYPE").as_deref() {
+            Some("C" | "I") | None => types::reference(&target?),
+            _ => m::DataType {
+                line: Some(Box::new(types::named(&target?))),
+                ..types::reference("data")
+            },
+        }));
+    }
+    if let Some(b) = tag(entry, "DATATYPE").and_then(|t| {
+        dictionary_builtin(
+            &t,
+            number(tag(entry, "LENG")),
+            number(tag(entry, "DECIMALS")),
+        )
+    }) {
+        return Some(Element::Type(b));
+    }
+    target.map(Element::Domain)
+}
+
+/// The type of a domain: abapGit `DD01V`.
+pub fn domain_type(text: &str) -> Option<m::DataType> {
+    let entry = text.split("<DD01V>").nth(1)?.split("</DD01V>").next()?;
+    dictionary_builtin(
+        &tag(entry, "DATATYPE")?,
+        number(tag(entry, "LENG")),
+        number(tag(entry, "DECIMALS")),
+    )
 }
 
 /// The line type of a dictionary table type: from the ADT XML
@@ -320,6 +419,52 @@ define structure suid_st_node_root {
                 ("raw".into(), None),
             ]
         );
+    }
+
+    #[test]
+    fn types_of_data_elements_and_domains() {
+        let short = crate::types::tests::short;
+        let ty = |text: &str| match data_element(text) {
+            Some(Element::Type(t)) | Some(Element::Reference(t)) => short(&t),
+            Some(Element::Domain(d)) => format!("domain {d}"),
+            None => "none".into(),
+        };
+        // ADT with the type of the domain
+        assert_eq!(
+            ty("<dtel:typeKind>domain</dtel:typeKind><dtel:typeName>XUBNAME</dtel:typeName><dtel:dataType>CHAR</dtel:dataType><dtel:dataTypeLength>000012</dtel:dataTypeLength><dtel:dataTypeDecimals>000000</dtel:dataTypeDecimals>"),
+            "c(12)"
+        );
+        assert_eq!(
+            ty("<dtel:typeKind>refToClifType</dtel:typeKind><dtel:typeName>IF_IDENTITY</dtel:typeName><dtel:dataType/>"),
+            "ref if_identity"
+        );
+        // abapGit: own type, domain, reference to data
+        assert_eq!(
+            ty("<DD04V><ROLLNAME>ZD</ROLLNAME><DATATYPE>DEC</DATATYPE><LENG>000013</LENG><DECIMALS>000003</DECIMALS></DD04V>"),
+            "p(7,3)"
+        );
+        assert_eq!(
+            ty("<DD04V><ROLLNAME>ZD</ROLLNAME><DOMNAME>ZDOM</DOMNAME><REFKIND>D</REFKIND></DD04V>"),
+            "domain ZDOM"
+        );
+        assert_eq!(
+            ty("<DD04V><ROLLNAME>ZD</ROLLNAME><DOMNAME>ZS</DOMNAME><REFKIND>R</REFKIND><REFTYPE>S</REFTYPE></DD04V>"),
+            "ref data of named zs"
+        );
+        let domain = "<DD01V><DOMNAME>ZDOM</DOMNAME><DATATYPE>STRG</DATATYPE></DD01V>";
+        assert_eq!(
+            domain_type(domain).as_ref().map(short).as_deref(),
+            Some("string")
+        );
+        // built-in columns of DDL and abapGit structures
+        let s = structure("define structure zs { a : abap.dec(15,2); b : abap.char(3) not null; }")
+            .unwrap();
+        let b: Vec<String> = s
+            .builtins
+            .iter()
+            .map(|(n, t)| format!("{n} {}", short(t)))
+            .collect();
+        assert_eq!(b, ["a p(8,2)", "b c(3)"]);
     }
 
     #[test]

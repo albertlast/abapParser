@@ -15,6 +15,9 @@ use abap_model as m;
 /// corpora call many SAP standard classes that are not in the sources.
 const MIN_TYPED: f64 = 96.9;
 const MIN_RESOLVED_IN_CORPUS: f64 = 99.9;
+/// Screens called and dialog modules called by flow logic, found in the
+/// program.
+const MIN_SCREENS_RESOLVED: f64 = 90.0;
 
 fn pct(a: usize, b: usize) -> f64 {
     100.0 * a as f64 / b.max(1) as f64
@@ -25,18 +28,20 @@ fn corpus_call_graphs() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let list = std::fs::read_to_string(root.join("tests/corpus/corpora.txt")).unwrap();
     let (mut methods_total, mut typed_total, mut own_total, mut resolved_total) = (0, 0, 0, 0);
+    let (mut screens_total, mut screens_resolved) = (0, 0);
 
     for dir in list
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
     {
-        let path = root.join(dir);
-        if !path.exists() {
+        // a corpus may be several folders read together
+        let paths: Vec<_> = dir.split_whitespace().map(|d| root.join(d)).collect();
+        if !paths.iter().all(|p| p.exists()) {
             println!("{dir}: skipped, submodule missing");
             continue;
         }
-        let provider = FsProvider::new(vec![path]).unwrap();
+        let provider = FsProvider::new(paths).unwrap();
         // classes and interfaces of this corpus
         let types: BTreeSet<String> = provider
             .references()
@@ -94,6 +99,24 @@ fn corpus_call_graphs() {
                 c.text
             );
         }
+        let screens: Vec<&m::Call> = graph
+            .calls
+            .iter()
+            .filter(|c| matches!(c.kind, m::CallKind::Screen | m::CallKind::Module) && !c.dynamic)
+            .collect();
+        if !screens.is_empty() {
+            let found = screens.iter().filter(|c| c.resolved).count();
+            println!(
+                "    screens and dialog modules: {} calls, resolved {:.1}%",
+                screens.len(),
+                pct(found, screens.len())
+            );
+            for c in screens.iter().filter(|c| !c.resolved).take(3) {
+                println!("    unresolved {:?} {} | {}", c.kind, c.name, c.text);
+            }
+            screens_total += screens.len();
+            screens_resolved += found;
+        }
         methods_total += methods.len();
         typed_total += typed;
         own_total += own.len();
@@ -105,6 +128,11 @@ fn corpus_call_graphs() {
         pct(typed_total, methods_total),
         pct(resolved_total, own_total)
     );
+    println!(
+        "all: screens and dialog modules {screens_total}, resolved {:.1}%",
+        pct(screens_resolved, screens_total)
+    );
     assert!(pct(typed_total, methods_total) >= MIN_TYPED);
     assert!(pct(resolved_total, own_total) >= MIN_RESOLVED_IN_CORPUS);
+    assert!(pct(screens_resolved, screens_total) >= MIN_SCREENS_RESOLVED);
 }

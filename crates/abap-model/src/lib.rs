@@ -542,7 +542,8 @@ pub struct DbCluster {
 /// The processing block a statement belongs to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct BlockRef {
-    /// `method`, `form`, `function_module`, `module`, `event` or `program`
+    /// `method`, `form`, `function_module`, `module`, `event`, `program`,
+    /// or `screen` with the number as name
     pub kind: String,
     pub name: String,
     /// class of a method
@@ -635,6 +636,12 @@ pub enum CallKind {
     Include,
     /// `CALL TRANSFORMATION`
     Transformation,
+    /// a screen of the program, `CALL SCREEN 100`, `SET SCREEN 200`,
+    /// `LEAVE TO SCREEN 300`; the name is the number with four digits
+    Screen,
+    /// a dialog module, `MODULE x` in the flow logic of a screen, which is
+    /// the block it is called from
+    Module,
 }
 
 /// A call from one processing block to another, or a dependency on an include.
