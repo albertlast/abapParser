@@ -17,7 +17,7 @@ use abap_syntax::StatementKind;
 use serde::Deserialize;
 
 /// Baseline; raise when improving.
-const MIN_REJECTED: usize = 69;
+const MIN_REJECTED: usize = 77;
 
 #[derive(Deserialize)]
 struct Golden {

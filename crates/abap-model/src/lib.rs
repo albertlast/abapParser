@@ -143,6 +143,9 @@ pub struct Declaration {
     pub is_enum: bool,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub components: Vec<Declaration>,
+    /// the type, LIKE and local types resolved, when the sources tell it
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub data_type: Option<DataType>,
     pub span: Span,
 }
 
@@ -957,17 +960,31 @@ pub enum Store {
     Lock,
 }
 
-/// A built-in elementary type, like that of a system field.
+/// The type of a data object, as far as the sources tell it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DataType {
-    /// `i`, `b`, `c`, `n`, `d`, `t`, `x` or `p`
+    /// a built-in type: `i`, `int8`, `b`, `s`, `c`, `n`, `d`, `t`, `x`, `p`,
+    /// `f`, `string`, `xstring`, `decfloat16`, `decfloat34`, `utclong`;
+    /// `structure` (declared with BEGIN OF, or several columns), `table`
+    /// and `range` (line type in `line`), `ref` (to `name`, or to `line`
+    /// for data), or `named`: a type known only by its name, like a
+    /// dictionary type `matnr`, a column `mara-matnr`, a type of a class
+    /// `zcl_x=>ty_rows` or a generic type like `any`
     pub kind: String,
     /// characters of `c` and `n`, bytes of `x` and `p`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub length: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decimals: Option<u32>,
-    /// the data element typing it, like `SYST_DATUM`
+    /// the type name as written, lower case: of `named`, the class or
+    /// interface of `ref`, and of local types resolved to their kind, like
+    /// `ty_rows` of a `table`
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    /// the line type of `table` and `range`, the data a `ref` refers to
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub line: Option<Box<DataType>>,
+    /// the data element typing it, like `SYST_DATUM` of `sy-datum`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_element: Option<String>,
 }
@@ -992,7 +1009,10 @@ pub struct DataAccess {
     /// READ TABLE or a call
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub implicit: bool,
-    /// the type, when known; for now that of system fields
+    /// the type of what is accessed, `path` with its components, when the
+    /// sources tell it: from declarations, parameters, attributes and
+    /// system fields, LIKE resolved, inline declarations from what is
+    /// assigned to them
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub data_type: Option<DataType>,
     /// reads: statements whose writes may provide the value

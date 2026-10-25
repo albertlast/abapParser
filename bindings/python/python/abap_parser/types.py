@@ -248,7 +248,7 @@ class _DataAccessRequired(TypedDict):
 class DataAccess(_DataAccessRequired, total=False):
     """A data object read or written by a statement."""
     data_type: DataType
-    """the type, when known; for now that of system fields"""
+    """the type of what is accessed, `path` with its components, when the sources tell it: from declarations, parameters, attributes and system fields, LIKE resolved, inline declarations from what is assigned to them"""
     declared: bool
     """declared here, e.g. `DATA(x)`, `FIELD-SYMBOL(<x>)`, a FOR variable"""
     depends: Dependency
@@ -269,16 +269,20 @@ class DataAccess(_DataAccessRequired, total=False):
 
 class _DataTypeRequired(TypedDict):
     kind: str
-    """`i`, `b`, `c`, `n`, `d`, `t`, `x` or `p`"""
+    """a built-in type: `i`, `int8`, `b`, `s`, `c`, `n`, `d`, `t`, `x`, `p`, `f`, `string`, `xstring`, `decfloat16`, `decfloat34`, `utclong`; `structure` (declared with BEGIN OF, or several columns), `table` and `range` (line type in `line`), `ref` (to `name`, or to `line` for data), or `named`: a type known only by its name, like a dictionary type `matnr`, a column `mara-matnr`, a type of a class `zcl_x=>ty_rows` or a generic type like `any`"""
 
 
 class DataType(_DataTypeRequired, total=False):
-    """A built-in elementary type, like that of a system field."""
+    """The type of a data object, as far as the sources tell it."""
     data_element: str
-    """the data element typing it, like `SYST_DATUM`"""
+    """the data element typing it, like `SYST_DATUM` of `sy-datum`"""
     decimals: int
     length: int
     """characters of `c` and `n`, bytes of `x` and `p`"""
+    line: DataType
+    """the line type of `table` and `range`, the data a `ref` refers to"""
+    name: str
+    """the type name as written, lower case: of `named`, the class or interface of `ref`, and of local types resolved to their kind, like `ty_rows` of a `table`"""
 
 
 class _DbAccessRequired(TypedDict):
@@ -451,6 +455,8 @@ class _DeclarationRequired(TypedDict):
 class Declaration(_DeclarationRequired, total=False):
     """A data object or type declaration. Structures declared with `BEGIN OF ... END OF` list their parts in `components`."""
     components: List[Declaration]
+    data_type: DataType
+    """the type, LIKE and local types resolved, when the sources tell it"""
     typing: Typing
     value: str
     visibility: Visibility

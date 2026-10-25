@@ -13,7 +13,7 @@ use std::sync::{Arc, OnceLock};
 
 use abap_model as m;
 use abap_source::SourceRef;
-use abap_syntax::expr::{Access, Cond, CondKind, DataRef, Expr, ExprKind, Head, Link};
+use abap_syntax::expr::{Access, Cond, CondKind, DataRef, Expr, ExprKind, Head, Item, Link};
 use abap_syntax::operands::operands;
 use abap_syntax::structure;
 use abap_syntax::system::{self, SystemField};
@@ -1737,14 +1737,16 @@ struct Ctx<'a> {
     /// data declared in event blocks, dialog modules and at program level,
     /// which is global data of the program
     more_globals: HashSet<String>,
+    /// what the data of the procedure is declared as
+    types: crate::types::Types<'a>,
 }
 
 /// A procedure with its steps, guards and control flow; the data flow and
 /// the effects follow once its calls are followed.
-fn procedure(
-    file: &File,
-    symbols: &m::FileSymbols,
-    globals: &HashSet<String>,
+fn procedure<'a>(
+    file: &'a File,
+    symbols: &'a m::FileSymbols,
+    globals: &'a HashSet<String>,
     attributes: &dyn Fn(&str) -> HashSet<String>,
     block: m::BlockRef,
     statements: &[usize],
@@ -1771,6 +1773,7 @@ fn procedure(
         attributes: block.class.as_deref().map(attributes).unwrap_or_default(),
         globals,
         more_globals: HashSet::new(),
+        types: crate::types::Types::of_block(symbols, &block),
     };
     for i in statements {
         let s = &file.statements[*i];
@@ -1938,6 +1941,36 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
     if let Some((name, used)) = abap_syntax::sap_macro(file, s) {
         macro_accesses(file, s, name, used, &mut reads, &mut writes);
     }
+    // inline declarations first: later steps and this one read their type;
+    // FOR and LET variables of constructor expressions, then DATA(x)
+    for item in &ops.items {
+        if let abap_syntax::operands::Operand::Expr { expr, .. } = item {
+            declare_locals(ctx, &toks, expr);
+        }
+    }
+    let statement_level = |w: &&m::DataAccess| {
+        let p = w.path.to_ascii_uppercase();
+        w.declared
+            && (p.starts_with("DATA(") || p.starts_with("FINAL(") || p.starts_with("FIELD-SYMBOL("))
+    };
+    for w in writes.iter().filter(statement_level) {
+        // DATA( name ): the keyword two tokens before the name
+        let at = toks
+            .iter()
+            .position(|t| t.start.row == w.position.row && t.start.col == w.position.col)
+            .map(|i| i.saturating_sub(2))
+            .unwrap_or(0);
+        if let Some(ty) = inline_type(ctx, s, &toks, &ops, at) {
+            ctx.types.declare(&w.name, ty);
+        }
+    }
+    for a in reads.iter_mut().chain(writes.iter_mut()) {
+        if a.data_type.is_none() {
+            // DATA(x) is written as declared, x is the data
+            let path = if a.declared { &a.name } else { &a.path };
+            a.data_type = ctx.types.of_path(path);
+        }
+    }
     let conditions: Vec<m::Condition> = ops.conds().map(|c| condition(&toks, c)).collect();
     for (field, whole) in sets_fields(file, s, &conditions) {
         writes.push(implicit(field, start_of(&toks), whole));
@@ -1954,7 +1987,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 whole: true,
                 declared: true,
                 implicit: false,
-                data_type: None,
+                data_type: ctx.types.of_path(&v.name),
                 sources: Vec::new(),
                 from_entry: false,
                 via: None,
@@ -2074,11 +2107,265 @@ fn system_field(path: &str) -> Option<(String, Option<&'static SystemField>)> {
 }
 
 fn data_type(f: &SystemField) -> m::DataType {
-    m::DataType {
-        kind: f.kind.as_str().to_string(),
-        length: (f.length > 0).then_some(f.length),
-        decimals: (f.decimals > 0).then_some(f.decimals),
-        data_element: Some(f.data_element.to_string()),
+    crate::types::system(f)
+}
+
+/// The type of an inline declaration, from what the statement puts there:
+/// the value assigned, the line of the table read, the rows selected, the
+/// exception caught.
+fn inline_type(
+    ctx: &Ctx,
+    s: &Statement,
+    toks: &[&Token],
+    ops: &abap_syntax::operands::Operands,
+    inline_at: usize,
+) -> Option<m::DataType> {
+    use crate::types;
+    use abap_syntax::operands::Operand;
+    let first_read = || {
+        ops.items.iter().find_map(|i| match i {
+            Operand::Expr { expr, access } if *access == Access::Read => Some(expr),
+            _ => None,
+        })
+    };
+    let before = |word: &str| inline_at > 0 && toks[inline_at - 1].is(word);
+    match s.kind {
+        K::Move => expr_type(ctx, toks, first_read()?),
+        // LOOP ... GROUP BY ... INTO DATA(group): a group, not a line
+        K::Loop
+            if toks[..inline_at]
+                .windows(2)
+                .any(|w| w[0].is("GROUP") && w[1].is("BY")) =>
+        {
+            None
+        }
+        K::Loop | K::ReadTable => {
+            // read, or changed through REFERENCE INTO and ASSIGNING
+            let table = ops.items.iter().find_map(|i| match i {
+                Operand::Expr { expr, access } if *access != Access::Write => Some(expr),
+                _ => None,
+            })?;
+            let line = ctx
+                .types
+                .of_path(&text(toks, table.first, table.last))
+                .and_then(|t| ctx.types.line_of(&t));
+            // REFERENCE INTO DATA(r)
+            if inline_at > 1 && toks[inline_at - 2].is("REFERENCE") {
+                return Some(m::DataType {
+                    line: line.map(Box::new),
+                    ..types::reference("data")
+                });
+            }
+            line
+        }
+        K::Select | K::SelectLoop | K::With | K::WithLoop => {
+            let a = abap_sql::parse_statement(ctx.file, s)?;
+            let target = a.target.as_ref()?;
+            let tables: Vec<&m::DbTable> = a
+                .tables
+                .iter()
+                .filter(|t| matches!(t.role, m::DbTableRole::Main | m::DbTableRole::Join))
+                .collect();
+            let only = (tables.len() == 1 && !tables[0].dynamic).then(|| tables[0].name.clone());
+            let row = match a.fields.as_slice() {
+                [] => only.as_deref().map(types::named),
+                [f] if f.text == "*" => only.as_deref().map(types::named),
+                [f] if f.aggregate.as_deref() == Some("count") => {
+                    Some(types::builtin("int8", None, None))
+                }
+                [f] if f.aggregate.is_none() && f.columns.len() == 1 => {
+                    let c = &f.columns[0];
+                    c.table
+                        .as_deref()
+                        .or(only.as_deref())
+                        .map(|t| types::named(&format!("{t}-{}", c.name)))
+                }
+                _ => Some(types::structure()),
+            }?;
+            Some(if target.kind == m::DbTargetKind::Table {
+                types::table(row)
+            } else {
+                row
+            })
+        }
+        // CASE TYPE OF ... WHEN TYPE zcl INTO DATA(lo)
+        K::WhenType => toks
+            .iter()
+            .position(|t| t.is("TYPE"))
+            .and_then(|i| toks.get(i + 1))
+            .map(|t| types::reference(&t.text)),
+        // CATCH cx_a cx_b INTO DATA(lx): the first class
+        K::Catch => toks
+            .get(1)
+            .filter(|t| !t.is("BEFORE"))
+            .map(|t| types::reference(&t.text)),
+        // FIND ... MATCH COUNT DATA(n), MATCH OFFSET, MATCH LENGTH, MATCH LINE
+        K::Find | K::Replace
+            if ["COUNT", "OFFSET", "LENGTH", "LINE"]
+                .iter()
+                .any(|w| before(w)) =>
+        {
+            Some(types::builtin("i", None, None))
+        }
+        _ => None,
+    }
+}
+
+/// Declares the local names of constructor expressions: `FOR ls IN itab`
+/// the line of the table, `FOR i = 0` and `LET x = ...` the type of the
+/// value, `INDEX INTO i` an integer.
+fn declare_locals(ctx: &Ctx, toks: &[&Token], e: &Expr) {
+    let args = |args: &abap_syntax::expr::Args| {
+        for a in &args.items {
+            if let abap_syntax::expr::Value::Expr(v) = &a.value {
+                declare_locals(ctx, toks, v);
+            }
+        }
+    };
+    match &e.kind {
+        ExprKind::Constructor(c) => declare_items(ctx, toks, &c.items),
+        ExprKind::Paren(inner) | ExprKind::Unary { operand: inner, .. } => {
+            declare_locals(ctx, toks, inner)
+        }
+        ExprKind::Binary { left, right, .. } => {
+            declare_locals(ctx, toks, left);
+            declare_locals(ctx, toks, right);
+        }
+        ExprKind::Template(parts) => parts.iter().for_each(|p| declare_locals(ctx, toks, p)),
+        // arguments of calls: write( VALUE text( LET it = ... ) )
+        ExprKind::Chain(chain) => {
+            match &chain.head {
+                Head::Call { args: a, .. } => args(a),
+                Head::Constructor(c) => declare_items(ctx, toks, &c.items),
+                _ => {}
+            }
+            for l in &chain.links {
+                if let Link::Method { args: a, .. } = l {
+                    args(a);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn declare_items(ctx: &Ctx, toks: &[&Token], items: &[Item]) {
+    use crate::types;
+    let before = |pos: usize| (pos > 0).then(|| toks[pos - 1]);
+    for (k, item) in items.iter().enumerate() {
+        match item {
+            Item::Define { name, value } => {
+                // FOR x IN itab: the table follows as a value
+                let table = match (value, items.get(k + 1)) {
+                    (None, Some(Item::Value(v))) if before(v.first).is_some_and(|t| t.is("IN")) => {
+                        Some(v)
+                    }
+                    _ => None,
+                };
+                let ty = match (value, table) {
+                    (_, Some(t)) => expr_type(ctx, toks, t).and_then(|t| ctx.types.line_of(&t)),
+                    (Some(v), _) => expr_type(ctx, toks, v),
+                    // INDEX INTO i
+                    (None, None) if before(name.first).is_some_and(|t| t.is("INTO")) => {
+                        Some(types::builtin("i", None, None))
+                    }
+                    (None, None) => None,
+                };
+                if let Some(ty) = ty {
+                    ctx.types.declare(&text(toks, name.first, name.last), ty);
+                }
+                if let Some(v) = value {
+                    declare_locals(ctx, toks, v);
+                }
+            }
+            Item::Value(v) => declare_locals(ctx, toks, v),
+            Item::Named {
+                value: abap_syntax::expr::Value::Expr(v),
+                ..
+            } => declare_locals(ctx, toks, v),
+            Item::Row(row) => declare_items(ctx, toks, row),
+            _ => {}
+        }
+    }
+}
+
+/// The type of an expression, when the sources tell it.
+fn expr_type(ctx: &Ctx, toks: &[&Token], e: &Expr) -> Option<m::DataType> {
+    use crate::types;
+    match &e.kind {
+        ExprKind::Literal => {
+            let t = &toks[e.first].text;
+            if let Some(inner) = t.strip_prefix('\'').and_then(|x| x.strip_suffix('\'')) {
+                let length = inner.replace("''", "'").chars().count().max(1) as u32;
+                Some(types::builtin("c", Some(length), None))
+            } else if t.starts_with('`') || t.starts_with('|') {
+                Some(types::builtin("string", None, None))
+            } else if t.bytes().all(|b| b.is_ascii_digit()) {
+                Some(types::builtin("i", None, None))
+            } else {
+                None
+            }
+        }
+        ExprKind::Template(_) => Some(types::builtin("string", None, None)),
+        ExprKind::Paren(inner) => expr_type(ctx, toks, inner),
+        ExprKind::Binary { op, left, right } => {
+            if op == "&&" {
+                return Some(types::builtin("string", None, None));
+            }
+            let (l, r) = (expr_type(ctx, toks, left)?, expr_type(ctx, toks, right)?);
+            (l.kind == "i" && r.kind == "i" && op != "/").then_some(l)
+        }
+        ExprKind::Constructor(c) => {
+            let name = &toks[c.type_name].text;
+            let first_value = || {
+                c.items.iter().find_map(|i| match i {
+                    Item::Value(v) => expr_type(ctx, toks, v),
+                    _ => None,
+                })
+            };
+            match c.keyword.as_str() {
+                // REF #( x ): a reference to x
+                "REF" => Some(m::DataType {
+                    line: first_value().map(Box::new),
+                    ..types::reference("data")
+                }),
+                // FILTER #( itab ... ): the type of the table
+                "FILTER" if name == "#" => first_value(),
+                _ if name == "#" => None,
+                "NEW" | "CAST" => Some(types::reference(name)),
+                _ => Some(ctx.types.type_of_name(name)),
+            }
+        }
+        ExprKind::Chain(chain) => {
+            match (&chain.head, chain.links.as_slice()) {
+                // len = lines( itab ), a function or a method of the own class
+                (Head::Call { name, .. }, []) => {
+                    let name = &toks[*name].text;
+                    types::builtin_function(name).or_else(|| ctx.types.returning(None, name))
+                }
+                // zcl_x=>create( )
+                (Head::Class(class), [Link::Method { name, .. }]) => ctx
+                    .types
+                    .returning(Some(&toks[*class].text), &toks[*name].text),
+                // lo_x->get( )
+                (Head::Name(object), [Link::Method { name, .. }]) => {
+                    let ty = ctx.types.of_path(&toks[*object].text)?;
+                    (ty.kind == "ref")
+                        .then(|| ctx.types.returning(ty.name.as_deref(), &toks[*name].text))
+                        .flatten()
+                }
+                // data, its components, offsets, table expressions
+                (Head::Name(_), links)
+                    if links.iter().all(|l| {
+                        matches!(l, Link::Component(_) | Link::Substring(_) | Link::Table(_))
+                    }) =>
+                {
+                    ctx.types.of_path(&text(toks, e.first, e.last))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 
@@ -2906,7 +3193,7 @@ fn aliases(
                 whole: false,
                 declared: false,
                 implicit: false,
-                data_type: None,
+                data_type: a.data_type.clone(),
                 sources: Vec::new(),
                 from_entry: false,
                 via: a.via.clone(),

@@ -302,7 +302,76 @@ fn empty_declaration(name: String, kind: m::DeclarationKind, span: m::Span) -> m
         is_structure: false,
         is_enum: false,
         components: Vec::new(),
+        data_type: None,
         span,
+    }
+}
+
+/// Fills `data_type` of all declarations: in the scope of their program,
+/// class, method, form or function module, LIKE and local types resolved.
+pub(crate) fn resolve_types(s: &mut m::FileSymbols) {
+    use crate::types::Types;
+    fn fill(out: &mut [m::Declaration], types: &Types, decls: &[m::Declaration]) {
+        for (d, from) in out.iter_mut().zip(decls) {
+            d.data_type = types.of_declaration(from);
+            fill(&mut d.components, types, &from.components);
+        }
+    }
+    let block = |kind: &str, name: &str, class: Option<&str>| m::BlockRef {
+        kind: kind.to_string(),
+        name: name.to_string(),
+        class: class.map(str::to_string),
+    };
+    let snapshot = s.clone();
+    let program = Types::of_program(&snapshot);
+    fill(&mut s.declarations, &program, &snapshot.declarations);
+    for (c, from) in s.classes.iter_mut().zip(&snapshot.classes) {
+        let attributes = Types::of_program(&snapshot)
+            .with(&from.types)
+            .with(&from.attributes);
+        fill(&mut c.attributes, &attributes, &from.attributes);
+        fill(&mut c.types, &attributes, &from.types);
+        if let (Some(imp), Some(imp_from)) = (&mut c.implementation, &from.implementation) {
+            for (mi, mi_from) in imp.methods.iter_mut().zip(&imp_from.methods) {
+                let types = Types::of_block(&snapshot, &block("method", &mi.name, Some(&c.name)));
+                fill(&mut mi.locals, &types, &mi_from.locals);
+            }
+        }
+    }
+    for (i, from) in s.interfaces.iter_mut().zip(&snapshot.interfaces) {
+        let attributes = Types::of_program(&snapshot)
+            .with(&from.types)
+            .with(&from.attributes);
+        fill(&mut i.attributes, &attributes, &from.attributes);
+        fill(&mut i.types, &attributes, &from.types);
+    }
+    for (kind, routines, routines_from) in [
+        ("form", &mut s.forms, &snapshot.forms),
+        (
+            "function_module",
+            &mut s.function_modules,
+            &snapshot.function_modules,
+        ),
+    ] {
+        for (r, from) in routines.iter_mut().zip(routines_from) {
+            let types = Types::of_block(&snapshot, &block(kind, &r.name, None));
+            fill(&mut r.locals, &types, &from.locals);
+        }
+    }
+    for (o, from) in s
+        .orphan_implementations
+        .iter_mut()
+        .zip(&snapshot.orphan_implementations)
+    {
+        for (mi, mi_from) in o
+            .implementation
+            .methods
+            .iter_mut()
+            .zip(&from.implementation.methods)
+        {
+            let types = Types::of_block(&snapshot, &block("method", &mi.name, Some(&o.class)));
+            fill(&mut mi.locals, &types, &mi_from.locals);
+        }
     }
 }
 
@@ -522,6 +591,7 @@ impl<'a> Builder<'a> {
                 }),
             }
         }
+        resolve_types(&mut out);
         out
     }
 
