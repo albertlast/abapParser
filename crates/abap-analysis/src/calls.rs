@@ -636,14 +636,23 @@ impl<'a> CallExtractor<'a> {
                 continue;
             }
             let rhs = &t[5..t.len() - 1];
-            let class =
-                if (rhs[0].is("NEW") || rhs[0].is("CAST")) && rhs.len() > 1 && rhs[1].text != "#" {
-                    Some(ValueType::Ref(rhs[1].text.clone()))
-                } else {
-                    // a call chain: the type of its result, resolved when used
-                    let end = operand_end(rhs, 0).min(rhs.len());
-                    self.units_type(&units(rhs, 0, end), &scope, None)
-                };
+            let constructor =
+                (rhs[0].is("NEW") || rhs[0].is("CAST")) && rhs.len() > 1 && rhs[1].text != "#";
+            let class = if constructor {
+                // NEW zcl( ), or the result of a chain on it: NEW zcl( )->get( )
+                let class = ValueType::Ref(rhs[1].text.clone());
+                let end = operand_end(rhs, 1).min(rhs.len());
+                match close_of(rhs, 2) {
+                    Some(close) if close + 1 < end => {
+                        self.follow_units(Some(class), &units(rhs, close + 1, end))
+                    }
+                    _ => Some(class),
+                }
+            } else {
+                // a call chain: the type of its result, resolved when used
+                let end = operand_end(rhs, 0).min(rhs.len());
+                self.units_type(&units(rhs, 0, end), &scope, None)
+            };
             if let Some(c) = class {
                 scope.vars.insert(var, c);
             }
@@ -909,6 +918,16 @@ impl<'a> CallExtractor<'a> {
                 .checked_sub(1)
                 .map(|x| t[x].upper())
                 .unwrap_or_default();
+            // a call on a constructor expression: NEW zcl( )->m( ),
+            // CAST zcl( x )->m( )
+            if (prev == "NEW" || prev == "CAST")
+                && close_of(t, start + 1).is_some_and(|close| close + 1 < k)
+            {
+                if let Some(c) = self.constructor_chain_call(t, start, k) {
+                    out.push(c);
+                }
+                continue;
+            }
             if CONSTRUCTOR_OPERATORS.contains(&prev.as_str()) {
                 continue;
             }
@@ -954,6 +973,26 @@ impl<'a> CallExtractor<'a> {
             }
             out.push(self.chain_call(t, start, k, scope, false));
         }
+    }
+
+    /// The call of the last element of a chain on a constructor expression,
+    /// `NEW zcl( )->m( )` or `CAST zcl( x )->a->m( )`; `start` is the class.
+    fn constructor_chain_call(&self, t: &[&Token], start: usize, end: usize) -> Option<m::Call> {
+        let close = close_of(t, start + 1)?;
+        let links = units(t, close + 1, end);
+        let (last, before) = links.split_last()?;
+        let mut c = new_call(m::CallKind::Method, last.name.clone(), false, Vec::new());
+        let receiver_end = before.last().map_or(close + 1, |u| u.text_end);
+        c.receiver = Some(join(t, start - 1, receiver_end, &self.file.lexed.source));
+        c.is_static = last.arrow == Some(TokenKind::StaticArrow);
+        // NEW #( ): the class is not written
+        if t[start].text != "#" {
+            let class = ValueType::Ref(t[start].text.clone());
+            c.class = self
+                .follow_units(Some(class), before)
+                .and_then(|v| self.class_of(v));
+        }
+        Some(c)
     }
 
     /// The call of the last element of a chain like `a->b( )->c`.
@@ -1091,7 +1130,12 @@ impl<'a> CallExtractor<'a> {
         if let Some(p) = path {
             current = self.components(current?, p);
         }
-        for u in &units[1..] {
+        self.follow_units(current, &units[1..])
+    }
+
+    /// The type after the attributes and calls of `units`, from `current`.
+    fn follow_units(&self, mut current: Option<ValueType>, units: &[Unit]) -> Option<ValueType> {
+        for u in units {
             let cls = self.class_of(current?)?;
             let (head, path) = split_components(&u.name);
             current = if u.is_call {
@@ -1267,6 +1311,25 @@ fn is_close(t: &Token) -> bool {
 }
 
 /// Index after one operand starting at `i`: connected tokens, parentheses included.
+/// The closing parenthesis or bracket of the one opened at `open`.
+fn close_of(t: &[&Token], open: usize) -> Option<usize> {
+    if !t.get(open).is_some_and(|x| is_open(x)) {
+        return None;
+    }
+    let mut depth = 0u32;
+    for (j, x) in t.iter().enumerate().skip(open) {
+        if is_open(x) {
+            depth += 1;
+        } else if is_close(x) {
+            depth -= 1;
+            if depth == 0 {
+                return Some(j);
+            }
+        }
+    }
+    None
+}
+
 fn operand_end(t: &[&Token], i: usize) -> usize {
     let mut j = i;
     let mut depth = 0u32;
@@ -1485,6 +1548,57 @@ ENDCLASS.
         assert_eq!(
             names("CALL CUSTOMER-FUNCTION '002'."),
             [("'002'".to_string(), true)]
+        );
+    }
+
+    #[test]
+    fn chains_on_new_and_cast() {
+        let c = calls(
+            "CLASS lcl_item DEFINITION.
+  PUBLIC SECTION.
+    METHODS save.
+ENDCLASS.
+CLASS lcl_repo DEFINITION.
+  PUBLIC SECTION.
+    METHODS get_item RETURNING VALUE(ro_item) TYPE REF TO lcl_item.
+ENDCLASS.
+CLASS lcl_main DEFINITION.
+  PUBLIC SECTION.
+    METHODS run IMPORTING io_any TYPE REF TO object.
+ENDCLASS.
+CLASS lcl_main IMPLEMENTATION.
+  METHOD run.
+    DATA(lo_a) = NEW lcl_repo( )->get_item( ).
+    lo_a->save( ).
+    DATA(lo_b) = CAST lcl_repo( io_any )->get_item( ).
+    lo_b->save( ).
+    DATA(lo_c) = NEW lcl_repo( ).
+    lo_c->get_item( ).
+  ENDMETHOD.
+ENDCLASS.",
+        );
+        // the variables hold the results of the chains, not the classes
+        let got: Vec<String> = c
+            .iter()
+            .filter(|c| c.kind == m::CallKind::Method)
+            .map(|c| {
+                format!(
+                    "{}.{} {}",
+                    c.class.as_deref().unwrap_or("?"),
+                    c.name,
+                    c.resolved
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "lcl_repo.get_item true",
+                "lcl_item.save true",
+                "lcl_repo.get_item true",
+                "lcl_item.save true",
+                "lcl_repo.get_item true",
+            ]
         );
     }
 

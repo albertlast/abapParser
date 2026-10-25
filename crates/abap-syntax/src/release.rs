@@ -483,11 +483,15 @@ impl<'a> Scan<'a> {
                 }
                 // ref->( name ), struct-( name )
                 TokenKind::InstanceArrow | TokenKind::Dash if self.tight_paren(i + 1) => {
-                    // ASSIGN struc-(name) and CALL METHOD oref->(name) are old
+                    // ASSIGN struc-(name) and CALL METHOD oref->(name) are old,
+                    // so is ASSIGN oref->(`name`): SAP's release news of 7.57
+                    // only bring struc-(comp) with a literal; the name of an
+                    // attribute may be any character-like literal
                     let old = match self.kind {
                         K::Call => true,
                         K::Assign => {
-                            self.kind_at(i + 2) != Some(TokenKind::String)
+                            (self.t[i].kind == TokenKind::InstanceArrow
+                                || self.kind_at(i + 2) != Some(TokenKind::String))
                                 && i > 0
                                 && !matches!(self.word(i - 1), "]" | "*")
                         }
@@ -1337,6 +1341,13 @@ mod tests {
             Some((Release::V751, "enumerated type"))
         );
         assert_eq!(need("FINAL(x) = 1."), Some((Release::V757, "FINAL")));
+        // dynamic attributes are old, whatever the literal; struc-(comp) is 7.57
+        assert_eq!(need("ASSIGN lo->(`RESPONSE`) TO <fs>."), None);
+        assert_eq!(need("ASSIGN lo->('RESPONSE') TO <fs>."), None);
+        assert_eq!(
+            need("ASSIGN ls-(`COMP`) TO <fs>."),
+            Some((Release::V757, "dynamic component"))
+        );
         assert_eq!(
             need("IF foo( ). ENDIF."),
             Some((Release::V740Sp08, "predicate method call"))
