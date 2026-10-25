@@ -31,7 +31,7 @@ impl<P: SourceProvider> CachedProvider<P> {
             name.push_str(p.as_str());
         }
         let extension = match r.kind {
-            ObjectKind::Dtel => "xml",
+            ObjectKind::Dtel | ObjectKind::Ttyp => "xml",
             ObjectKind::Tabl => "ddl",
             ObjectKind::Ddls => "asddls",
             _ => "abap",

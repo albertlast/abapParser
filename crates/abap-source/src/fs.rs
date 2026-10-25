@@ -1,7 +1,8 @@
 //! Source files on disk: abapGit layout (`zcl_x.clas.abap`,
 //! `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap`, `#ns#name` for
 //! namespaces), or plain `name.abap` files taken as programs; dictionary
-//! types from `name.tabl.xml` and `name.dtel.xml`, CDS data definitions from
+//! types from `name.tabl.xml`, `name.dtel.xml` and `name.ttyp.xml`, type
+//! groups from `name.type.abap`, CDS data definitions from
 //! `name.ddls.asddls`; BAdIs from enhancement spots and implementations
 //! (`.enhs.xml`, `.enho.xml`) and classic ones (`.sxsd.xml`, `.sxci.xml`);
 //! code of enhancement implementations from `.enho.<hash>.abap`.
@@ -294,6 +295,7 @@ fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
         return match stem.split('.').collect::<Vec<_>>().as_slice() {
             [name, "tabl"] => Some((SourceRef::table(&decode(name)), None)),
             [name, "dtel"] => Some((SourceRef::data_element(&decode(name)), None)),
+            [name, "ttyp"] => Some((SourceRef::table_type(&decode(name)), None)),
             _ => None,
         };
     }
@@ -314,6 +316,7 @@ fn parse_file_name(file: &str) -> Option<(SourceRef, Option<String>)> {
             SourceRef::class(&decode(name)).with_part(part)
         }
         [name, "intf"] => SourceRef::interface(&decode(name)),
+        [name, "type"] => SourceRef::type_group(&decode(name)),
         [group, "fugr", include] => {
             let group = decode(group);
             let include = decode(include);
@@ -448,6 +451,8 @@ mod tests {
         assert_eq!(p("ZPLAIN.abap"), Some(("PROG:ZPLAIN".into(), None)));
         assert_eq!(p("zs_x.tabl.xml"), Some(("TABL:ZS_X".into(), None)));
         assert_eq!(p("#abc#d.dtel.xml"), Some(("DTEL:/ABC/D".into(), None)));
+        assert_eq!(p("ztt_x.ttyp.xml"), Some(("TTYP:ZTT_X".into(), None)));
+        assert_eq!(p("zzaoc.type.abap"), Some(("TYPE:ZZAOC".into(), None)));
         assert_eq!(p("zcl_a.clas.xml"), None);
         assert_eq!(p("zi_x.ddls.asddls"), Some(("DDLS:ZI_X".into(), None)));
         assert_eq!(p("zcl_a.clas.xml"), None);

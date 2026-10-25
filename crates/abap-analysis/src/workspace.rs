@@ -116,6 +116,7 @@ pub struct Workspace {
     subclasses: Mutex<HashMap<String, Vec<String>>>,
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
+    table_types: Mutex<HashMap<String, Option<m::DataType>>>,
     errors: Mutex<Vec<m::LoadError>>,
 }
 
@@ -321,6 +322,7 @@ impl Workspace {
             subclasses: Mutex::new(HashMap::new()),
             structures: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
+            table_types: Mutex::new(HashMap::new()),
             errors: Mutex::new(Vec::new()),
         }
     }
@@ -484,6 +486,28 @@ impl Workspace {
         };
         self.structures.lock().unwrap().insert(key, s.clone());
         s
+    }
+
+    /// The line type of a dictionary table type, like `string` of
+    /// `string_table`.
+    pub fn table_type_line(&self, name: &str) -> Option<m::DataType> {
+        let key = name.to_ascii_uppercase();
+        if let Some(t) = self.table_types.lock().unwrap().get(&key) {
+            return t.clone();
+        }
+        let t = if is_builtin_type(&key) {
+            None
+        } else {
+            self.fetch_text(&SourceRef::table_type(&key))
+                .and_then(|text| ddic::table_type_line(&text))
+        };
+        self.table_types.lock().unwrap().insert(key, t.clone());
+        t
+    }
+
+    /// A type group, like `abap` with `abap_bool` and `abap_compdescr_tab`.
+    pub fn type_group(&self, name: &str) -> Option<Arc<Object>> {
+        self.object(&SourceRef::type_group(name))
     }
 
     /// The class or interface a dictionary data element refers to, when it
@@ -826,13 +850,22 @@ impl Workspace {
         classes
     }
 
-    /// The object of a class or interface name, whichever exists.
+    /// The object of a class or interface name, whichever exists; names
+    /// like `zif_x` are looked up as interfaces first.
     pub fn type_object(&self, name: &str) -> Option<Arc<Object>> {
-        let class = SourceRef::class(name);
-        self.object(&class).or_else(|| {
-            // a name not followed is skipped once, as a class
-            (self.skip_reason(&class).is_none())
-                .then(|| self.object(&SourceRef::interface(name)))
+        // REF TO data, REF TO object: generic, no source
+        if name.eq_ignore_ascii_case("data") || name.eq_ignore_ascii_case("object") {
+            return None;
+        }
+        let (first, second) = if interface_name(name) {
+            (SourceRef::interface(name), SourceRef::class(name))
+        } else {
+            (SourceRef::class(name), SourceRef::interface(name))
+        };
+        self.object(&first).or_else(|| {
+            // a name not followed is skipped once
+            (self.skip_reason(&first).is_none())
+                .then(|| self.object(&second))
                 .flatten()
         })
     }
@@ -1325,6 +1358,17 @@ pub fn merge_symbols<'a>(parts: impl Iterator<Item = &'a m::FileSymbols>) -> m::
     // types declared in one part, like the TOP include, type the others
     crate::symbols::resolve_types(&mut out);
     out
+}
+
+/// Whether a name is written as interfaces usually are: `if_x`, `zif_x`,
+/// `yif_x`, also in a namespace, `/abc/if_x`.
+fn interface_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let local = match lower.strip_prefix('/') {
+        Some(rest) => rest.split_once('/').map_or(rest, |(_, n)| n),
+        None => &lower,
+    };
+    ["if_", "zif_", "yif_"].iter().any(|p| local.starts_with(p))
 }
 
 #[cfg(test)]
@@ -2131,5 +2175,113 @@ ENDCLASS.",
             .units
             .iter()
             .any(|u| u.reference == "CLAS:ZCL_APP/implementations"));
+    }
+
+    #[test]
+    fn types_from_other_classes() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_USER"),
+            "CLASS zcl_user DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\n\
+CLASS zcl_user IMPLEMENTATION.\n  METHOD run.\n    DATA(lo) = zcl_srv=>create( ).\n    DATA(ls) = lo->get( ).\n    DATA(lv_id) = lo->get( )-id.\n    DATA(lv_name) = lo->mv_name.\n    DATA(lt) = lo->zif_srv~list( ).\n    DATA(lt_alias) = lo->items( ).\n    DATA(lv_max) = zcl_srv=>gc_max.\n    lo->fetch( IMPORTING ev_count = DATA(lv_count) ).\n    DATA(lv_cast) = CAST zcl_srv( lo )->get( )-id.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_SRV"),
+            "CLASS zcl_srv DEFINITION PUBLIC INHERITING FROM zcl_srv_base.\n  PUBLIC SECTION.\n    INTERFACES zif_srv.\n    ALIASES items FOR zif_srv~list.\n    TYPES: BEGIN OF ty_s, id TYPE i, END OF ty_s.\n    CONSTANTS gc_max TYPE i VALUE 10.\n    CLASS-METHODS create RETURNING VALUE(ro) TYPE REF TO zcl_srv.\n    METHODS get RETURNING VALUE(rs) TYPE ty_s.\nENDCLASS.\n\
+CLASS zcl_srv IMPLEMENTATION.\n  METHOD create.\n  ENDMETHOD.\n  METHOD get.\n  ENDMETHOD.\n  METHOD zif_srv~list.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("ZCL_SRV_BASE"),
+            "CLASS zcl_srv_base DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    DATA mv_name TYPE string.\n    METHODS fetch EXPORTING ev_count TYPE int8.\nENDCLASS.\nCLASS zcl_srv_base IMPLEMENTATION.\n  METHOD fetch.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        p.insert(
+            SourceRef::interface("ZIF_SRV"),
+            "INTERFACE zif_srv PUBLIC.\n  TYPES ty_names TYPE STANDARD TABLE OF string WITH EMPTY KEY.\n  METHODS list RETURNING VALUE(rt) TYPE ty_names.\nENDINTERFACE.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::class("ZCL_USER"), 1);
+        let run = l
+            .procedures
+            .iter()
+            .find(|p| p.block.name.eq_ignore_ascii_case("run"))
+            .unwrap();
+        let got: Vec<String> = run
+            .body
+            .iter()
+            .flat_map(|s| s.writes.iter().filter(|w| w.declared))
+            .map(|w| {
+                let ty = w
+                    .data_type
+                    .as_ref()
+                    .map(crate::types::tests::short)
+                    .unwrap_or_default();
+                format!("{} {ty}", w.name)
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "lo ref zcl_srv",
+                "ls structure zcl_srv=>ty_s",
+                "lv_id i",
+                "lv_name string",
+                "lt table zif_srv=>ty_names of string",
+                "lt_alias table zif_srv=>ty_names of string",
+                "lv_max i",
+                "lv_count int8",
+                "lv_cast i",
+            ]
+        );
+    }
+
+    #[test]
+    fn types_from_the_dictionary() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_DD"),
+            "CLASS zcl_dd DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\n\
+CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA lt_comps TYPE zabc_comp_tab.\n    DATA lt_names TYPE string_table.\n    DATA lt_other TYPE zdemo_rows.\n    LOOP AT lt_comps INTO DATA(ls_comp).\n      DATA(lv_name) = ls_comp-name.\n    ENDLOOP.\n    LOOP AT lt_names INTO DATA(lv_line).\n    ENDLOOP.\n    DATA(lv_flag) = VALUE zabc_flag( ).\n    LOOP AT lt_other INTO DATA(ls_other).\n    ENDLOOP.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        p.insert(
+            SourceRef::type_group("ZABC"),
+            "TYPE-POOL zabc.\nTYPES zabc_flag TYPE c LENGTH 1.\nTYPES: BEGIN OF zabc_comp,\n         name TYPE string,\n         flag TYPE zabc_flag,\n       END OF zabc_comp,\n       zabc_comp_tab TYPE STANDARD TABLE OF zabc_comp WITH DEFAULT KEY.",
+        );
+        p.insert(
+            SourceRef::table_type("STRING_TABLE"),
+            "<ttyp:tableType><ttyp:rowType><ttyp:typeKind>predefinedAbapType</ttyp:typeKind><ttyp:typeName/><ttyp:builtInType><ttyp:dataType>STRING</ttyp:dataType><ttyp:length>000000</ttyp:length><ttyp:decimals>000000</ttyp:decimals></ttyp:builtInType></ttyp:rowType></ttyp:tableType>",
+        );
+        p.insert(
+            SourceRef::table_type("ZDEMO_ROWS"),
+            "<DD40V><TYPENAME>ZDEMO_ROWS</TYPENAME><ROWTYPE>ZDEMO_ROW</ROWTYPE><ROWKIND>S</ROWKIND><DATATYPE>STRU</DATATYPE></DD40V>",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::class("ZCL_DD"), 1);
+        let run = &l.procedures[0];
+        let mut got = Vec::new();
+        fn walk(steps: &[m::Step], got: &mut Vec<String>) {
+            for s in steps {
+                for w in s.writes.iter().filter(|w| w.declared) {
+                    let ty = w
+                        .data_type
+                        .as_ref()
+                        .map(crate::types::tests::short)
+                        .unwrap_or_default();
+                    got.push(format!("{} {ty}", w.name));
+                }
+                walk(&s.children, got);
+            }
+        }
+        walk(&run.body, &mut got);
+        assert_eq!(
+            got,
+            [
+                "ls_comp structure zabc_comp",
+                "lv_name string",
+                "lv_line string",
+                "lv_flag c(1) zabc_flag",
+                "ls_other named zdemo_row",
+            ]
+        );
+        println!("missing: {:?}", l.missing);
     }
 }
