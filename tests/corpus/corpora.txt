@@ -1,4 +1,5 @@
-# source folders of the test corpus, relative to the repository root
+# source folders of the test corpus, relative to the repository root; a
+# corpus of several folders read together has them on one line
 # used by tools/oracle.mjs --list and the corpus tests
 tests/corpus/abapgit/src
 tests/corpus/abap-cheat-sheets/src
@@ -17,3 +18,4 @@ tests/corpus/hr_dme/src
 tests/corpus/abap-wasm/src
 tests/corpus/abapPGP/src
 tests/corpus/abapNTLM/src
+tests/corpus/open-abap-gui/src tests/corpus/open-abap-gui/framework tests/corpus/open-abap-gui/examples

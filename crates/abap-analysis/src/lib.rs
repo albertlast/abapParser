@@ -6,6 +6,7 @@ mod context;
 mod db;
 mod ddic;
 mod enhance;
+mod fugr;
 mod hr;
 mod logic;
 mod stores;

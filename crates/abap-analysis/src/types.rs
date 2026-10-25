@@ -116,6 +116,12 @@ pub(crate) trait Repository {
     fn table_type_line(&self, name: &str) -> Option<m::DataType>;
     /// A type group, `TYPE-POOL name`.
     fn type_group(&self, name: &str) -> Option<Arc<crate::Object>>;
+    /// A dictionary data element, structure or table.
+    fn dictionary_type(&self, name: &str) -> Option<m::DataType>;
+    /// A component of a dictionary structure or table.
+    fn dictionary_component(&self, structure: &str, component: &str) -> Option<m::DataType>;
+    /// The object of a function module, its source.
+    fn function_module(&self, name: &str) -> Option<Arc<crate::Object>>;
 }
 
 impl Repository for crate::Workspace {
@@ -129,6 +135,18 @@ impl Repository for crate::Workspace {
 
     fn type_group(&self, name: &str) -> Option<Arc<crate::Object>> {
         crate::Workspace::type_group(self, name)
+    }
+
+    fn dictionary_type(&self, name: &str) -> Option<m::DataType> {
+        crate::Workspace::dictionary_type(self, name)
+    }
+
+    fn dictionary_component(&self, structure: &str, component: &str) -> Option<m::DataType> {
+        crate::Workspace::dictionary_component(self, structure, component)
+    }
+
+    fn function_module(&self, name: &str) -> Option<Arc<crate::Object>> {
+        self.object(&abap_source::SourceRef::function_module(name))
     }
 }
 
@@ -389,7 +407,9 @@ impl<'a> Types<'a> {
                 }
                 found
             }
-            m::TypingKind::Like => self.path(name, depth + 1)?,
+            m::TypingKind::Like => self
+                .path(name, depth + 1)
+                .or_else(|| self.dictionary_path(name, depth + 1))?,
             m::TypingKind::Structure => self.type_named(name, None, None, depth),
             m::TypingKind::TypeRefTo => plain(reference(name)),
             m::TypingKind::LikeRefTo => plain(m::DataType {
@@ -430,6 +450,15 @@ impl<'a> Types<'a> {
                 }
             }
         })
+    }
+
+    /// A dictionary type or a column of one, as `LIKE` names them in old
+    /// code and signatures of function modules: `LIKE bapiret2-message`.
+    fn dictionary_path(&self, name: &str, depth: u32) -> Option<Found<'a>> {
+        let lower = name.to_ascii_lowercase();
+        let mut parts = lower.split('-');
+        let ty = self.classes?.dictionary_type(parts.next()?)?;
+        self.components(Found { ty, decl: None }, parts, depth)
     }
 
     /// A line type: a local structure type keeps its components.
@@ -484,8 +513,10 @@ impl<'a> Types<'a> {
             t.name.get_or_insert(lower);
             return Found { ty: t, decl: None };
         }
+        // a data element, structure or table of the dictionary
+        let dictionary = self.classes.and_then(|c| c.dictionary_type(&lower));
         Found {
-            ty: named(&lower),
+            ty: dictionary.unwrap_or_else(|| named(&lower)),
             decl: None,
         }
     }
@@ -645,11 +676,17 @@ impl<'a> Types<'a> {
                     decl: None,
                 }
             }
-            // a structure of a type group: abap_compdescr-name
-            _ if found.ty.kind == "structure" && found.ty.name.is_some() => Found {
-                ty: self.group_type(found.ty.name.as_deref()?, &[component], depth + 1)?,
-                decl: None,
-            },
+            // a structure of a type group, abap_compdescr-name, or of the
+            // dictionary, bapiret2-message
+            _ if found.ty.kind == "structure" && found.ty.name.is_some() => {
+                let name = found.ty.name.as_deref()?;
+                Found {
+                    ty: self
+                        .group_type(name, &[component], depth + 1)
+                        .or_else(|| self.classes?.dictionary_component(name, component))?,
+                    decl: None,
+                }
+            }
             // a dictionary structure: its column, like mara-matnr
             _ if found.ty.kind == "named" => Found {
                 ty: named(&format!("{}-{component}", found.ty.name.as_deref()?)),
@@ -750,6 +787,34 @@ impl<'a> Types<'a> {
 
     /// The type of a parameter of a method, like that of `ev_x` of
     /// `lo->get( IMPORTING ev_x = DATA(x) )`.
+    /// The type of a parameter of a function module, typed in the scope of
+    /// its source: dictionary types mostly.
+    pub(crate) fn function_parameter(
+        &self,
+        function: &str,
+        parameter: &str,
+    ) -> Option<m::DataType> {
+        let object = self.classes?.function_module(function)?;
+        let symbols = &object.symbols;
+        let p = symbols
+            .function_modules
+            .iter()
+            .find(|f| f.name.eq_ignore_ascii_case(function))?
+            .parameters
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case(parameter))?;
+        let scope = Types {
+            data: vec![&symbols.declarations],
+            parameters: Vec::new(),
+            symbols,
+            class: None,
+            classes: self.classes,
+            inherited: None,
+            inline: RefCell::new(HashMap::new()),
+        };
+        scope.typing(p.typing.as_ref()?, 1).map(|f| f.ty)
+    }
+
     pub(crate) fn parameter(
         &self,
         class: Option<&str>,

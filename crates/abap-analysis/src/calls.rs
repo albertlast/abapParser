@@ -711,6 +711,15 @@ impl<'a> CallExtractor<'a> {
                 None => (String::new(), true),
             }
         };
+        // a screen number as four digits, or the operand holding it
+        let screen = |i: usize| -> Option<(String, bool)> {
+            let tok = t.get(i)?;
+            match tok.text.parse::<u32>() {
+                Ok(0) => None,
+                Ok(n) => Some((format!("{n:04}"), false)),
+                Err(_) => Some((text(i, operand_end(i)), true)),
+            }
+        };
         let options = |phrases: &[&str]| -> Vec<String> {
             let mut found = Vec::new();
             for p in phrases {
@@ -833,6 +842,31 @@ impl<'a> CallExtractor<'a> {
                     dynamic,
                     vec!["LEAVE".to_string()],
                 );
+                4
+            }
+            // a screen of the program; 0 returns to the caller
+            K::CallScreen | K::SetScreen => {
+                if let Some((name, dynamic)) = screen(2) {
+                    let option = if s.kind == K::SetScreen {
+                        "SET"
+                    } else {
+                        "CALL"
+                    };
+                    let mut o = options(&["STARTING AT"]);
+                    o.insert(0, option.to_string());
+                    push(m::CallKind::Screen, name, dynamic, o);
+                }
+                3
+            }
+            K::Leave if word(1) == "TO" && word(2) == "SCREEN" => {
+                if let Some((name, dynamic)) = screen(3) {
+                    push(
+                        m::CallKind::Screen,
+                        name,
+                        dynamic,
+                        vec!["LEAVE".to_string()],
+                    );
+                }
                 4
             }
             K::Include => {

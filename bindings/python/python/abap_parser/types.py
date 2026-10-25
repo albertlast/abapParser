@@ -9,7 +9,7 @@ from typing import List, Literal, TypedDict
 
 AccessKind = Literal["read", "write", "change"]
 
-CallKind = Literal["method", "constructor", "function", "form", "submit", "transaction", "include", "transformation"]
+CallKind = Literal["method", "constructor", "function", "form", "submit", "transaction", "include", "transformation", "screen", "module"]
 
 ConditionKind = Literal["or", "equiv", "and", "not", "compare", "is", "in", "between", "predicate", "catch"]
 

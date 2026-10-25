@@ -127,6 +127,8 @@ pub struct Constructor {
     pub keyword: String,
     /// the type, `#` when inferred
     pub type_name: Pos,
+    /// the last token of the type, after `type_name` for `zif_x=>ty_name`
+    pub type_end: Pos,
     pub items: Vec<Item>,
 }
 
@@ -690,7 +692,23 @@ impl<'a> Parser<'a> {
             && self
                 .peek(1)
                 .is_some_and(|t| t.kind == TokenKind::Identifier && t.ws_before)
-            && self.call_paren_at(2)
+            && self.call_paren_at(2 + self.qualified_len(1))
+    }
+
+    /// The tokens after the name at `ahead` that qualify it, as in a type
+    /// `zif_x=>ty_name`: two per `=>name`.
+    fn qualified_len(&self, ahead: usize) -> usize {
+        let mut len = 0;
+        while self
+            .peek(ahead + len + 1)
+            .is_some_and(|t| t.kind == TokenKind::StaticArrow && !t.ws_before)
+            && self
+                .peek(ahead + len + 2)
+                .is_some_and(|t| t.kind == TokenKind::Identifier && !t.ws_before)
+        {
+            len += 2;
+        }
+        len
     }
 
     /// A data object or method call with components, attributes, method
@@ -1048,11 +1066,13 @@ impl<'a> Parser<'a> {
     fn constructor(&mut self) -> Constructor {
         let keyword = self.toks[self.pos].upper();
         let type_name = self.pos + 1;
-        self.pos += 3;
+        let type_end = type_name + self.qualified_len(1);
+        self.pos = type_end + 2;
         let items = self.constructor_items(&keyword);
         Constructor {
             keyword,
             type_name,
+            type_end,
             items,
         }
     }
@@ -1900,6 +1920,15 @@ mod tests {
         assert_eq!(
             r("CAST zif( lo )->attr."),
             [("lo".into(), Read), ("attr".into(), Read)]
+        );
+        // a type of an interface or class
+        assert_eq!(
+            r("CONV zif_x=>ty_name( lv_name )."),
+            [("lv_name".into(), Read)]
+        );
+        assert_eq!(
+            r("COND zif_x=>ty_nr( WHEN a IS INITIAL THEN b )."),
+            [("a".into(), Read), ("b".into(), Read)]
         );
     }
 

@@ -814,6 +814,19 @@ pub fn operands(file: &File, s: &Statement) -> Operands {
         ),
         K::Pack | K::Unpack => sc.run(Skip, &[("PACK", Read), ("UNPACK", Read), ("TO", Write)]),
         K::Hide | K::OnChange => sc.run(Skip, &[("HIDE", Read), ("OF", Read), ("OR", Read)]),
+        // the parameter or selection table the event is for
+        K::AtSelectionScreen => sc.run(
+            Skip,
+            &[
+                ("ON", ReadOne),
+                ("ON END OF", ReadOne),
+                ("ON VALUE-REQUEST FOR", ReadOne),
+                ("ON HELP-REQUEST FOR", ReadOne),
+                ("ON BLOCK", Stop),
+                ("ON RADIOBUTTON GROUP", Stop),
+                ("ON EXIT-COMMAND", Stop),
+            ],
+        ),
         K::SetPFStatus => sc.run(
             Skip,
             &[
@@ -1363,6 +1376,21 @@ fn sql(sc: &mut Scan, kind: K) {
         kind,
         K::InsertDatabase | K::UpdateDatabase | K::ModifyDatabase | K::DeleteDatabase
     );
+    // SELECT * FROM dbtab without INTO: the table work area of TABLES dbtab
+    // is written
+    if matches!(kind, K::Select | K::SelectLoop)
+        && !new_syntax
+        && !(0..p.len()).any(|i| p.word(i).is_some_and(|w| w == "INTO" || w == "APPENDING"))
+    {
+        let star = 1 + usize::from(p.word(1).as_deref() == Some("SINGLE"));
+        let from = (0..p.len()).find(|&i| p.word(i).as_deref() == Some("FROM"));
+        if let Some(from) = from.filter(|_| p.token(star).is_some_and(|t| t.text == "*")) {
+            let at = sc.p.pos;
+            sc.p.pos = from + 1;
+            sc.operand(Write);
+            sc.p.pos = at;
+        }
+    }
     let mut into = false;
     // inside WHERE, HAVING, ON or SET of old syntax: right hand sides are
     // host variables
@@ -1620,5 +1648,25 @@ mod tests {
         );
         assert_eq!(refs("INSERT ztab FROM TABLE lt."), ["lt:R"]);
         assert_eq!(refs("MODIFY ztab FROM @ls."), ["ls:R"]);
+        // without INTO the work area of TABLES t100 is written
+        assert_eq!(
+            refs("SELECT SINGLE * FROM t100 WHERE arbgb IN s_arbgb."),
+            ["t100:W", "s_arbgb:R"]
+        );
+        assert_eq!(refs("SELECT * FROM *t100 WHERE arbgb = '00'."), ["*t100:W"]);
+        assert_eq!(refs("SELECT COUNT(*) FROM t100 WHERE arbgb = v."), ["v:R"]);
+    }
+
+    #[test]
+    fn selection_screen_events() {
+        assert_eq!(refs("AT SELECTION-SCREEN ON p_carr."), ["p_carr:R"]);
+        assert_eq!(refs("AT SELECTION-SCREEN ON END OF s_carr."), ["s_carr:R"]);
+        assert_eq!(
+            refs("AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_carr-low."),
+            ["s_carr:R"]
+        );
+        assert!(refs("AT SELECTION-SCREEN ON BLOCK b1.").is_empty());
+        assert!(refs("AT SELECTION-SCREEN ON RADIOBUTTON GROUP g1.").is_empty());
+        assert!(refs("AT SELECTION-SCREEN OUTPUT.").is_empty());
     }
 }

@@ -263,10 +263,10 @@ function objectName(f) {
 function releases(outDir, inputs) {
   let files = 0;
   let needing = 0;
-  for (const input of inputs) {
+  for (const folders of inputs) {
     const names = new Map();
     const sources = [];
-    for (const f of walk(input)) {
+    for (const f of walkAll(folders)) {
       names.set(objectName(f), path.relative(process.cwd(), f));
       sources.push([objectName(f), fs.readFileSync(f, "utf8")]);
     }
@@ -329,16 +329,24 @@ function releases(outDir, inputs) {
   console.log(`oracle: ${files} files, ${needing} statements newer than 7.00`);
 }
 
+// the corpora, each a list of folders read together
 function inputList(inputs) {
   if (inputs[0] === "--list") {
-    // one folder per line, # comments
+    // one corpus per line, its folders separated by blanks, # comments
     return fs
       .readFileSync(inputs[1], "utf8")
       .split(/\r?\n/)
       .map((l) => l.trim())
-      .filter((l) => l !== "" && !l.startsWith("#"));
+      .filter((l) => l !== "" && !l.startsWith("#"))
+      .map((l) => l.split(/\s+/));
   }
-  return inputs;
+  return inputs.map((i) => [i]);
+}
+
+function* walkAll(folders) {
+  for (const folder of folders) {
+    yield* walk(folder);
+  }
 }
 
 function main() {
@@ -364,10 +372,10 @@ function main() {
   const config = new Config(JSON.stringify(conf));
   let files = 0;
   let statements = 0;
-  for (const input of inputs) {
+  for (const folders of inputs) {
     const reg = new Registry(config);
     const names = new Map();
-    for (const f of walk(input)) {
+    for (const f of walkAll(folders)) {
       // abaplint derives the object type from the abapGit style file name;
       // a plain NAME.abap is a program
       const name = objectName(f);

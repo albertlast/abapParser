@@ -43,6 +43,9 @@ pub enum ObjectKind {
     Tabl,
     /// dictionary data element: ADT and abapGit give XML
     Dtel,
+    /// dictionary domain, abapGit XML; ADT gives the type of a domain with
+    /// the data element, so it is not fetched from a system
+    Doma,
     /// dictionary table type: ADT and abapGit give XML
     Ttyp,
     /// type group, `TYPE-POOL name.`; abapGit `.type.abap`
@@ -61,6 +64,7 @@ impl ObjectKind {
             ObjectKind::Func => "FUNC",
             ObjectKind::Tabl => "TABL",
             ObjectKind::Dtel => "DTEL",
+            ObjectKind::Doma => "DOMA",
             ObjectKind::Ttyp => "TTYP",
             ObjectKind::Type => "TYPE",
             ObjectKind::Ddls => "DDLS",
@@ -143,6 +147,10 @@ impl SourceRef {
         Self::new(ObjectKind::Dtel, name)
     }
 
+    pub fn domain(name: &str) -> Self {
+        Self::new(ObjectKind::Doma, name)
+    }
+
     pub fn table_type(name: &str) -> Self {
         Self::new(ObjectKind::Ttyp, name)
     }
@@ -182,8 +190,8 @@ impl fmt::Display for SourceRef {
 impl FromStr for SourceRef {
     type Err = String;
 
-    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, TTYP,
-    /// TYPE, DDLS
+    /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, DOMA,
+    /// TTYP, TYPE, DDLS
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -196,6 +204,7 @@ impl FromStr for SourceRef {
             "FUNC" => ObjectKind::Func,
             "TABL" => ObjectKind::Tabl,
             "DTEL" => ObjectKind::Dtel,
+            "DOMA" => ObjectKind::Doma,
             "TTYP" => ObjectKind::Ttyp,
             "TYPE" => ObjectKind::Type,
             "DDLS" => ObjectKind::Ddls,
@@ -252,6 +261,17 @@ impl Hook {
                 .map(|(_, v)| v.trim().to_ascii_uppercase())
         })
     }
+}
+
+/// A screen (dynpro) of a program with its flow logic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Screen {
+    /// the number, four digits like `0100`
+    pub number: String,
+    /// `PROCESS BEFORE OUTPUT.` and what follows, empty where not known
+    pub flow_logic: String,
+    /// where the flow logic is from
+    pub origin: String,
 }
 
 #[derive(Debug, Clone)]
@@ -320,6 +340,19 @@ pub trait SourceProvider: Send + Sync {
     /// Needed where the group's include structure is not available, e.g. abapGit.
     fn function_modules(&self, _group: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
+    }
+
+    /// The screens of a program, a function group's by its main program
+    /// `SAPL<group>`, with their flow logic, when the provider knows them.
+    fn screens(&self, _program: &str) -> Result<Vec<Screen>> {
+        Ok(Vec::new())
+    }
+
+    /// The abapGit XML of the function group of a function module
+    /// (`<group>.fugr.xml`), which has its signature also where the source
+    /// has none, like generated table maintenance modules.
+    fn function_interface(&self, _function: &str) -> Result<Option<String>> {
+        Ok(None)
     }
 
     /// Global classes implementing an interface, upper case, when the
@@ -394,6 +427,25 @@ impl SourceProvider for ChainProvider {
             let fms = p.function_modules(group)?;
             if !fms.is_empty() {
                 return Ok(fms);
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    fn function_interface(&self, function: &str) -> Result<Option<String>> {
+        for p in &self.providers {
+            if let Some(x) = p.function_interface(function)? {
+                return Ok(Some(x));
+            }
+        }
+        Ok(None)
+    }
+
+    fn screens(&self, program: &str) -> Result<Vec<Screen>> {
+        for p in &self.providers {
+            let screens = p.screens(program)?;
+            if !screens.is_empty() {
+                return Ok(screens);
             }
         }
         Ok(Vec::new())

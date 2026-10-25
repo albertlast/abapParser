@@ -1059,6 +1059,8 @@ impl SourceProvider for AdtProvider {
                 }
                 self.source(r, &format!("{TYPE_GROUPS}/{name}/source/main"))
             }
+            // a data element brings the type of its domain along
+            (ObjectKind::Doma, _) => Ok(None),
             (ObjectKind::Dtel, _) => {
                 let path = format!("/sap/bc/adt/ddic/dataelements/{name}");
                 let accept = data_element_type(&self.capabilities().accepts(DATA_ELEMENTS));

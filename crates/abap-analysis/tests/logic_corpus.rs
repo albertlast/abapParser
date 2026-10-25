@@ -35,12 +35,13 @@ fn corpus_object_logic() {
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
     {
-        let path = root.join(dir);
-        if !path.exists() {
+        // a corpus may be several folders read together
+        let paths: Vec<_> = dir.split_whitespace().map(|d| root.join(d)).collect();
+        if !paths.iter().all(|p| p.exists()) {
             println!("{dir}: skipped, submodule missing");
             continue;
         }
-        let provider = FsProvider::new(vec![path]).unwrap();
+        let provider = FsProvider::new(paths).unwrap();
         let roots: Vec<_> = provider
             .references()
             .filter(|r| {
