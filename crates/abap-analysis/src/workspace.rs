@@ -117,6 +117,8 @@ pub struct Workspace {
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     table_types: Mutex<HashMap<String, Option<m::DataType>>>,
+    /// failed lookups that only add types, per kind: how many, the first
+    lookups_failed: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
     errors: Mutex<Vec<m::LoadError>>,
 }
 
@@ -323,6 +325,7 @@ impl Workspace {
             structures: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
             table_types: Mutex::new(HashMap::new()),
+            lookups_failed: Mutex::new(BTreeMap::new()),
             errors: Mutex::new(Vec::new()),
         }
     }
@@ -394,6 +397,20 @@ impl Workspace {
         self.errors.lock().unwrap().clone()
     }
 
+    /// An error of a source; of a table type or type group, which only add
+    /// types, a note instead.
+    fn record_of(&self, r: &SourceRef, e: &SourceError) {
+        if matches!(r.kind, ObjectKind::Ttyp | ObjectKind::Type) {
+            let mut failed = self.lookups_failed.lock().unwrap();
+            let entry = failed
+                .entry(r.kind)
+                .or_insert_with(|| (0, format!("{r}: {e}")));
+            entry.0 += 1;
+            return;
+        }
+        self.record(r.to_string(), e);
+    }
+
     fn record(&self, object: String, e: &SourceError) {
         let (code, status) = match e {
             SourceError::Io(_) => (m::ErrorCode::Io, None),
@@ -428,6 +445,15 @@ impl Workspace {
         if skipped.values().any(|w| *w == m::Unresolved::Cancelled) {
             notes.push("cancelled: objects after it were not loaded".to_string());
         }
+        for (kind, (count, first)) in self.lookups_failed.lock().unwrap().iter() {
+            let what = match kind {
+                ObjectKind::Ttyp => "table types",
+                _ => "type groups",
+            };
+            notes.push(format!(
+                "{what}: {count} lookups failed, their types stay names (first: {first})"
+            ));
+        }
         notes.sort();
         notes.dedup();
         notes
@@ -453,7 +479,7 @@ impl Workspace {
             }
             Ok(None) => None,
             Err(e) => {
-                self.record(r.to_string(), &e);
+                self.record_of(r, &e);
                 self.failed.lock().unwrap().insert(r.clone());
                 None
             }
@@ -465,7 +491,7 @@ impl Workspace {
         match self.provider.fetch(r) {
             Ok(s) => s.map(|s| s.text),
             Err(e) => {
-                self.record(r.to_string(), &e);
+                self.record_of(r, &e);
                 None
             }
         }
@@ -2283,5 +2309,37 @@ CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA lt_comps TYPE zabc_comp_ta
             ]
         );
         println!("missing: {:?}", l.missing);
+    }
+
+    #[test]
+    fn failed_type_lookups_are_notes() {
+        let class = "CLASS zcl_dd DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\n\
+CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA lt_names TYPE string_table.\n    DATA lt_comps TYPE abap_compdescr_tab.\n    LOOP AT lt_names INTO DATA(lv_line).\n    ENDLOOP.\n    LOOP AT lt_comps INTO DATA(ls_comp).\n    ENDLOOP.\n  ENDMETHOD.\nENDCLASS.";
+        let p = abap_source::FnProvider::new("test", move |r| match r.kind {
+            ObjectKind::Clas if r.name == "ZCL_DD" && r.part.is_none() => {
+                Ok(Some(class.to_string()))
+            }
+            ObjectKind::Ttyp | ObjectKind::Type => Err(SourceError::Http {
+                status: 500,
+                url: format!("/sap/bc/adt/ddic/{}", r.name.to_ascii_lowercase()),
+            }),
+            _ => Ok(None),
+        });
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::class("ZCL_DD"), 1);
+        // the analysis did not fail: the lookups only add types
+        assert!(l.errors.is_empty(), "{:?}", l.errors);
+        let notes: Vec<&String> = l
+            .notes
+            .iter()
+            .filter(|n| n.contains("lookups failed"))
+            .collect();
+        assert_eq!(notes.len(), 2, "{:?}", l.notes);
+        // abap_compdescr_tab is asked as a table type too, its type group failed
+        assert!(notes[0].starts_with("table types: 2 lookups failed, their types stay names"));
+        assert!(notes[0].contains("(first: TTYP:STRING_TABLE: HTTP 500"));
+        assert!(notes[1].starts_with(
+            "type groups: 1 lookups failed, their types stay names (first: TYPE:ABAP: HTTP 500"
+        ));
     }
 }
