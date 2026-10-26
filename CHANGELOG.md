@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Repository renamed** to [albertlast/abapParser](https://github.com/albertlast/abapParser), from `abapPaser`; GitHub forwards the old address. The package links point to the new name.
 - **Faster logic:** the inputs of an effect were traced from each statement writing it anew; the statements now share what was already traced. Logic over the corpus takes 30% less time than in 0.5.0, the logic of whole objects 21% less; the results are the same.
 - **Benchmark:** `cargo run --release -p abap-analysis --example bench` times each stage over the corpus, `node tools/bench.mjs v0.5.0 .` compares versions; the README has the times since 0.3.0.
 

@@ -12,10 +12,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/albertlast/abapPaser.git",
+    "url": "git+https://github.com/albertlast/abapParser.git",
     "directory": "bindings/node"
   },
-  "homepage": "https://github.com/albertlast/abapPaser#readme",
+  "homepage": "https://github.com/albertlast/abapParser#readme",
   "main": "index.js",
   "types": "index.d.ts",
   "files": [
