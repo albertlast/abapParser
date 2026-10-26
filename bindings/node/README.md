@@ -49,4 +49,4 @@ const view = abap.cds(fs.readFileSync("zi_orders.ddls.asddls", "utf8"));
 const own = await abap.callGraphAsync(["CLAS:ZCL_ORDERS"], {fetch: async (ref) => client.source(ref)}, 2);
 ```
 
-Every function has an `…Async` variant returning a promise; it runs on the libuv thread pool. The result types are in `types.d.ts`. `text` and `objectText` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.
+Every function has an `…Async` variant returning a promise; it runs on the libuv thread pool. The result types are in `types.d.ts`. `text` and `objectText` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapParser) for what each result contains.

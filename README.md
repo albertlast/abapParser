@@ -1,4 +1,4 @@
-# abapPaser
+# abapParser
 
 An ABAP parser and analysis library written in Rust, with bindings for Node.js and Python, a command line tool and an MCP server for language models.
 The goal is to answer structured questions about ABAP code, so tools don't have to half-parse it ad hoc, and language models get facts instead of guessing from raw code:
@@ -16,7 +16,7 @@ npm install abap-parser     # Node.js 24+, prebuilt for Windows x64, macOS, Linu
 pip install abap-parser           # Python 3.9+, wheels for the same platforms
 ```
 
-The command line tool `abap` is attached to each [GitHub release](https://github.com/albertlast/abapPaser/releases). See [Usage](#usage).
+The command line tool `abap` is attached to each [GitHub release](https://github.com/albertlast/abapParser/releases). See [Usage](#usage).
 
 ## Status
 
@@ -651,8 +651,8 @@ Started by hand from the Actions tab, the workflow builds and tests everything a
 
 npm and PyPI trust the workflow through OIDC, no tokens are stored. Set up once:
 
-- PyPI: a pending trusted publisher for the project `abap-parser`, repository `albertlast/abapPaser`, workflow `release.yml`, environment `pypi`; and the environment `pypi` in the repository settings.
-- npm: a trusted publisher for each of the six packages, repository `albertlast/abapPaser`, workflow `release.yml`. npm sets this up only for packages that exist, so before the first release publish placeholders by hand:
+- PyPI: a pending trusted publisher for the project `abap-parser`, repository `albertlast/abapParser`, workflow `release.yml`, environment `pypi`; and the environment `pypi` in the repository settings.
+- npm: a trusted publisher for each of the six packages, repository `albertlast/abapParser`, workflow `release.yml`. npm sets this up only for packages that exist, so before the first release publish placeholders by hand:
 
   ```sh
   node bindings/node/npm/placeholders.mjs npm-placeholders

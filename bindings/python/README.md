@@ -38,4 +38,4 @@ view = abap_parser.cds(open("zi_orders.ddls.asddls", encoding="utf-8").read())
 own = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], {"fetch": lambda ref: cache.get(ref)}, depth=2)
 ```
 
-Every function has an `..._async` variant for asyncio; the native code releases the GIL. The results are dictionaries typed by the TypedDicts in `abap_parser.types`. `text` and `object_text` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapPaser) for what each result contains.
+Every function has an `..._async` variant for asyncio; the native code releases the GIL. The results are dictionaries typed by the TypedDicts in `abap_parser.types`. `text` and `object_text` give a compact form instead: definitions written like ABAP, one line per call or database access, per procedure its effects with statements and conditions. See the [repository](https://github.com/albertlast/abapParser) for what each result contains.

@@ -21,8 +21,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/albertlast/abapPaser"
-Repository = "https://github.com/albertlast/abapPaser"
+Homepage = "https://github.com/albertlast/abapParser"
+Repository = "https://github.com/albertlast/abapParser"
 
 [tool.maturin]
 module-name = "abap_parser._native"

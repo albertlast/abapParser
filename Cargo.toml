@@ -25,7 +25,7 @@ default-members = [
 version = "0.5.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/albertlast/abapPaser"
+repository = "https://github.com/albertlast/abapParser"
 rust-version = "1.88"
 
 [workspace.dependencies]
