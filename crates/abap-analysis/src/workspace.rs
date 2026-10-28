@@ -474,12 +474,15 @@ impl Workspace {
     }
 
     /// Objects not loaded because of `follow`, the limit or cancelling.
-    pub fn skipped(&self) -> Vec<String> {
+    pub fn skipped(&self) -> Vec<m::Skipped> {
         self.skipped
             .lock()
             .unwrap()
-            .keys()
-            .map(|r| r.to_string())
+            .iter()
+            .map(|(r, reason)| m::Skipped {
+                object: r.to_string(),
+                reason: *reason,
+            })
             .collect()
     }
 
@@ -533,12 +536,21 @@ impl Workspace {
     pub fn notes(&self) -> Vec<String> {
         let mut notes = self.provider.notes();
         let skipped = self.skipped.lock().unwrap();
-        if let (Some(limit), true) = (
-            self.follow.limit,
-            skipped.values().any(|w| *w == m::Unresolved::Limit),
-        ) {
+        let beyond = skipped
+            .values()
+            .filter(|w| **w == m::Unresolved::Limit)
+            .count();
+        if let (Some(limit), true) = (self.follow.limit, beyond > 0) {
+            // objects looked for count, also those no provider has
+            let found = self
+                .objects
+                .lock()
+                .unwrap()
+                .values()
+                .filter(|s| s.get().is_some_and(Option::is_some))
+                .count();
             notes.push(format!(
-                "limit: {limit} objects loaded, more were not loaded"
+                "limit: {limit} objects looked for ({found} found), {beyond} more were not loaded"
             ));
         }
         if skipped.values().any(|w| *w == m::Unresolved::Cancelled) {
@@ -1982,7 +1994,11 @@ START-OF-SELECTION.
         let ws = Workspace::new(Box::new(report())).with_follow(follow.clone());
         let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
         assert!(reasons(&g).contains(&"BAPI_USER_GET_DETAIL Some(NotFollowed)".to_string()));
-        assert_eq!(g.skipped, ["FUNC:BAPI_USER_GET_DETAIL"]);
+        let not_followed = [m::Skipped {
+            object: "FUNC:BAPI_USER_GET_DETAIL".into(),
+            reason: m::Unresolved::NotFollowed,
+        }];
+        assert_eq!(g.skipped, not_followed);
         // not followed is not missing
         assert_eq!(g.missing, ["FUNC:Z_GONE"]);
         // the root is loaded even when the patterns leave it out
@@ -2005,7 +2021,15 @@ START-OF-SELECTION.
             .map(|c| c.name.as_str())
             .collect();
         assert_eq!(limited.len(), 3, "{limited:?}");
-        assert!(g.notes.iter().any(|n| n.starts_with("limit: 2 objects")));
+        let beyond = g.skipped.len();
+        assert!(
+            g.notes.iter().any(|n| n
+                == &format!(
+                    "limit: 2 objects looked for (2 found), {beyond} more were not loaded"
+                )),
+            "{:?}",
+            g.notes
+        );
         // logic too: the effects of the objects followed only
         let ws = Workspace::new(Box::new(report())).with_follow(follow);
         let l = ws.logic(&SourceRef::program("ZMAIN"), 1);
@@ -2015,7 +2039,7 @@ START-OF-SELECTION.
             .map(|e| e.name.as_str())
             .collect();
         assert_eq!(effects, ["ZONE", "ZTWO"]);
-        assert_eq!(l.skipped, ["FUNC:BAPI_USER_GET_DETAIL"]);
+        assert_eq!(l.skipped, not_followed);
         assert_eq!(l.missing, ["FUNC:Z_GONE"]);
     }
 

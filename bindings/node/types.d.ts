@@ -78,7 +78,7 @@ export interface CallGraph {
   roots: string[];
   schema_version: number;
   /** referenced objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling */
-  skipped?: string[];
+  skipped?: Skipped[];
   units: GraphUnit[];
 }
 
@@ -183,6 +183,8 @@ export interface ClassImplementation {
 /** A logical expression. */
 export interface Condition {
   children?: Condition[];
+  /** the value of a condition that reads no data, like `1 = 0` or `abap_true = abap_false`, and of AND, OR and NOT whose value such parts decide */
+  constant?: boolean;
   /** upper bound of BETWEEN */
   high?: Operand;
   kind: ConditionKind;
@@ -477,7 +479,7 @@ export interface FileLogic {
   procedures: Procedure[];
   schema_version: number;
   /** called objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling */
-  skipped?: string[];
+  skipped?: Skipped[];
 }
 
 /** Symbols defined in one ABAP source file. */
@@ -521,6 +523,8 @@ export interface GraphUnit {
 
 /** A condition that holds when a step runs. */
 export interface Guard {
+  /** the condition reads no data (its `constant`): true when the guard always holds, false when it never does, as in `IF 1 = 0`, so the step never runs */
+  constant?: boolean;
   /** the condition is false, e.g. in ELSE or after `IF x. RETURN. ENDIF.` */
   negated: boolean;
   /** the step with the condition, e.g. an IF, WHEN or CHECK */
@@ -684,6 +688,14 @@ export interface Routine {
   parameters: Parameter[];
   raising: string[];
   span: Span;
+}
+
+/** An object not loaded on purpose. */
+export interface Skipped {
+  /** like `FUNC:BAPI_USER_GET_DETAIL` */
+  object: string;
+  /** `not_followed`, `limit` or `cancelled` */
+  reason: Unresolved;
 }
 
 /** Source range from the first character of the first token to the end of the last token. */

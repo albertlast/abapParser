@@ -99,7 +99,7 @@ class CallGraph(_CallGraphRequired, total=False):
     """Calls across objects, loaded through the source providers."""
     notes: List[str]
     """lookups the system could not do, like `enhancements: not available (...)`; the graph is complete apart from them"""
-    skipped: List[str]
+    skipped: List[Skipped]
     """referenced objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling"""
 
 
@@ -223,6 +223,8 @@ class _ConditionRequired(TypedDict):
 class Condition(_ConditionRequired, total=False):
     """A logical expression."""
     children: List[Condition]
+    constant: bool
+    """the value of a condition that reads no data, like `1 = 0` or `abap_true = abap_false`, and of AND, OR and NOT whose value such parts decide"""
     high: Operand
     """upper bound of BETWEEN"""
     left: Operand
@@ -533,7 +535,7 @@ class FileLogic(_FileLogicRequired, total=False):
     """lookups the system could not do, like `enhancements: not available (...)`; the result is complete apart from them"""
     object: str
     """the object, like `PROG:ZREPORT`; for objects loaded through a workspace"""
-    skipped: List[str]
+    skipped: List[Skipped]
     """called objects not loaded: not matching the follow patterns, beyond the maximum number of objects, or after cancelling"""
 
 
@@ -590,6 +592,8 @@ class _GuardRequired(TypedDict):
 
 class Guard(_GuardRequired, total=False):
     """A condition that holds when a step runs."""
+    constant: bool
+    """the condition reads no data (its `constant`): true when the guard always holds, false when it never does, as in `IF 1 = 0`, so the step never runs"""
     subrc: List[int]
     """the condition checks `sy-subrc`: the statements that may have set the value it checks, like the READ TABLE before `IF sy-subrc = 0`"""
 
@@ -760,6 +764,14 @@ class Routine(TypedDict):
     parameters: List[Parameter]
     raising: List[str]
     span: Span
+
+
+class Skipped(TypedDict):
+    """An object not loaded on purpose."""
+    object: str
+    """like `FUNC:BAPI_USER_GET_DETAIL`"""
+    reason: Unresolved
+    """`not_followed`, `limit` or `cancelled`"""
 
 
 class Span(TypedDict):

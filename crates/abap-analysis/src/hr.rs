@@ -28,11 +28,15 @@ pub(crate) enum Reader {
 /// personnel administration and time management (0000 to 0999, 2000 to
 /// 2999) in `PAnnnn`, or `PBnnnn` for applicants. Others, like customer
 /// infotypes 9000 to 9999, can be of either kind: the reader decides.
+/// Time events, infotype 2011, are in `TEVEN`.
 pub(crate) fn table(number: &str, reader: Reader) -> Option<String> {
     if number.len() != 4 || !number.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
     let n: u16 = number.parse().ok()?;
+    if n == 2011 && reader == Reader::Personnel {
+        return Some("TEVEN".to_string());
+    }
     let prefix = match (n, reader) {
         (1000..=1999 | 5000..=5999, _) => "HRP",
         (4000..=4999, _) => "PB",
@@ -113,7 +117,7 @@ pub(crate) fn filled<'a>(node: &str, declared: &'a [Infotype]) -> Vec<(&'a Infot
         .iter()
         .filter(|i| !i.mode_n)
         .filter_map(|i| table(&i.number, reader).map(|t| (i, t)))
-        .filter(|(_, t)| t.starts_with(prefix))
+        .filter(|(_, t)| t.starts_with(prefix) || (reader == Reader::Personnel && t == "TEVEN"))
         .collect()
 }
 
@@ -284,6 +288,8 @@ mod tests {
         assert_eq!(t("2001", Reader::Personnel), "PA2001");
         assert_eq!(t("0002", Reader::Applicant), "PB0002");
         assert_eq!(t("4000", Reader::Personnel), "PB4000");
+        assert_eq!(t("2011", Reader::Personnel), "TEVEN");
+        assert_eq!(t("2010", Reader::Personnel), "PA2010");
         // personnel planning, whoever reads it
         assert_eq!(t("1001", Reader::Personnel), "HRP1001");
         assert_eq!(t("5007", Reader::Personnel), "HRP5007");

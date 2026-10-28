@@ -24,7 +24,7 @@ ENDCLASS.`;
 
 test("symbols of a class", () => {
   const s = abap.symbols(SOURCE);
-  assert.equal(s.schema_version, 2);
+  assert.equal(s.schema_version, 3);
   const c = s.classes[0];
   assert.equal(c.name, "zcl_demo");
   assert.equal(c.is_global, true);
@@ -245,8 +245,8 @@ test("follow patterns, progress, cancelling and why calls are unresolved", async
   );
   const why = Object.fromEntries(graph.calls.map((c) => [c.name, c.unresolved ?? null]));
   assert.deepEqual(why, {Z_ONE: null, BAPI_X: "not_followed", Z_GONE: "missing"});
-  assert.deepEqual(graph.skipped, ["FUNC:BAPI_X"]);
-  assert.equal(graph.schema_version, 2);
+  assert.deepEqual(graph.skipped, [{object: "FUNC:BAPI_X", reason: "not_followed"}]);
+  assert.equal(graph.schema_version, 3);
   // progress calls arrive before the promise settles
   assert.ok(seen.includes("PROG:ZMAIN") && seen.includes("FUNC:Z_ONE"), seen.join());
   // an aborted signal loads nothing beyond the root

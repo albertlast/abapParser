@@ -1014,6 +1014,10 @@ mod tests {
                 "ztab.tabl.xml",
                 "<DD02V><TABNAME>ZTAB</TABNAME><TABCLASS>TRANSP</TABCLASS></DD02V>",
             ),
+            (
+                "ztt_st.ttyp.xml",
+                "<DD40V><TYPENAME>ZTT_ST</TYPENAME><ROWTYPE>ZST</ROWTYPE><ROWKIND>S</ROWKIND>                 <DATATYPE>STRU</DATATYPE></DD40V>",
+            ),
         ];
         for (name, text) in files {
             std::fs::write(dir.join(name), text).unwrap();
@@ -1052,10 +1056,17 @@ mod tests {
         assert!(dtel.contains("<dtel:typeKind>refToClifType</dtel:typeKind><dtel:typeName>ZIF_A<"));
         assert!(text("TABL:ZST").unwrap().contains("ZID_REF"));
         assert_eq!(text("TABL:ZTAB"), None);
+        // no ddic/tabletypes: the table type from DD40L
+        assert_eq!(
+            text("TTYP:ZTT_ST").unwrap(),
+            "<DD40V><TYPENAME>ZTT_ST</TYPENAME><ROWTYPE>ZST</ROWTYPE><ROWKIND>S</ROWKIND><DATATYPE>STRU</DATATYPE></DD40V>"
+        );
+        assert_eq!(text("TTYP:ZTT_GONE"), None);
 
         let requests = server.requests();
         assert!(!requests.iter().any(|r| r.contains("usageReferences")));
         assert!(!requests.iter().any(|r| r.contains("enhoxhh")));
+        assert!(!requests.iter().any(|r| r.contains("tabletypes")));
         assert!(requests.iter().any(|r| r.contains("datapreview/freestyle")));
         drop(server);
         let _ = std::fs::remove_dir_all(dir);

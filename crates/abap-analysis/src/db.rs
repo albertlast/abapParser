@@ -109,12 +109,45 @@ pub(crate) fn literal_constants(symbols: &m::FileSymbols) -> HashMap<String, Str
 
 /// `FROM (c_tabname)` with `CONSTANTS c_tabname ... VALUE 'ZTAB'`: fills
 /// `resolved`, and the table of unqualified columns when it is the only table.
+/// A constant with a whole FROM clause, like `'mara AS m JOIN marc AS c ON
+/// ...'`, gives the first table; the joined ones are added, each with the
+/// same operand.
 fn resolve_dynamic(a: &mut m::DbAccess, constants: &HashMap<String, String>) {
+    let mut joined = Vec::new();
     for t in a.tables.iter_mut().filter(|t| t.dynamic) {
         // me->c_tab, zcl_x=>c_tab
         let name = t.name.rsplit(['>', '~']).next().unwrap_or(&t.name);
         t.resolved = constants.get(&name.to_ascii_lowercase()).cloned();
+        let Some(value) = t
+            .resolved
+            .clone()
+            .filter(|v| v.contains(char::is_whitespace))
+        else {
+            continue;
+        };
+        let mut tables = from_clause(&value).into_iter();
+        let Some(first) = tables.next() else {
+            t.resolved = None;
+            continue;
+        };
+        t.resolved = Some(first.name);
+        t.alias = t.alias.take().or(first.alias);
+        for other in tables {
+            joined.push(m::DbTable {
+                name: t.name.clone(),
+                alias: other.alias,
+                path: None,
+                dynamic: true,
+                resolved: Some(other.name),
+                role: if t.role == m::DbTableRole::Main {
+                    other.role
+                } else {
+                    t.role
+                },
+            });
+        }
     }
+    a.tables.extend(joined);
     let main: Vec<_> = a
         .tables
         .iter()
@@ -138,6 +171,20 @@ fn resolve_dynamic(a: &mut m::DbAccess, constants: &HashMap<String, String>) {
             c.table = Some(only.clone());
         }
     }
+}
+
+/// The database tables of a FROM clause given as text.
+fn from_clause(text: &str) -> Vec<m::DbTable> {
+    let file = abap_syntax::parse(&format!("SELECT * FROM {text} INTO TABLE @DATA(x)."));
+    let Some(s) = file.statements.first().filter(|s| s.kind == K::Select) else {
+        return Vec::new();
+    };
+    abap_sql::parse_statement(&file, s)
+        .map(|a| a.tables)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| !t.dynamic && matches!(t.role, m::DbTableRole::Main | m::DbTableRole::Join))
+        .collect()
 }
 
 /// Byte range of the native SQL between the statement `i` opening the
@@ -281,6 +328,32 @@ ENDCLASS.";
         assert_eq!(
             acc[0].conditions[0].columns[0].table.as_deref(),
             Some("ZLOG")
+        );
+    }
+
+    #[test]
+    fn dynamic_from_clause_with_a_join() {
+        let src = "CONSTANTS c_from TYPE string VALUE 'mara AS m INNER JOIN marc AS c ON c~matnr = m~matnr'.
+SELECT * FROM (c_from) INTO TABLE lt.";
+        let acc = db_access(src);
+        let tables: Vec<_> = acc[0]
+            .tables
+            .iter()
+            .map(|t| {
+                (
+                    t.name.as_str(),
+                    t.resolved.as_deref(),
+                    t.alias.as_deref(),
+                    t.role,
+                )
+            })
+            .collect();
+        assert_eq!(
+            tables,
+            [
+                ("c_from", Some("mara"), Some("m"), m::DbTableRole::Main),
+                ("c_from", Some("marc"), Some("c"), m::DbTableRole::Join),
+            ]
         );
     }
 }

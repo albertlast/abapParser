@@ -62,13 +62,19 @@ class AdtOptions(_AdtRequired, total=False):
 
 class FollowOptions(TypedDict, total=False):
     """Which objects calls are followed into; the objects given are always
-    loaded. Those not loaded are listed in ``skipped``, calls into them are
-    unresolved with the reason ``not_followed`` or ``limit``.
+    loaded. Those not loaded are listed in ``skipped`` with the reason, calls
+    into them are unresolved with the reason ``not_followed`` or ``limit``.
+    The patterns match object names, not kinds, and apply to the objects of
+    calls and types (programs, classes, interfaces, function modules, type
+    groups), not to dictionary lookups (``TABL:``, ``DTEL:``, ``DOMA:``,
+    ``TTYP:``).
 
     ``include``: name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace,
     all when empty; ``exclude``: name patterns not to load, also when
-    ``include`` matches; ``limit``: at most this many objects are loaded or
-    looked for."""
+    ``include`` matches; ``limit``: at most this many objects are looked for,
+    after the patterns, those no source has included (like a structure name
+    tried as a class), level by level from the roots; the note ``limit: ...``
+    says how many were found and how many more were not loaded."""
 
     include: List[str]
     exclude: List[str]
@@ -85,11 +91,26 @@ class SourceOptions(TypedDict, total=False):
     """Where sources come from: local folders first, then the fetch function,
     then an SAP system.
 
+    ``src`` are folders with files named as abapGit names them
+    (``zcl_x.clas.abap``, ``zgrp.fugr.z_fm.abap``, ``name.ttyp.xml`` ...); a
+    plain ``name.abap`` is taken as the program or include ``name``.
+
     ``fetch`` gives sources of the host, e.g. from its own ADT client or cache:
-    called with objects like "CLAS:ZCL_X", "CLAS:ZCL_X/implementations",
-    "PROG:ZREPORT_TOP" or "FUNC:Z_FM", it returns the source, or None when it
-    has none. Exceptions it raises are listed in ``errors``. It is called from
-    worker threads, also several at once.
+    called with a reference ``KIND:NAME``, it returns the text, or None when
+    it has none. Exceptions it raises are listed in ``errors``. It is called
+    from worker threads, also several at once. By kind: ``PROG``, ``INTF``,
+    ``CLAS`` (and ``CLAS:ZCL_X/definitions``, ``/implementations``,
+    ``/macros``, ``/testclasses``), ``FUGR``, ``FUNC``, ``TYPE`` and ``DDLS``
+    the source as ADT's ``source/main`` gives it; ``TABL`` the DDL source of
+    ADT or abapGit's ``.tabl.xml``; ``DTEL`` the data element XML of ADT or
+    abapGit's ``<DD04V>``; ``DOMA`` abapGit's ``<DD01V>``; ``TTYP`` the table
+    type XML of ADT or abapGit's ``<DD40V>`` with ``ROWTYPE`` and ``ROWKIND``
+    (``S``, ``E``, ``L``, ``R``) or ``DATATYPE``, ``LENG`` and ``DECIMALS``,
+    like ``<DD40V><ROWTYPE>LVC_S_FCAT</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>``,
+    empty values left out. The dictionary kinds are asked while typing,
+    whatever ``follow`` says. BAdI implementations, classic BAdIs,
+    enhancements and where-used lists come only from ``adt``. ``cache`` holds
+    what ``adt`` fetched, not what ``fetch`` returns.
 
     ``follow`` limits which objects calls are followed into, see
     ``FollowOptions``. ``progress`` is called with ``{"loaded": n, "object":
