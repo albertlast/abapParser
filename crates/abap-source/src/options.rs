@@ -28,6 +28,18 @@ pub struct AdtOptions {
     pub language: Option<String>,
     /// skip TLS certificate checks, only for test systems
     pub insecure: bool,
+    /// a proxy URL like `http://proxy:8080`, or `false` for none; absent or
+    /// `true`: the proxy of `HTTPS_PROXY` and the like, without the hosts of
+    /// `NO_PROXY`
+    pub proxy: Option<ProxyOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+pub enum ProxyOption {
+    Url(String),
+    /// `false`: no proxy; `true`: the one of the environment
+    Use(bool),
 }
 
 impl ProviderOptions {
@@ -71,7 +83,12 @@ fn adt_provider(o: &AdtOptions, cache: Option<&str>) -> Result<Box<dyn SourcePro
     config.client = o.client.clone();
     config.language = o.language.clone();
     config.insecure = o.insecure;
-    let adt = crate::AdtProvider::new(config);
+    config.proxy = match &o.proxy {
+        None | Some(ProxyOption::Use(true)) => crate::AdtProxy::Environment,
+        Some(ProxyOption::Use(false)) => crate::AdtProxy::Off,
+        Some(ProxyOption::Url(url)) => crate::AdtProxy::Url(url.clone()),
+    };
+    let adt = crate::AdtProvider::try_new(config)?;
     Ok(match cache {
         Some(dir) => {
             // one cache folder per system and client

@@ -10,7 +10,7 @@ system does not block the event loop and several calls run in parallel.
 
 import asyncio
 import json
-from typing import Any, Callable, List, Optional, Tuple, TypedDict
+from typing import Any, Callable, List, Optional, Tuple, TypedDict, Union
 
 from . import _native
 from .types import CdsDefinition, Call, CallGraph, DbAccess, FileLogic, FileSymbols, StatementInfo
@@ -53,11 +53,18 @@ class _AdtRequired(TypedDict):
 
 
 class AdtOptions(_AdtRequired, total=False):
-    """An SAP system reached through the ADT REST API."""
+    """An SAP system reached through the ADT REST API.
+
+    ``proxy``: a proxy URL like "http://proxy:8080" for every host, or False
+    to connect directly; absent or True: the proxy of ``ALL_PROXY``,
+    ``HTTPS_PROXY`` or ``HTTP_PROXY``, except for the hosts in ``NO_PROXY``.
+    Errors without an answer name the proxy they went through, without its
+    credentials."""
 
     client: str
     language: str
     insecure: bool
+    proxy: Union[str, bool]
 
 
 class FollowOptions(TypedDict, total=False):

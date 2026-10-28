@@ -24,6 +24,72 @@ pub struct AdtConfig {
     /// skip TLS certificate checks; only for test systems with self-signed certificates
     pub insecure: bool,
     pub timeout: Duration,
+    pub proxy: AdtProxy,
+}
+
+/// How requests reach the SAP system.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AdtProxy {
+    /// through the proxy of `ALL_PROXY`, `HTTPS_PROXY` or `HTTP_PROXY`
+    /// (also lower case, the first set), except for hosts in `NO_PROXY`;
+    /// directly when none is set
+    #[default]
+    Environment,
+    /// directly, whatever the environment says
+    Off,
+    /// through this proxy, like `http://proxy:8080`, for every host
+    Url(String),
+}
+
+/// The variables a proxy is taken from, in the order ureq reads them.
+const PROXY_VARIABLES: [&str; 6] = [
+    "ALL_PROXY",
+    "all_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+];
+
+/// The proxy of `config`, and how errors name it: its address without
+/// user and password, and where it comes from. An explicit proxy that
+/// cannot be read is an error.
+fn proxy_of(config: &AdtConfig) -> std::result::Result<(Option<ureq::Proxy>, String), String> {
+    let name = |p: &ureq::Proxy| {
+        let scheme = p.uri().scheme_str().unwrap_or("http");
+        format!("{scheme}://{}:{}", p.host(), p.port())
+    };
+    match &config.proxy {
+        AdtProxy::Off => Ok((None, String::new())),
+        AdtProxy::Url(url) => {
+            let p = ureq::Proxy::new(url)
+                .map_err(|e| format!("the proxy given cannot be used: {e}"))?;
+            let via = format!(" (through the proxy {})", name(&p));
+            Ok((Some(p), via))
+        }
+        AdtProxy::Environment => {
+            let Some(p) = ureq::Proxy::try_from_env() else {
+                return Ok((None, String::new()));
+            };
+            let direct = config
+                .url
+                .parse::<ureq::http::Uri>()
+                .is_ok_and(|target| p.is_no_proxy(&target));
+            if direct {
+                return Ok((Some(p), String::new()));
+            }
+            let variable = PROXY_VARIABLES
+                .iter()
+                .find(|v| std::env::var(v).is_ok_and(|value| ureq::Proxy::new(&value).is_ok()))
+                .copied()
+                .unwrap_or("the environment");
+            let via = format!(
+                " (through the proxy {} from {variable}; NO_PROXY, --no-proxy or proxy: false bypass it)",
+                name(&p)
+            );
+            Ok((Some(p), via))
+        }
+    }
 }
 
 impl AdtConfig {
@@ -36,6 +102,7 @@ impl AdtConfig {
             language: None,
             insecure: false,
             timeout: Duration::from_secs(60),
+            proxy: AdtProxy::Environment,
         }
     }
 }
@@ -44,6 +111,10 @@ pub struct AdtProvider {
     config: AdtConfig,
     agent: ureq::Agent,
     authorization: String,
+    /// how network errors name the proxy, like ` (through the proxy ...)`
+    via: String,
+    /// an explicit proxy that cannot be used: every request fails with it
+    proxy_error: Option<String>,
     /// function module -> function group, from repository searches
     groups: Mutex<HashMap<String, Option<String>>>,
     /// CSRF token with the session cookies it belongs to, for POST requests
@@ -319,8 +390,13 @@ impl AdtProvider {
             .root_certs(RootCerts::PlatformVerifier)
             .disable_verification(config.insecure)
             .build();
+        let (proxy, via, proxy_error) = match proxy_of(&config) {
+            Ok((proxy, via)) => (proxy, via, None),
+            Err(e) => (None, String::new(), Some(e)),
+        };
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .tls_config(tls)
+            .proxy(proxy)
             .http_status_as_error(false)
             .timeout_global(Some(config.timeout))
             .build()
@@ -331,6 +407,8 @@ impl AdtProvider {
             config,
             agent,
             authorization: format!("Basic {credentials}"),
+            via,
+            proxy_error,
             groups: Mutex::new(HashMap::new()),
             session: Mutex::new(None),
             usages: Mutex::new(HashMap::new()),
@@ -342,6 +420,29 @@ impl AdtProvider {
             notes: Mutex::new(Vec::new()),
             release: Mutex::new(None),
             log: std::env::var("ABAP_ADT_LOG").is_ok_and(|v| !v.is_empty() && v != "0"),
+        }
+    }
+
+    /// Like [`new`](Self::new), but an explicit proxy that cannot be used
+    /// is an error here, not on each request.
+    pub fn try_new(config: AdtConfig) -> Result<Self> {
+        let adt = Self::new(config);
+        match &adt.proxy_error {
+            Some(e) => Err(SourceError::Other(e.clone())),
+            None => Ok(adt),
+        }
+    }
+
+    /// A request that got no answer, naming the proxy it went through.
+    fn network(&self, url: &str, e: impl std::fmt::Display) -> SourceError {
+        SourceError::Network(format!("{url}: {e}{}", self.via))
+    }
+
+    /// The error of a proxy that cannot be used, before any request.
+    fn usable(&self) -> Result<()> {
+        match &self.proxy_error {
+            Some(e) => Err(SourceError::Other(e.clone())),
+            None => Ok(()),
         }
     }
 
@@ -444,6 +545,7 @@ impl AdtProvider {
 
     /// GET returning the body, `None` on 404.
     fn get(&self, path: &str, accept: &str) -> Result<Option<String>> {
+        self.usable()?;
         let url = self.url(path);
         let started = Instant::now();
         let mut response = self
@@ -452,7 +554,7 @@ impl AdtProvider {
             .header("Authorization", &self.authorization)
             .header("Accept", accept)
             .call()
-            .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
+            .map_err(|e| self.network(&url, e))?;
         let status = response.status().as_u16();
         self.log_request("GET", path, status, started, None);
         match status {
@@ -460,7 +562,7 @@ impl AdtProvider {
                 .body_mut()
                 .read_to_string()
                 .map(Some)
-                .map_err(|e| SourceError::Network(format!("{url}: {e}"))),
+                .map_err(|e| self.network(&url, e)),
             404 => Ok(None),
             401 | 403 => Err(SourceError::Auth { url }),
             _ => Err(SourceError::Http { status, url }),
@@ -469,6 +571,7 @@ impl AdtProvider {
 
     /// A CSRF token and the cookies of its session.
     fn fetch_session(&self) -> Result<(String, String)> {
+        self.usable()?;
         let url = self.url("/sap/bc/adt/discovery");
         let started = Instant::now();
         let mut response = self
@@ -478,7 +581,7 @@ impl AdtProvider {
             .header("X-CSRF-Token", "Fetch")
             .header("Accept", "application/atomsvc+xml")
             .call()
-            .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
+            .map_err(|e| self.network(&url, e))?;
         let status = response.status().as_u16();
         self.log_request("GET", "/sap/bc/adt/discovery", status, started, None);
         match status {
@@ -563,9 +666,7 @@ impl AdtProvider {
             if !cookies.is_empty() {
                 request = request.header("Cookie", &cookies);
             }
-            let mut response = request
-                .send(body)
-                .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
+            let mut response = request.send(body).map_err(|e| self.network(&url, e))?;
             let status = response.status().as_u16();
             self.log_request("POST", path, status, started, sql);
             let renew = response
@@ -579,7 +680,7 @@ impl AdtProvider {
             let text = response
                 .body_mut()
                 .read_to_string()
-                .map_err(|e| SourceError::Network(format!("{url}: {e}")))?;
+                .map_err(|e| self.network(&url, e))?;
             return Ok((status, text));
         }
         Err(SourceError::Auth { url })
@@ -1279,6 +1380,101 @@ mod tests {
 
     /// Serves canned responses by path; returns the base URL and the
     /// receiver of the request lines seen.
+    /// A proxy that refuses every CONNECT with 407, and tells the requests
+    /// it got.
+    fn proxy_server() -> (String, std::sync::mpsc::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut request = String::new();
+                reader.read_line(&mut request).unwrap();
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if line == "\r\n" || line.is_empty() {
+                        break;
+                    }
+                }
+                let _ = tx.send(request.trim().to_string());
+                let _ = stream.write_all(
+                    b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n",
+                );
+            }
+        });
+        (url, rx)
+    }
+
+    #[test]
+    fn requests_go_through_the_proxy_given() {
+        let (proxy, asked) = proxy_server();
+        let mut config = AdtConfig::new("http://sap.example.com:50000", "user", "secret");
+        config.proxy = AdtProxy::Url(proxy.clone());
+        let adt = AdtProvider::try_new(config).unwrap();
+        let e = adt.fetch(&SourceRef::program("ZREP")).unwrap_err();
+        assert_eq!(
+            asked.try_recv().unwrap(),
+            "CONNECT sap.example.com:50000 HTTP/1.1"
+        );
+        let text = e.to_string();
+        assert!(text.contains("proxy server responded 407"), "{text}");
+        assert!(
+            text.ends_with(&format!(" (through the proxy {proxy})")),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_proxy_down_is_named_in_the_error() {
+        // a port nothing listens on
+        let port = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let mut config = AdtConfig::new("http://sap.example.com:50000", "user", "secret");
+        config.proxy = AdtProxy::Url(format!("http://proxyuser:proxysecret@127.0.0.1:{port}"));
+        config.timeout = Duration::from_secs(5);
+        let adt = AdtProvider::new(config);
+        let e = adt.fetch(&SourceRef::program("ZREP")).unwrap_err();
+        assert!(matches!(e, SourceError::Network(_)), "{e}");
+        assert!(e.retryable());
+        let text = e.to_string();
+        assert!(
+            text.ends_with(&format!(" (through the proxy http://127.0.0.1:{port})")),
+            "{text}"
+        );
+        assert!(!text.contains("proxysecret"), "{text}");
+
+        // no proxy: the error names none
+        let mut config = AdtConfig::new(&format!("http://127.0.0.1:{port}"), "user", "secret");
+        config.proxy = AdtProxy::Off;
+        config.timeout = Duration::from_secs(5);
+        let e = AdtProvider::new(config)
+            .fetch(&SourceRef::program("ZREP"))
+            .unwrap_err();
+        assert!(!e.to_string().contains("proxy"), "{e}");
+    }
+
+    #[test]
+    fn a_proxy_that_cannot_be_read() {
+        let mut config = AdtConfig::new("http://sap.example.com", "user", "secret");
+        config.proxy = AdtProxy::Url("ftp://proxy:21".into());
+        let e = AdtProvider::try_new(config.clone()).err().unwrap();
+        assert!(
+            e.to_string().starts_with("the proxy given cannot be used"),
+            "{e}"
+        );
+        // without try_new each request fails with it, nothing is sent
+        let e = AdtProvider::new(config)
+            .fetch(&SourceRef::program("ZREP"))
+            .unwrap_err();
+        assert!(matches!(e, SourceError::Other(_)), "{e}");
+    }
+
     fn serve(
         routes: Vec<(&'static str, u16, &'static str)>,
     ) -> (String, std::sync::mpsc::Receiver<String>) {

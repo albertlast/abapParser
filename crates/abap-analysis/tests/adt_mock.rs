@@ -57,6 +57,7 @@ fn sources_missing_locally_are_loaded_over_adt() {
             client: None,
             language: None,
             insecure: false,
+            proxy: None,
         }),
     };
     let root = SourceRef::class(&ROOT.to_ascii_uppercase());
@@ -174,6 +175,7 @@ fn interface_implementations_from_the_system() {
             client: None,
             language: None,
             insecure: false,
+            proxy: None,
         }),
     };
     let ws = Workspace::new(options.build().unwrap());
@@ -236,6 +238,7 @@ fn basis_750_gives_the_graph_of_the_folder() {
             client: None,
             language: None,
             insecure: false,
+            proxy: None,
         }),
     };
     let graph = Workspace::new(options.build().unwrap()).call_graph(std::slice::from_ref(&root), 2);

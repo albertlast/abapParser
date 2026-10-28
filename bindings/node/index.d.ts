@@ -98,6 +98,13 @@ export interface SourceOptions {
     language?: string;
     /** skip TLS certificate checks, test systems only */
     insecure?: boolean;
+    /**
+     * A proxy URL like "http://proxy:8080" for every host, or false to
+     * connect directly. Absent or true: the proxy of ALL_PROXY, HTTPS_PROXY
+     * or HTTP_PROXY, except for the hosts in NO_PROXY. Errors without an
+     * answer name the proxy they went through, without its credentials.
+     */
+    proxy?: string | boolean;
   };
 }
 

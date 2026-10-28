@@ -16,12 +16,12 @@ mod mock;
 mod options;
 
 #[cfg(feature = "adt")]
-pub use adt::{AdtConfig, AdtProvider};
+pub use adt::{AdtConfig, AdtProvider, AdtProxy};
 pub use badi::Badi;
 pub use cache::CachedProvider;
 pub use fs::FsProvider;
 pub use mock::{MockAdtConfig, MockAdtServer, MockRelease};
-pub use options::{AdtOptions, ProviderOptions};
+pub use options::{AdtOptions, ProviderOptions, ProxyOption};
 
 use std::fmt;
 use std::str::FromStr;
