@@ -506,7 +506,7 @@ pub fn call_graph(graph: &m::CallGraph) -> String {
         let _ = writeln!(out, "\nmissing: {}", graph.missing.join(", "));
     }
     if !graph.skipped.is_empty() {
-        let _ = writeln!(out, "\nnot loaded: {}", graph.skipped.join(", "));
+        let _ = writeln!(out, "\nnot loaded: {}", skipped(&graph.skipped));
     }
     if !graph.notes.is_empty() {
         let _ = writeln!(out, "\nnotes: {}", graph.notes.join("; "));
@@ -531,6 +531,18 @@ fn unresolved(why: m::Unresolved) -> &'static str {
         U::Cancelled => "unresolved: cancelled",
         U::NotLoaded => "unresolved: not loaded",
     }
+}
+
+/// Objects not loaded, each with the reason, like `FUNC:X (limit)`.
+fn skipped(skipped: &[m::Skipped]) -> String {
+    skipped
+        .iter()
+        .map(|s| {
+            let reason = unresolved(s.reason).trim_start_matches("unresolved: ");
+            format!("{} ({reason})", s.object)
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn errors(errors: &[m::LoadError]) -> String {
@@ -630,7 +642,7 @@ pub fn logic(logic: &m::FileLogic) -> String {
         let _ = writeln!(out, "missing: {}", logic.missing.join(", "));
     }
     if !logic.skipped.is_empty() {
-        let _ = writeln!(out, "not loaded: {}", logic.skipped.join(", "));
+        let _ = writeln!(out, "not loaded: {}", skipped(&logic.skipped));
     }
     if !logic.notes.is_empty() {
         let _ = writeln!(out, "notes: {}", logic.notes.join("; "));

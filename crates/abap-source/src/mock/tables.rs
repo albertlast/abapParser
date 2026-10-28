@@ -1,11 +1,11 @@
 //! The system tables the ADT provider reads through the data preview, filled
-//! from the folders the mock serves, and the part of ABAP SQL it sends:
+//! from the folders the mock serves (table types from their `.ttyp.xml`), and the part of ABAP SQL it sends:
 //! `SELECT` columns `FROM` a table, at most one `INNER JOIN`, a `WHERE` of
 //! `=`, `IN` and `LIKE` conditions joined by `AND`.
 
 use std::collections::HashMap;
 
-use crate::{class_pool, FsProvider};
+use crate::{class_pool, FsProvider, ObjectKind, SourceProvider};
 
 struct Table {
     columns: &'static [&'static str],
@@ -101,6 +101,20 @@ impl Tables {
                 .push(row(&[&h.enhancement, id, "D", &h.position, &program, "A"]));
         }
 
+        let columns = ["ROWTYPE", "ROWKIND", "DATATYPE", "LENG", "DECIMALS"];
+        let mut table_types = Table::new(&[
+            "TYPENAME", "ROWTYPE", "ROWKIND", "DATATYPE", "LENG", "DECIMALS", "AS4LOCAL",
+        ]);
+        for r in provider.references().filter(|r| r.kind == ObjectKind::Ttyp) {
+            let Ok(Some(source)) = provider.fetch(r) else {
+                continue;
+            };
+            let mut values = vec![r.name.clone()];
+            values.extend(columns.iter().map(|c| tag(&source.text, c)));
+            values.push("A".to_string());
+            table_types.rows.push(values);
+        }
+
         let mut tables = HashMap::new();
         for (name, table) in [
             ("SEOMETAREL", relations),
@@ -111,6 +125,7 @@ impl Tables {
             ("SXC_CLASS", exit_classes),
             ("SXC_ATTR", exit_impls),
             ("ENHINCINX", hooks),
+            ("DD40L", table_types),
         ] {
             tables.insert(name, table);
         }
@@ -207,6 +222,16 @@ impl Tables {
         rows.truncate(max);
         Ok((names, rows))
     }
+}
+
+/// The text of an abapGit XML element, empty when it is missing.
+fn tag(xml: &str, name: &str) -> String {
+    xml.split(&format!("<{name}>"))
+        .nth(1)
+        .and_then(|v| v.split(&format!("</{name}>")).next())
+        .unwrap_or_default()
+        .trim()
+        .to_string()
 }
 
 fn row(values: &[&str]) -> Vec<String> {

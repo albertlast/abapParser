@@ -691,6 +691,43 @@ impl AdtProvider {
         }
     }
 
+    /// A table type from its dictionary table DD40L through the data
+    /// preview, as abapGit writes it (`DD40V`), for systems whose ADT has
+    /// no table types.
+    fn table_type_by_table(&self, r: &SourceRef) -> Result<Option<Source>> {
+        let name = r.name.to_ascii_uppercase();
+        if !is_name(&name) {
+            return Ok(None);
+        }
+        let query = format!(
+            "SELECT rowtype, rowkind, datatype, leng, decimals FROM dd40l              WHERE typename = '{name}' AND as4local = 'A'"
+        );
+        let rows = match self.select("table types", &query, || self.table_select("DD40L", &query)) {
+            Ok(rows) => rows.unwrap_or_default(),
+            Err(SourceError::Http { .. }) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let Some(row) = rows.first() else {
+            return Ok(None);
+        };
+        let mut text = format!("<DD40V><TYPENAME>{name}</TYPENAME>");
+        for (tag, value) in ["ROWTYPE", "ROWKIND", "DATATYPE", "LENG", "DECIMALS"]
+            .iter()
+            .zip(row)
+        {
+            // empty values stay out, like abapGit leaves them out
+            if !value.is_empty() {
+                text.push_str(&format!("<{tag}>{value}</{tag}>"));
+            }
+        }
+        text.push_str("</DD40V>");
+        Ok(Some(Source {
+            reference: r.clone(),
+            text,
+            origin: format!("{}{FREESTYLE} (DD40L {name})", self.config.url),
+        }))
+    }
+
     /// A BAdI of an enhancement spot: interface and fallback class from its
     /// definition, the classes of its active implementations.
     fn spot_badi(&self, name: &str) -> Result<Option<Badi>> {
@@ -1038,7 +1075,7 @@ impl SourceProvider for AdtProvider {
             (ObjectKind::Ttyp, _) => {
                 let capabilities = self.capabilities();
                 if !capabilities.offers(TABLE_TYPES) {
-                    return Ok(None);
+                    return self.table_type_by_table(r);
                 }
                 let path = format!("{TABLE_TYPES}/{name}");
                 let accept = capabilities
@@ -1538,6 +1575,37 @@ mod tests {
             adt.notes(),
             ["class relations: not available (the data preview rejects the query: Field FULL_NAME is a long string, SAP_BASIS 750 SP 0035)"]
         );
+    }
+
+    #[test]
+    fn table_types_from_their_dictionary_table() {
+        let discovery = "<app:collection href=\"/sap/bc/adt/datapreview/freestyle\"><atom:title>x</atom:title></app:collection>";
+        let (url, requests) = serve(vec![
+            ("/sap/bc/adt/discovery", 200, discovery),
+            (
+                "/sap/bc/adt/datapreview/freestyle",
+                200,
+                preview(&[&["ZS_ROW"], &["S"], &["STRU"], &["000000"], &[""]]),
+            ),
+        ]);
+        let adt = AdtProvider::new(AdtConfig::new(&url, "user", "secret"));
+        let s = adt
+            .fetch(&SourceRef::table_type("ztt_rows"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            s.text,
+            "<DD40V><TYPENAME>ZTT_ROWS</TYPENAME><ROWTYPE>ZS_ROW</ROWTYPE><ROWKIND>S</ROWKIND>\
+             <DATATYPE>STRU</DATATYPE><LENG>000000</LENG></DD40V>"
+        );
+        // names that are no ABAP names are not put into SQL
+        assert!(adt
+            .fetch(&SourceRef::table_type("x' OR '1"))
+            .unwrap()
+            .is_none());
+        let paths: Vec<String> = requests.try_iter().collect();
+        assert!(!paths.iter().any(|p| p.contains("tabletypes")), "{paths:?}");
+        assert_eq!(paths.iter().filter(|p| p.contains("freestyle")).count(), 1);
     }
 
     #[test]

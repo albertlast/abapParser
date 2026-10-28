@@ -13,27 +13,66 @@ export function dbAccess(source: string): DbAccess[];
  * then an SAP system through ADT.
  */
 export interface SourceOptions {
-  /** folders with abapGit or plain .abap files */
+  /**
+   * Folders with files named as abapGit names them: `zcl_x.clas.abap`,
+   * `zcl_x.clas.locals_imp.abap`, `zgrp.fugr.z_fm.abap` (a function module in
+   * its group), `#abc#name` for a namespace `/ABC/`, `name.tabl.xml`,
+   * `name.dtel.xml`, `name.ttyp.xml` and so on. A plain `name.abap` is taken
+   * as the program or include `name`, never as a function module or class.
+   */
   src?: string[];
   /**
-   * Sources of the host, e.g. from its own ADT client or cache: called with
-   * objects like "CLAS:ZCL_X", "CLAS:ZCL_X/implementations", "PROG:ZREPORT_TOP",
-   * "FUNC:Z_FM", it returns the source, or null or undefined when it has none.
-   * A thrown error or rejected promise is listed in `errors`. Only the async
-   * functions take it; the blocking ones throw a TypeError.
+   * Sources of the host, e.g. from its own ADT client or cache. Called with
+   * a reference `KIND:NAME`, it returns the text, or null or undefined when
+   * it has none. Each reference is asked once, one at a time. A thrown error
+   * or rejected promise is listed in `errors`. Only the async functions take
+   * it; the blocking ones throw a TypeError. What to return, by kind:
+   *
+   * - `PROG:ZREPORT` (also includes, like `PROG:ZREPORT_TOP`), `INTF:ZIF_X`,
+   *   `CLAS:ZCL_X`, `CLAS:ZCL_X/definitions` (`/implementations`, `/macros`,
+   *   `/testclasses`: the local parts), `FUGR:ZGRP` (the main program
+   *   SAPLZGRP), `FUNC:Z_FM` (`FUNCTION z_fm ... ENDFUNCTION.` as ADT gives
+   *   it), `TYPE:ZTPOOL` (the type group), `DDLS:ZI_X` (the CDS source):
+   *   ABAP or DDL source as in ADT's `source/main`
+   * - `TABL:ZSTRUCT`, a structure or table: the DDL source ADT gives
+   *   (`define structure ...`), or the abapGit `.tabl.xml` (`DD03P` rows)
+   * - `DTEL:ZDTEL`: ADT's data element XML (`dtel:dataType`,
+   *   `dtel:dataTypeLength`), or abapGit's `.dtel.xml`, `<DD04V>` with
+   *   `DATATYPE`/`LENG`/`DECIMALS`, or `DOMNAME` and a `DOMA:` lookup
+   * - `DOMA:ZDOMA`: abapGit's `.doma.xml`, `<DD01V>` with `DATATYPE`, `LENG`
+   * - `TTYP:ZTT`: ADT's table type XML, or abapGit's `<DD40V>` with
+   *   `ROWTYPE` and `ROWKIND` (`S` structure, `E` data element, `L` table
+   *   type, `R` reference), or `DATATYPE`, `LENG` and `DECIMALS` for a
+   *   built-in line type, e.g.
+   *   `<DD40V><ROWTYPE>LVC_S_FCAT</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>` or
+   *   `<DD40V><DATATYPE>STRG</DATATYPE></DD40V>`; leave out empty values.
+   *   DD40L gives these columns.
+   *
+   * The dictionary kinds are asked while typing, whatever `follow` says. A
+   * text that cannot be read leaves the type a name. BAdI implementations,
+   * classic BAdIs, enhancements and where-used lists come only from `adt`.
    */
   fetch?: (reference: string) => string | null | undefined | Promise<string | null | undefined>;
   /**
    * Which objects calls are followed into; the objects given are always
-   * loaded. Those not loaded are listed in `skipped`, calls into them are
-   * unresolved with the reason `not_followed` or `limit`.
+   * loaded. Those not loaded are listed in `skipped` with the reason, calls
+   * into them are unresolved with the reason `not_followed` or `limit`. The
+   * patterns match object names, not kinds, and apply to the objects of
+   * calls and types (programs, classes, interfaces, function modules, type
+   * groups), not to dictionary lookups (`TABL:`, `DTEL:`, `DOMA:`, `TTYP:`).
    */
   follow?: {
     /** name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace; all when empty */
     include?: string[];
     /** name patterns of objects not to load, also when `include` matches */
     exclude?: string[];
-    /** at most this many objects are loaded or looked for */
+    /**
+     * At most this many objects are looked for, after the patterns; those
+     * no source has count too, like a structure name tried as a class. They
+     * are loaded level by level from the roots, so the nearest come first.
+     * The note `limit: ...` says how many were found and how many more were
+     * not loaded.
+     */
     limit?: number;
   };
   /**
@@ -47,7 +86,7 @@ export interface SourceOptions {
    * `cancelled`. Only the async functions take it.
    */
   signal?: AbortSignal;
-  /** cache folder for sources fetched from the SAP system */
+  /** cache folder for sources fetched through `adt`; what `fetch` returns is not cached */
   cache?: string;
   adt?: {
     /** e.g. https://host:44300 */

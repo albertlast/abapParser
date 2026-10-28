@@ -2030,6 +2030,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 high: None,
                 values: Vec::new(),
                 negated: false,
+                constant: None,
             })
         }
         _ => ops.conds().next().map(|c| condition(&toks, c)),
@@ -2999,6 +3000,7 @@ fn condition(toks: &[&Token], c: &Cond) -> m::Condition {
         high: None,
         values: Vec::new(),
         negated: false,
+        constant: None,
     };
     match &c.kind {
         CondKind::And(all) | CondKind::Or(all) | CondKind::Equiv(all) => {
@@ -3064,7 +3066,86 @@ fn condition(toks: &[&Token], c: &Cond) -> m::Condition {
             out.left = Some(operand(toks, o));
         }
     }
+    out.constant = constant(&out);
     out
+}
+
+/// The value of a condition that reads no data: comparisons of literals and
+/// of the constants `abap_true`, `abap_false` and `space`, and AND, OR, NOT
+/// and EQUIV of such parts. Text literals are compared only for equality,
+/// numbers also by size.
+fn constant(c: &m::Condition) -> Option<bool> {
+    use m::ConditionKind as C;
+    let children = || c.children.iter().map(|c| c.constant);
+    match c.kind {
+        C::And if children().any(|v| v == Some(false)) => Some(false),
+        C::And => children().all(|v| v == Some(true)).then_some(true),
+        C::Or if children().any(|v| v == Some(true)) => Some(true),
+        C::Or => children().all(|v| v == Some(false)).then_some(false),
+        C::Not => c.children.first()?.constant.map(|v| !v),
+        C::Equiv => {
+            let mut values = children();
+            let (a, b) = (values.next()??, values.next()??);
+            Some(a == b)
+        }
+        C::Compare => {
+            let (left, right) = (
+                fixed_value(c.left.as_ref()?)?,
+                fixed_value(c.right.as_ref()?)?,
+            );
+            let operator = c.operator.as_deref()?;
+            let order = match (&left, &right) {
+                (Fixed::Number(a), Fixed::Number(b)) => a.cmp(b),
+                (Fixed::Text(a), Fixed::Text(b)) => {
+                    // type c ignores trailing blanks
+                    let equal = a.trim_end() == b.trim_end();
+                    return match operator {
+                        "=" | "EQ" => Some(equal),
+                        "<>" | "NE" => Some(!equal),
+                        _ => None,
+                    };
+                }
+                _ => return None,
+            };
+            use std::cmp::Ordering::*;
+            Some(match operator {
+                "=" | "EQ" => order == Equal,
+                "<>" | "NE" | "><" => order != Equal,
+                "<" | "LT" => order == Less,
+                ">" | "GT" => order == Greater,
+                "<=" | "LE" | "=<" => order != Greater,
+                ">=" | "GE" | "=>" => order != Less,
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
+enum Fixed {
+    Number(i128),
+    Text(String),
+}
+
+/// The value of an operand that is fixed in the code: an integer or a text
+/// literal of type c, or one of the constants of type group ABAP.
+fn fixed_value(o: &m::Operand) -> Option<Fixed> {
+    match o.kind {
+        m::OperandKind::Literal => {
+            let value = o.value.as_deref()?;
+            if o.text.starts_with('\'') {
+                Some(Fixed::Text(value.to_string()))
+            } else {
+                value.parse().ok().map(Fixed::Number)
+            }
+        }
+        m::OperandKind::Data => match o.text.to_ascii_lowercase().as_str() {
+            "abap_true" => Some(Fixed::Text("X".into())),
+            "abap_false" | "space" => Some(Fixed::Text(String::new())),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// The steps of a procedure nested along its control structures.
@@ -3165,6 +3246,7 @@ fn case_conditions(steps: &mut [m::Step]) {
                         high: None,
                         values: Vec::new(),
                         negated: false,
+                        constant: None,
                     })
                     .collect();
                 w.condition = match compares.len() {
@@ -3184,6 +3266,7 @@ fn case_conditions(steps: &mut [m::Step]) {
                         high: None,
                         values: Vec::new(),
                         negated: false,
+                        constant: None,
                     }),
                 };
             }
@@ -3641,6 +3724,7 @@ fn guard_of(step: &m::Step, negated: bool) -> Option<m::Guard> {
         negated,
         text: c.text.clone(),
         subrc: Vec::new(),
+        constant: c.constant.map(|v| v != negated),
     })
 }
 
@@ -4312,6 +4396,25 @@ ENDCLASS.
         assert_eq!(texts, [(false, "p > 0"), (true, "p = 1"), (true, "p = 2")]);
         assert_eq!(p.effects[0].name, "x");
         assert_eq!(p.effects[0].inputs, ["p"]);
+    }
+
+    #[test]
+    fn guards_that_read_no_data() {
+        let l = logic(
+            "FORM f USING p TYPE c.\n  IF 1 = 0.\n    x = 1.\n  ELSE.\n    x = 2.\n  ENDIF.\n  IF p = abap_false AND 1 = 2.\n    x = 3.\n  ENDIF.\n  IF abap_true = 'X' OR p = 1.\n    x = 4.\n  ENDIF.\n  IF p = 1 OR 2 > 1.\n    x = 5.\n  ENDIF.\n  IF p = 1.\n    x = 6.\n  ENDIF.\nENDFORM.",
+        );
+        let body = &l.procedures[0].body;
+        let constants = |text: &str| -> Vec<Option<bool>> {
+            find(body, text).guards.iter().map(|g| g.constant).collect()
+        };
+        assert_eq!(constants("x = 1"), [Some(false)]);
+        assert_eq!(constants("x = 2"), [Some(true)]);
+        assert_eq!(constants("x = 3"), [Some(false)]);
+        assert_eq!(constants("x = 4"), [Some(true)]);
+        assert_eq!(constants("x = 5"), [Some(true)]);
+        assert_eq!(constants("x = 6"), [None]);
+        let c = find(body, "IF 1 = 0").condition.as_ref().unwrap();
+        assert_eq!(c.constant, Some(false));
     }
 
     fn effect<'a>(p: &'a m::Procedure, name: &str) -> &'a m::Effect {

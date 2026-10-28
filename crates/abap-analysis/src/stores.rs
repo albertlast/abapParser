@@ -149,27 +149,35 @@ pub(crate) fn store_accesses(
     }
 }
 
+/// Function modules of the lock service named like lock modules: they read
+/// the lock table or set several locks at once, not the lock of an object.
+/// The others named `ENQUEUE_...` or `DEQUEUE_...` are the modules SAP
+/// generates for each lock object.
+const LOCK_SERVICE: &[&str] = &[
+    "ENQUEUE_ARRAY",
+    "DEQUEUE_ARRAY",
+    "ENQUEUE_READ",
+    "ENQUEUE_READ_LOG",
+    "ENQUEUE_REPORT",
+];
+
 /// The lock object of a lock module, and whether the module releases the
 /// lock: `ENQUEUE_<lock object>` sets it, `DEQUEUE_<lock object>` releases
-/// it, `DEQUEUE_ALL` releases all locks (`*`). Lock objects start with `E`,
-/// in a namespace after it, like `/ABC/ELOCK`; so `ENQUEUE_READ`, which
-/// reads the lock table, is not a lock module.
+/// it, `DEQUEUE_ALL` releases all locks (`*`). Lock objects mostly start
+/// with `E`, but not all do, like `CVDPH` or `/ABC/OLR_PTERM`.
 pub(crate) fn lock_module(function: &str) -> Option<(String, bool)> {
     let function = function.to_ascii_uppercase();
     if function == "DEQUEUE_ALL" {
         return Some(("*".to_string(), true));
     }
+    if LOCK_SERVICE.contains(&function.as_str()) {
+        return None;
+    }
     let (object, release) = match function.strip_prefix("ENQUEUE_") {
         Some(o) => (o, false),
         None => (function.strip_prefix("DEQUEUE_")?, true),
     };
-    let local = match object.strip_prefix('/') {
-        Some(rest) => rest.split_once('/')?.1,
-        None => object,
-    };
-    local
-        .starts_with('E')
-        .then(|| (object.to_string(), release))
+    (!object.is_empty()).then(|| (object.to_string(), release))
 }
 
 /// A key as written: the text of a literal, the value of a constant of the
@@ -230,7 +238,9 @@ DELETE DATASET lv_file.
 CALL FUNCTION 'ENQUEUE_EZ_ORDER' EXPORTING vbeln = lv_vbeln.
 CALL FUNCTION 'DEQUEUE_/ABC/ELOCK'.
 CALL FUNCTION 'DEQUEUE_ALL'.
-CALL FUNCTION 'ENQUEUE_READ' TABLES enq = lt_enq.",
+CALL FUNCTION 'ENQUEUE_READ' TABLES enq = lt_enq.
+CALL FUNCTION 'ENQUEUE_CVDPH'.
+CALL FUNCTION 'DEQUEUE_/ABC/OLR_PTERM'.",
         );
         assert_eq!(
             got,
@@ -248,6 +258,8 @@ CALL FUNCTION 'ENQUEUE_READ' TABLES enq = lt_enq.",
                 "lock:EZ_ORDER Write Modify",
                 "lock:/ABC/ELOCK Write Delete",
                 "lock:* Write Delete",
+                "lock:CVDPH Write Modify",
+                "lock:/ABC/OLR_PTERM Write Delete",
             ]
         );
     }

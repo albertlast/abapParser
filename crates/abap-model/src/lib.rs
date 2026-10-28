@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Bumped on incompatible changes of the JSON shape.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// 1-based row and column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -716,6 +716,15 @@ pub enum Unresolved {
     NotLoaded,
 }
 
+/// An object not loaded on purpose.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Skipped {
+    /// like `FUNC:BAPI_USER_GET_DETAIL`
+    pub object: String,
+    /// `not_followed`, `limit` or `cancelled`
+    pub reason: Unresolved,
+}
+
 /// What kind of failure an error is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -778,7 +787,7 @@ pub struct CallGraph {
     /// referenced objects not loaded: not matching the follow patterns,
     /// beyond the maximum number of objects, or after cancelling
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub skipped: Vec<String>,
+    pub skipped: Vec<Skipped>,
     /// provider errors, e.g. authorization failures
     pub errors: Vec<LoadError>,
     /// lookups the system could not do, like `enhancements: not available
@@ -910,6 +919,11 @@ pub struct Condition {
     /// `IS NOT`, `NOT IN`, `NOT BETWEEN`
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub negated: bool,
+    /// the value of a condition that reads no data, like `1 = 0` or
+    /// `abap_true = abap_false`, and of AND, OR and NOT whose value such
+    /// parts decide
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub constant: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -1097,6 +1111,11 @@ pub struct Guard {
     /// the value it checks, like the READ TABLE before `IF sy-subrc = 0`
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub subrc: Vec<u32>,
+    /// the condition reads no data (its `constant`): true when the guard
+    /// always holds, false when it never does, as in `IF 1 = 0`, so the
+    /// step never runs
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub constant: Option<bool>,
 }
 
 /// One statement of a procedure.
@@ -1206,7 +1225,7 @@ pub struct FileLogic {
     /// called objects not loaded: not matching the follow patterns, beyond
     /// the maximum number of objects, or after cancelling
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub skipped: Vec<String>,
+    pub skipped: Vec<Skipped>,
     /// provider errors, e.g. authorization failures
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<LoadError>,

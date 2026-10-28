@@ -23,7 +23,7 @@ ENDCLASS.
 class SymbolsTest(unittest.TestCase):
     def test_class(self):
         s = abap_parser.symbols(SOURCE)
-        self.assertEqual(s["schema_version"], 2)
+        self.assertEqual(s["schema_version"], 3)
         c = s["classes"][0]
         self.assertEqual(c["name"], "zcl_demo")
         self.assertTrue(c["is_global"])
@@ -160,7 +160,7 @@ class SymbolsTest(unittest.TestCase):
         )
         why = {c["name"]: c.get("unresolved") for c in graph["calls"]}
         self.assertEqual(why, {"Z_ONE": None, "BAPI_X": "not_followed", "Z_GONE": "missing"})
-        self.assertEqual(graph["skipped"], ["FUNC:BAPI_X"])
+        self.assertEqual(graph["skipped"], [{"object": "FUNC:BAPI_X", "reason": "not_followed"}])
         self.assertIn("FUNC:Z_ONE", seen)
         token = abap_parser.CancelToken()
         token.cancel()

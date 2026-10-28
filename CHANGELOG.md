@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+Fixes from the second trip to an SAP_BASIS 7.50 system: lock modules, table types, dynamic joins and the release of `LOOP`, and conditions that never hold are marked.
+
+- **Dead code:** a condition that reads no data has its value in the new `constant`: comparisons of literals and of `abap_true`, `abap_false` and `space`, and AND, OR and NOT whose value they decide. Guards have `constant` too, `false` for a step that never runs, like those inside `IF 1 = 0` or `IF p = abap_false AND 1 = 2`. In a report of the 7.50 system such blocks held 49% of the lines and 15 of 27 database accesses.
+- **Lock modules:** every `ENQUEUE_x` and `DEQUEUE_x` is the lock of `x`, apart from five modules of the lock service itself (`ENQUEUE_READ`, `ENQUEUE_READ_LOG`, `ENQUEUE_REPORT`, `ENQUEUE_ARRAY`, `DEQUEUE_ARRAY`). Lock objects were taken to start with `E`; on the 7.50 system 84 of 7,449 do not, like `CVDPH`, and many in namespaces. The list of the lock service's modules is that of the SAP trial system's TFDIR, where all 5,896 other modules of that name are generated.
+- **Table types without ADT table types:** systems whose ADT has no `ddic/tabletypes`, like SAP_BASIS 7.50, give the line type of a table type from DD40L through the data preview, so `LVC_T_FCAT` or a custom table type types its lines.
+- **Joins in a dynamic FROM:** `SELECT ... FROM (c_from)` with a constant holding `'mara AS m INNER JOIN marc AS c ON ...'` gives the tables `mara` and `marc` with their aliases; the whole text was taken as one table name.
+- **`LOOP ... WHERE step <> space`** no longer needs 7.57: only `STEP` as an addition before `WHERE` is `LOOP ... STEP`, not a component named `step`.
+- **Infotype 2011**, time events, is read from `TEVEN`, not `PA2011`.
+- **Skipped objects say why:** `skipped` of call graph and logic holds objects with `object` and `reason` (`not_followed`, `limit`, `cancelled`); the compact text writes them like `FUNC:X (limit)`. The note of the limit says how many objects were looked for and found and how many more were not loaded, like `limit: 50 objects looked for (24 found), 45 more were not loaded`.
+- **Documentation of the options:** the Node.js and Python typings list the reference kinds `fetch` is asked for and what to return for each, table types as `DD40V` included; that `follow` applies to objects, not dictionary lookups; what the limit counts; that `cache` holds only what ADT fetched; and which file names `src` takes.
+
+Changes to existing output: `schema_version` is 3, since `skipped` holds objects instead of names.
+
 ## 0.5.1
 
 Logic is 30% faster with the same results, and the repository has its intended name. Nothing in the output or the API changes.

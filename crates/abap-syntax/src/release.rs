@@ -330,7 +330,6 @@ const KEYWORDS: &[(&[K], &str, Release, &str)] = &[
         Release::V757,
         "ELSE UNASSIGN",
     ),
-    (&[K::Loop], "STEP", Release::V757, "LOOP STEP"),
     (
         &[K::ClassDefinition],
         "FOR BEHAVIOR OF",
@@ -433,6 +432,30 @@ impl<'a> Scan<'a> {
         self.t
             .get(i)
             .is_some_and(|t| t.kind == TokenKind::ParenLeft && !t.ws_before)
+    }
+
+    /// `LOOP AT itab STEP n`: the addition before `WHERE`, not a component
+    /// or variable named `step`, as in `WHERE step <> space`.
+    fn loop_step(&self) -> bool {
+        (0..self.w.len())
+            .take_while(|&i| !(self.depth[i] == 0 && self.word(i) == "WHERE"))
+            .any(|i| {
+                self.depth[i] == 0
+                    && self.word(i) == "STEP"
+                    && self.kind_at(i) == Some(TokenKind::Identifier)
+                    && !matches!(
+                        self.word(i.wrapping_sub(1)),
+                        "-" | "~"
+                            | "->"
+                            | "=>"
+                            | "INTO"
+                            | "ASSIGNING"
+                            | "AT"
+                            | "FROM"
+                            | "TO"
+                            | "KEY"
+                    )
+            })
     }
 
     /// Position where the words of `pattern` follow each other.
@@ -705,6 +728,9 @@ impl<'a> Scan<'a> {
             .count();
         if matches!(self.kind, K::Type | K::Data) && self.find_seq("WITH INDICATORS").is_some() {
             self.need(Release::V755, "WITH INDICATORS");
+        }
+        if self.kind == K::Loop && self.loop_step() {
+            self.need(Release::V757, "LOOP STEP");
         }
         if self.kind == K::Return && words > 1 {
             self.need(Release::V758, "RETURN with a value");
@@ -1359,6 +1385,21 @@ mod tests {
         assert_eq!(need("APPEND foo( ) TO itab."), None);
         assert_eq!(need("DATA x TYPE i VALUE 1."), None);
         assert_eq!(need("METHODS m RETURNING VALUE(r) TYPE i."), None);
+        assert_eq!(
+            need("LOOP AT itab INTO wa STEP 2 WHERE a = 1. ENDLOOP."),
+            Some((Release::V757, "LOOP STEP"))
+        );
+        assert_eq!(
+            need("LOOP AT itab FROM 2 STEP -1 INTO wa. ENDLOOP."),
+            Some((Release::V757, "LOOP STEP"))
+        );
+        // a component or a variable named step
+        assert_eq!(
+            need("LOOP AT itab ASSIGNING <fs> WHERE step <> space. ENDLOOP."),
+            None
+        );
+        assert_eq!(need("LOOP AT itab INTO step. ENDLOOP."), None);
+        assert_eq!(need("LOOP AT itab INTO wa FROM ls-step. ENDLOOP."), None);
     }
 
     /// Releases from SAP's ABAP release news where abaplint gives others.
