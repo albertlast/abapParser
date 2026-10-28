@@ -235,6 +235,8 @@ An unresolved call says why in `unresolved`:
 
 Errors of the source providers are listed in `errors`, each with a `code` (`auth`, `http`, `network`, `io`, `other`), the `object` or lookup it was for, the `cause` as text, the HTTP `status`, and whether trying again may succeed (`retryable`: network failures, HTTP 408, 429 and 5xx).
 
+Requests to the SAP system go through the proxy of `ALL_PROXY`, `HTTPS_PROXY` or `HTTP_PROXY` (the first set, also in lower case), except for the hosts in `NO_PROXY`. `--proxy http://proxy:8080` (`adt.proxy` in Node.js and Python) uses that proxy for every host instead, `--no-proxy` (`proxy: false`) connects directly. A network error names the proxy it went through and where it came from, without user and password, like `CONNECT proxy failed: proxy server did not respond (through the proxy http://proxy:8080 from HTTPS_PROXY; ...)`. HTTP and HTTPS proxies are supported, SOCKS and the proxy of the Windows settings are not.
+
 Following calls into SAP standard code can take long. The follow options load only objects whose names match patterns, like `Z*` or a custom namespace `/ABC/*`, leave out others, and stop after a number of objects; the objects given are always loaded. Objects not loaded are listed in `skipped` with the reason (`not_followed`, `limit` or `cancelled`), not in `missing`, and logic leaves out what they do. The limit counts each object looked for, also those no source has, level by level from the roots; the note says how many were found and how many more were not loaded. A progress function is called after each object, and an analysis can be cancelled: it then finishes with what it has.
 
 ```sh

@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 mod mcp;
 
-use abap_analysis::abap_source::{AdtOptions, ProviderOptions, SourceRef};
+use abap_analysis::abap_source::{AdtOptions, ProviderOptions, ProxyOption, SourceRef};
 use abap_analysis::text;
 
 const USAGE: &str = "usage: abap <command> [arguments]
@@ -42,6 +42,10 @@ source options:
   --language <xx>      logon language
   --cache <dir>        cache folder for sources from the SAP system
   --insecure           skip TLS certificate checks (test systems only)
+  --proxy <url>        proxy to the SAP system, e.g. http://proxy:8080;
+                       without it HTTPS_PROXY (or ALL_PROXY, HTTP_PROXY) is
+                       used, except for the hosts in NO_PROXY
+  --no-proxy           connect directly, whatever the environment says
   credentials are read from ABAP_ADT_USER and ABAP_ADT_PASSWORD
 
 following calls into other objects (graph, logic, mcp):
@@ -105,6 +109,7 @@ fn parse_args() -> Result<Args, String> {
     let mut client = std::env::var("ABAP_ADT_CLIENT").ok();
     let mut language = None;
     let mut insecure = false;
+    let mut proxy = None;
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         let mut value = |name: &str| it.next().ok_or_else(|| format!("{name} needs a value"));
@@ -112,6 +117,8 @@ fn parse_args() -> Result<Args, String> {
             "--json" => a.json = true,
             "--text" => a.text = true,
             "--insecure" => insecure = true,
+            "--no-proxy" => proxy = Some(ProxyOption::Use(false)),
+            "--proxy" => proxy = Some(ProxyOption::Url(value("--proxy")?)),
             "--src" => a.options.src.push(value("--src")?),
             "--cache" => a.options.cache = Some(value("--cache")?),
             "--adt-url" => adt_url = Some(value("--adt-url")?),
@@ -151,6 +158,7 @@ fn parse_args() -> Result<Args, String> {
             client,
             language,
             insecure,
+            proxy,
         });
     }
     Ok(a)
