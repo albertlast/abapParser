@@ -588,6 +588,10 @@ fn call(c: &m::Call) -> String {
             Some(b) if o == "BADI" => format!("BADI {b}"),
             _ => o.clone(),
         })
+        .chain(
+            (!c.implementations.is_empty())
+                .then(|| format!("runs {}", c.implementations.join(" "))),
+        )
         .collect();
     format!(
         "  {:>5} {from}: {} {target}{}{}\n",

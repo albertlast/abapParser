@@ -46,7 +46,16 @@ pub fn logic_of(file: &File) -> m::FileLogic {
     .calls();
     let attributes = |class: &str| class_attributes(&symbols, None, class);
     let globals = globals_of(&symbols);
-    let procs = build_unit(file, None, &symbols, &globals, &attributes, calls, None);
+    let (procs, _) = build_unit(
+        file,
+        None,
+        &symbols,
+        &globals,
+        &attributes,
+        calls,
+        None,
+        &|| false,
+    );
     let mut engine = Engine::new(None, 0);
     engine.objects.push(ObjectLogic {
         reference: None,
@@ -79,6 +88,14 @@ impl Workspace {
             Some(o) => engine.finish(o),
             None => Vec::new(),
         };
+        let mut notes = self.notes();
+        if engine.not_analyzed > 0 {
+            notes.push(format!(
+                "cancelled: {} procedures were not analyzed",
+                engine.not_analyzed
+            ));
+            notes.sort();
+        }
         m::FileLogic {
             schema_version: m::SCHEMA_VERSION,
             object: Some(root.object().to_string()),
@@ -86,7 +103,7 @@ impl Workspace {
             missing: engine.missing.into_iter().collect(),
             skipped: self.skipped(),
             errors: self.errors(),
-            notes: self.notes(),
+            notes,
         }
     }
 }
@@ -173,6 +190,9 @@ struct Engine<'w> {
     objects: Vec<ObjectLogic>,
     loaded: HashMap<SourceRef, Option<usize>>,
     missing: BTreeSet<String>,
+    /// procedures of the root object left out because the analysis was
+    /// cancelled
+    not_analyzed: usize,
 }
 
 /// Whose attributes a called method works on.
@@ -195,18 +215,32 @@ impl<'w> Engine<'w> {
             objects: Vec::new(),
             loaded: HashMap::new(),
             missing: BTreeSet::new(),
+            not_analyzed: 0,
         }
     }
 
-    /// The procedures of an object, analyzed.
+    fn cancelled(&self) -> bool {
+        self.workspace.is_some_and(Workspace::cancelled)
+    }
+
+    /// The procedures of an object, analyzed; once cancelled, those not
+    /// analyzed yet are left out and counted.
     fn finish(&mut self, o: usize) -> Vec<m::Procedure> {
         for k in 0..self.objects[o].procs.len() {
+            if self.cancelled() {
+                break;
+            }
             self.summary(o, k);
         }
-        std::mem::take(&mut self.objects[o].procs)
+        let procs = std::mem::take(&mut self.objects[o].procs);
+        let total = procs.len();
+        let out: Vec<m::Procedure> = procs
             .into_iter()
+            .filter(|p| p.summary.is_some())
             .map(|p| p.procedure)
-            .collect()
+            .collect();
+        self.not_analyzed += total - out.len();
+        out
     }
 
     /// An object loaded through the workspace, `depth` hops from the root.
@@ -230,7 +264,10 @@ impl<'w> Engine<'w> {
         };
         self.missing
             .extend(object.missing_includes.iter().map(|i| i.to_string()));
-        let (symbols, procs) = build_object(ws, &object);
+        let (symbols, procs, not_built) = build_object(ws, &object);
+        if depth == 0 {
+            self.not_analyzed += not_built;
+        }
         self.objects.push(ObjectLogic {
             reference: Some(r.clone()),
             symbols,
@@ -508,6 +545,11 @@ impl<'w> Engine<'w> {
         if p.running {
             return Summary::default();
         }
+        // cancelled: left without a summary, so not in the result
+        if self.workspace.is_some_and(Workspace::cancelled) {
+            return Summary::default();
+        }
+        let p = &mut self.objects[o].procs[k];
         p.running = true;
         let calls = std::mem::take(&mut p.calls);
         for c in &calls {
@@ -1199,12 +1241,15 @@ fn class_attributes(
     out
 }
 
-fn build_object(ws: &Workspace, object: &Object) -> (Arc<m::FileSymbols>, Vec<Proc>) {
+/// The procedures of all sources of an object, and how many were not
+/// built because the analysis was cancelled.
+fn build_object(ws: &Workspace, object: &Object) -> (Arc<m::FileSymbols>, Vec<Proc>, usize) {
     let symbols = Arc::new(object.symbols.clone());
     let globals = globals_of(&symbols);
     let calls = ws.object_calls(object);
     let attributes = |class: &str| class_attributes(&symbols, Some(ws), class);
     let mut procs = Vec::new();
+    let mut not_built = 0;
     for u in &object.units {
         let unit = u.reference.to_string();
         let unit_calls = calls
@@ -1212,7 +1257,7 @@ fn build_object(ws: &Workspace, object: &Object) -> (Arc<m::FileSymbols>, Vec<Pr
             .filter(|c| c.unit.as_deref() == Some(unit.as_str()))
             .cloned()
             .collect();
-        procs.extend(build_unit(
+        let (built, left) = build_unit(
             &u.file,
             Some(&unit),
             &symbols,
@@ -1220,13 +1265,20 @@ fn build_object(ws: &Workspace, object: &Object) -> (Arc<m::FileSymbols>, Vec<Pr
             &attributes,
             unit_calls,
             Some(ws),
-        ));
+            &|| ws.cancelled(),
+        );
+        procs.extend(built);
+        not_built += left;
     }
-    (symbols, procs)
+    (symbols, procs, not_built)
 }
 
 /// The procedures of one source with their steps, conditions and control
-/// flow, the database tables of the steps and the calls to follow.
+/// flow, the database tables of the steps and the calls to follow; once
+/// `cancelled`, no more procedures are built, and how many were not is the
+/// second value.
+// the parts of the object the procedures need
+#[allow(clippy::too_many_arguments)]
 fn build_unit<'a>(
     file: &'a File,
     unit: Option<&str>,
@@ -1236,7 +1288,8 @@ fn build_unit<'a>(
     calls: Vec<m::Call>,
     // classes outside the source, for the types of their members
     classes: Option<&'a dyn crate::types::Repository>,
-) -> Vec<Proc> {
+    cancelled: &dyn Fn() -> bool,
+) -> (Vec<Proc>, usize) {
     // consecutive statements of the same processing block
     let mut groups: Vec<(m::BlockRef, Vec<usize>)> = Vec::new();
     for (i, b) in statement_blocks(file).into_iter().enumerate() {
@@ -1246,9 +1299,19 @@ fn build_unit<'a>(
             _ => groups.push((b, vec![i])),
         }
     }
+    let mut not_built = 0;
     let mut procs: Vec<Proc> = groups
         .into_iter()
         .filter_map(|(block, statements)| {
+            if cancelled() {
+                // declarations of the program are no procedure
+                let declarations = block.kind == "program"
+                    && statements
+                        .iter()
+                        .all(|i| is_declarative(file.statements[*i].kind));
+                not_built += usize::from(!declarations);
+                return None;
+            }
             procedure(
                 file,
                 symbols,
@@ -1390,7 +1453,7 @@ fn build_unit<'a>(
             });
         }
     }
-    procs
+    (procs, not_built)
 }
 
 /// The procedure and step a position is in: the last step starting before.
@@ -4538,6 +4601,55 @@ fn effects(body: &[m::Step]) -> Vec<m::Effect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancelled_logic_leaves_out_what_was_not_analyzed() {
+        use abap_source::{MemoryProvider, SourceRef};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let source = "REPORT zmain.\nSTART-OF-SELECTION.\n  PERFORM a.\nFORM a.\n  DELETE FROM za.\nENDFORM.\nFORM b.\nENDFORM.\nFORM c.\nENDFORM.";
+        // building stops when the flag is set: after two procedures
+        let file = abap_syntax::parse(source);
+        let symbols = crate::symbols_of(&file);
+        let globals = globals_of(&symbols);
+        let attributes = |class: &str| class_attributes(&symbols, None, class);
+        let asked = std::cell::Cell::new(0);
+        let (procs, left) = build_unit(
+            &file,
+            None,
+            &symbols,
+            &globals,
+            &attributes,
+            Vec::new(),
+            None,
+            &|| {
+                asked.set(asked.get() + 1);
+                asked.get() > 3
+            },
+        );
+        let names: Vec<&str> = procs
+            .iter()
+            .map(|p| p.procedure.block.name.as_str())
+            .collect();
+        assert_eq!(names, ["START-OF-SELECTION", "a"]);
+        assert_eq!(left, 2, "b and c");
+        // cancelled before: the root is loaded, nothing analyzed
+        let mut p = MemoryProvider::new();
+        p.insert(SourceRef::program("ZMAIN"), source);
+        let cancel = Arc::new(AtomicBool::new(true));
+        let ws = Workspace::new(Box::new(p)).with_cancel(cancel.clone());
+        let l = ws.logic(&SourceRef::program("ZMAIN"), 1);
+        assert!(l.procedures.is_empty());
+        assert_eq!(l.notes, ["cancelled: 4 procedures were not analyzed"]);
+        // not cancelled: all of them, no note
+        cancel.store(false, Ordering::Relaxed);
+        let mut p = MemoryProvider::new();
+        p.insert(SourceRef::program("ZMAIN"), source);
+        let l = Workspace::new(Box::new(p))
+            .with_cancel(cancel)
+            .logic(&SourceRef::program("ZMAIN"), 1);
+        assert_eq!(l.procedures.len(), 4);
+        assert!(l.notes.is_empty(), "{:?}", l.notes);
+    }
 
     const CODE: &str = r#"
 CLASS lcl DEFINITION.

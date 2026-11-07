@@ -1289,6 +1289,7 @@ pub(crate) fn new_call(
         name,
         class: None,
         badi: None,
+        implementations: Vec::new(),
         program: None,
         receiver: None,
         is_static: false,

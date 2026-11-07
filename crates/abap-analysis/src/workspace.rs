@@ -568,7 +568,7 @@ impl Workspace {
     }
 
     /// Loads nothing more once `cancel` is set; analyses then finish with
-    /// what they have.
+    /// what they have, and logic analyzes no more procedures.
     pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
         self.cancel = Some(cancel);
         self
@@ -586,7 +586,7 @@ impl Workspace {
         self.object(r)
     }
 
-    fn cancelled(&self) -> bool {
+    pub(crate) fn cancelled(&self) -> bool {
         self.cancel
             .as_ref()
             .is_some_and(|c| c.load(Ordering::Relaxed))
@@ -1004,6 +1004,10 @@ impl Workspace {
         let mut seen: BTreeSet<SourceRef> = level.iter().cloned().collect();
         for d in 0..=depth {
             let objects: Vec<Arc<Object>> = self.load_level(&level).into_iter().flatten().collect();
+            // once cancelled, objects are not loaded and types not looked up
+            if self.cancelled() {
+                break;
+            }
             self.load_named_types(&objects);
             self.load_declared_types(&objects);
             let calls: Vec<m::Call> = parallel_map(&objects, |o| self.object_calls(o))
@@ -1394,17 +1398,27 @@ impl Workspace {
     }
 
     /// `CALL BADI` names the BAdI where a class goes: its interface has the
-    /// method.
+    /// method, its implementations run. A method of the interface of a
+    /// classic BAdI runs the classes of its implementations too.
     fn badi_call(&self, c: &mut m::Call) {
-        if c.kind != m::CallKind::Method || !c.options.iter().any(|o| o == "BADI") {
+        if c.kind != m::CallKind::Method {
             return;
         }
         let Some(name) = c.class.clone() else {
             return;
         };
-        if let Some(interface) = self.badi(&name).and_then(|b| b.interface) {
-            c.badi = Some(name.to_ascii_uppercase());
-            c.class = Some(interface);
+        if c.options.iter().any(|o| o == "BADI") {
+            if let Some(b) = self.badi(&name) {
+                if let Some(interface) = b.interface.clone() {
+                    c.badi = Some(name.to_ascii_uppercase());
+                    c.class = Some(interface);
+                    c.implementations = badi_classes(&b);
+                }
+            }
+        } else if !c.is_static && interface_name(&name) {
+            if let Some(b) = self.classic_badi(&name) {
+                c.implementations = badi_classes(&b);
+            }
         }
     }
 
@@ -2222,6 +2236,80 @@ START-OF-SELECTION.
     }
 
     #[test]
+    fn a_skipped_superclass_leaves_the_hierarchy_incomplete() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZMAIN"),
+            "REPORT zmain.\nDATA lo TYPE REF TO zcl_sub.\nSTART-OF-SELECTION.\n  lo->inherited( ).\n  lo->own( ).",
+        );
+        p.insert(
+            SourceRef::class("ZCL_SUB"),
+            "CLASS zcl_sub DEFINITION PUBLIC INHERITING FROM cl_std.\n  PUBLIC SECTION.\n    METHODS own.\nENDCLASS.\nCLASS zcl_sub IMPLEMENTATION.\n  METHOD own.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        p.insert(
+            SourceRef::class("CL_STD"),
+            "CLASS cl_std DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS inherited.\nENDCLASS.\nCLASS cl_std IMPLEMENTATION.\n  METHOD inherited.\n  ENDMETHOD.\nENDCLASS.",
+        );
+        let p = Arc::new(p);
+        let graph = |follow: Follow| {
+            let ws = Workspace::new(Box::new(Shared(p.clone()))).with_follow(follow);
+            let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+            let calls: Vec<(String, bool, bool, Option<m::Unresolved>)> = g
+                .calls
+                .iter()
+                .map(|c| {
+                    (
+                        c.name.clone(),
+                        c.resolved,
+                        c.hierarchy_incomplete,
+                        c.unresolved,
+                    )
+                })
+                .collect();
+            (calls, g.skipped)
+        };
+        let expected = vec![
+            (
+                "inherited".to_string(),
+                false,
+                true,
+                Some(m::Unresolved::HierarchyIncomplete),
+            ),
+            ("own".to_string(), true, false, None),
+        ];
+        // not followed
+        let (calls, skipped) = graph(Follow {
+            include: vec!["Z*".into()],
+            ..Follow::default()
+        });
+        assert_eq!(calls, expected);
+        assert_eq!(skipped[0].object, "CLAS:CL_STD");
+        // beyond the limit: the program and the class only
+        let (calls, skipped) = graph(Follow {
+            limit: Some(2),
+            ..Follow::default()
+        });
+        assert_eq!(calls, expected);
+        assert_eq!(skipped[0].reason, m::Unresolved::Limit);
+        // all loaded: the method is found in the superclass
+        let (calls, _) = graph(Follow::default());
+        assert!(calls.iter().all(|c| c.1 && !c.2), "{calls:?}");
+    }
+
+    /// A provider shared between workspaces.
+    struct Shared(Arc<MemoryProvider>);
+
+    impl SourceProvider for Shared {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            self.0.fetch(r)
+        }
+
+        fn describe(&self) -> String {
+            "shared".to_string()
+        }
+    }
+
+    #[test]
     fn follow_patterns_and_limit() {
         let follow = Follow {
             include: vec!["Z*".into()],
@@ -2618,6 +2706,21 @@ START-OF-SELECTION.
         assert_eq!(badi.badi.as_deref(), Some("ZBADI_CHECK"));
         assert_eq!(badi.class.as_deref(), Some("ZIF_BADI_CHECK"));
         assert!(badi.resolved);
+        // the active implementation, not the class only implementing it
+        assert_eq!(badi.implementations, ["ZCL_CHECK_ACTIVE"]);
+        // a classic BAdI through its interface: not its adapter class
+        let old = graph.calls.iter().find(|c| c.name == "run").unwrap();
+        assert_eq!(old.class.as_deref(), Some("zif_ex_old"));
+        assert_eq!(old.implementations, ["ZCL_IM_OLD"]);
+        assert!(
+            crate::text::call_graph(&graph).contains("[BADI ZBADI_CHECK, runs ZCL_CHECK_ACTIVE]")
+        );
+        // other calls have none
+        assert!(graph
+            .calls
+            .iter()
+            .filter(|c| c.name != "check" && c.name != "run")
+            .all(|c| c.implementations.is_empty()));
         let exit = graph
             .calls
             .iter()
