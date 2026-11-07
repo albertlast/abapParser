@@ -59,11 +59,12 @@ The corpus is 3,313 files from eighteen open source projects (MIT/Apache-2.0), t
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
-- **Releases:** abaplint was run once per on-premise release. Of 352,374 corpus statements, 345,058 get the release abaplint gives. 6,170 are newer syntax that abaplint also reads as older, 996 are predicate functions abaplint dates with 7.40 SP08, and 144 are dated by SAP's release news instead, see [Releases](#releases); 6 differ otherwise. Of abaplint's 1,022 release-tagged test cases that apply on premise, 1,019 are met; of the rest, `MERGE INTO` needs a release after 8.16, newer than the releases known here (the SAP ABAP Cloud Developer Trial 2025 does not know it either).
+- **Releases:** abaplint was run once per on-premise release. Of 352,374 corpus statements, 345,063 get the release abaplint gives. 6,170 are newer syntax that abaplint also reads as older, 996 are predicate functions abaplint dates with 7.40 SP08, and 144 are dated by SAP's release news instead, see [Releases](#releases); 1 differs otherwise, a string template that abaplint dates with 7.00. Of abaplint's 1,022 release-tagged test cases that apply on premise, 1,020 are met; of the rest, `MERGE INTO` needs a release after 8.16, newer than the releases known here (the SAP ABAP Cloud Developer Trial 2025 does not know it either).
 - **Syntax errors:** all 96 of abaplint's cases that are invalid at every release are reported, and two errors SAP's documentation describes: `MESSAGE ID` with a method call, and `GET PERMISSIONS` with `FROM` after `ONLY GLOBAL` or without it for instances. Six cases abaplint takes for valid in newer releases are reported because the syntax check of the SAP ABAP Cloud Developer Trial 2025 rejects them too: `SELECT SINGLE` with `ORDER BY`, a SELECT list with blanks and commas mixed (`a b, c`), an alias or a list inside parentheses (`( a AS b )`), a dynamic column in an aggregate (`SUM( (name) )`). No statement abaplint accepts is reported, in the corpus or in its test cases.
+- **Invalid syntax in general:** 15,898 corpus statements changed by one token (dropped, doubled or swapped), that abaplint takes for no statement, were checked: 12.4% of them are unknown to the parser or have a syntax error (`crates/abap-syntax/tests/mutations.rs`). The parser takes the rest for the statement they started as. Of the 1,992 changed statements abaplint still accepts, the parser reports two, SELECTs without FROM.
 - **Older releases:** four corpora are checked by their own CI with abaplint against an older release: [abap-wasm](https://github.com/abap-wasm/abap-wasm) and [abapPGP](https://github.com/larshp/abapPGP) against 7.50, [open-abap-gui](https://github.com/open-abap/open-abap-gui) against 7.40 SP08, [abapNTLM](https://github.com/larshp/abapNTLM) against 7.40 SP02. None of their 95,827 statements in 1,304 files needs a newer release, has a syntax error or is unknown to the parser (`crates/abap-syntax/tests/checked_releases.rs`).
 
-Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Syntax errors are found by checks for errors of known kinds, not by a full grammar of every statement.
+Statement kinds are still decided by keywords. Declaration statements are parsed by grammar. Syntax errors are found by checks for errors of known kinds, not by a full grammar of every statement, so most invalid statements go unnoticed, see above.
 
 ## Releases
 
@@ -607,6 +608,7 @@ npm ci --prefix tools
 node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt
 node tools/oracle.mjs --sql-cases tests/corpus/abaplint/statements tests/corpus/golden/sql_cases.json
 node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpus/corpora.txt
+node tools/oracle.mjs --mutations tests/corpus/golden/mutations.json --list tests/corpus/corpora.txt
 cargo test --release -- --nocapture             # prints the coverage reports
 node tools/gen-types.mjs                          # after changing crates/abap-model
 node tools/sapdoc.mjs ABAPMODIFY_ITAB_SHORTREF    # syntax lookup in the ABAP Keyword Documentation

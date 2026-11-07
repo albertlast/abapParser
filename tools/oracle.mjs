@@ -13,6 +13,10 @@
 // Parses every file once per on-premise release and writes, for each
 // statement that needs more than 7.00, the lowest release from which
 // abaplint parses it as it does on the newest: <out-dir>/<path>.json.
+//
+// usage: node oracle.mjs --mutations <out-file> --list tests/corpus/corpora.txt
+// Writes corpus statements changed by one token with abaplint's statement
+// kinds for them, for the test of what the parser rejects.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -329,6 +333,129 @@ function releases(outDir, inputs) {
   console.log(`oracle: ${files} files, ${needing} statements newer than 7.00`);
 }
 
+// Statements of the corpus changed by one token, with the statement kinds
+// abaplint gives them: whether the parser rejects what abaplint rejects.
+// Up to MUTATED_PER_KIND distinct statements of each kind are taken, each
+// with up to MUTANTS_PER_STATEMENT changes: a token dropped, doubled, or
+// swapped with the next one. The first token and the final period stay.
+const MUTATED_PER_KIND = 25;
+const MUTANTS_PER_STATEMENT = 8;
+const SKIPPED_KINDS = new Set(["Unknown", "Empty", "Comment", "MacroCall", "MacroContent", "NativeSQL"]);
+
+// FNV-1a, to pick statements spread over the corpora, the same in every run
+function hash(text) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+// the tokens of a statement with the blanks before each, as in the source
+function spacedTokens(s) {
+  const out = [];
+  let prev;
+  for (const t of s.getTokens()) {
+    let space = "";
+    if (prev !== undefined) {
+      space =
+        t.getRow() === prev.getRow()
+          ? " ".repeat(Math.max(0, t.getCol() - prev.getCol() - prev.getStr().length))
+          : "\n";
+    }
+    out.push({space, text: t.getStr()});
+    prev = t;
+  }
+  return out;
+}
+
+function join(tokens) {
+  return tokens.map((t, i) => (i === 0 ? t.text : t.space + t.text)).join("");
+}
+
+function mutants(tokens) {
+  const out = [];
+  const last = tokens.length - 1; // the period
+  for (let k = 1; k < last; k++) {
+    out.push(join(tokens.filter((_, i) => i !== k)));
+    out.push(join([...tokens.slice(0, k + 1), {space: " ", text: tokens[k].text}, ...tokens.slice(k + 1)]));
+    if (k + 1 < last) {
+      const swapped = [...tokens];
+      swapped[k] = {space: tokens[k].space, text: tokens[k + 1].text};
+      swapped[k + 1] = {space: tokens[k + 1].space, text: tokens[k].text};
+      out.push(join(swapped));
+    }
+  }
+  // spread over the statement
+  if (out.length <= MUTANTS_PER_STATEMENT) {
+    return out;
+  }
+  const step = out.length / MUTANTS_PER_STATEMENT;
+  return Array.from({length: MUTANTS_PER_STATEMENT}, (_, i) => out[Math.floor(i * step)]);
+}
+
+function mutations(outFile, inputs) {
+  const config = new Config(JSON.stringify(configFor(Version.v816)));
+  const byKind = new Map();
+  for (const folders of inputs) {
+    for (const f of walkAll(folders)) {
+      const reg = new Registry(config).addFile(new MemoryFile(objectName(f), fs.readFileSync(f, "utf8")));
+      reg.parse();
+      const obj = reg.getFirstObject();
+      if (!(obj instanceof ABAPObject)) {
+        continue;
+      }
+      for (const file of obj.getABAPFiles()) {
+        for (const s of file.getStatements()) {
+          const kind = s.get().constructor.name;
+          if (SKIPPED_KINDS.has(kind) || s.getColon() !== undefined || s.getPragmas().length > 0) {
+            continue;
+          }
+          const tokens = spacedTokens(s);
+          if (tokens.length < 3 || tokens[tokens.length - 1].text !== ".") {
+            continue;
+          }
+          const text = join(tokens);
+          if (!byKind.has(kind)) {
+            byKind.set(kind, new Map());
+          }
+          byKind.get(kind).set(text, tokens);
+        }
+      }
+    }
+  }
+  const cases = [];
+  for (const kind of [...byKind.keys()].sort()) {
+    const picked = [...byKind.get(kind).entries()]
+      .sort((a, b) => hash(a[0]) - hash(b[0]) || (a[0] < b[0] ? -1 : 1))
+      .slice(0, MUTATED_PER_KIND);
+    for (const [original, tokens] of picked) {
+      for (const abap of new Set(mutants(tokens))) {
+        cases.push({kind, original, abap});
+      }
+    }
+  }
+  // one program per mutant, so that a broken one cannot take the next along
+  const reg = new Registry(config);
+  cases.forEach((c, i) => reg.addFile(new MemoryFile(`zmut${String(i).padStart(6, "0")}.prog.abap`, c.abap)));
+  reg.parse();
+  for (const obj of reg.getObjects()) {
+    if (!(obj instanceof ABAPObject)) {
+      continue;
+    }
+    const file = obj.getABAPFiles()[0];
+    const i = Number(file.getFilename().slice(4, 10));
+    cases[i].abaplint = file
+      .getStatements()
+      .map((s) => s.get().constructor.name)
+      .filter((k) => k !== "Comment" && k !== "Empty");
+  }
+  fs.mkdirSync(path.dirname(outFile), {recursive: true});
+  fs.writeFileSync(outFile, JSON.stringify(cases, null, 1) + "\n");
+  const unknown = cases.filter((c) => c.abaplint.length === 1 && c.abaplint[0] === "Unknown").length;
+  console.log(`oracle: ${cases.length} mutants of ${byKind.size} statement kinds, ${unknown} unknown to abaplint`);
+}
+
 // the corpora, each a list of folders read together
 function inputList(inputs) {
   if (inputs[0] === "--list") {
@@ -356,6 +483,10 @@ function main() {
   }
   if (process.argv[2] === "--releases") {
     releases(process.argv[3], inputList(process.argv.slice(4)));
+    return;
+  }
+  if (process.argv[2] === "--mutations") {
+    mutations(process.argv[3], inputList(process.argv.slice(4)));
     return;
   }
   const [outDir, ...rest] = process.argv.slice(2);
