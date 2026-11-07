@@ -160,7 +160,10 @@ def symbols(source: str) -> FileSymbols:
 
 def db_access(source: str) -> List[DbAccess]:
     """Database accesses of one ABAP source file: tables, fields, joins,
-    conditions and targets of every SELECT, INSERT, UPDATE, MODIFY, DELETE."""
+    conditions and targets of every SELECT, INSERT, UPDATE, MODIFY, DELETE.
+    Tables read without SQL (logical database, HR_READ_INFOTYPE, PNP
+    macros), those of called procedures and the data flow are in
+    :func:`logic`; a lineage needs both."""
     return json.loads(_native.db_access_json(source))
 
 
