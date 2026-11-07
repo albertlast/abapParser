@@ -65,6 +65,11 @@
   "type": "Data"
  },
  {
+  "abap": "DATA (1024).",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
   "abap": "data foo type char100.",
   "expect": "match",
   "type": "Data"
@@ -556,6 +561,16 @@
  },
  {
   "abap": "DATA permission_request TYPE STRUCTURE FOR PERMISSIONS REQUEST zfoobar.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA permission_request TYPE STRUCTURE FOR PERMISSIONS REQUEST zdemo_root\\\\root.",
+  "expect": "match",
+  "type": "Data"
+ },
+ {
+  "abap": "DATA permission_request TYPE STRUCTURE FOR PERMISSIONS REQUEST /dmo/r_root.",
   "expect": "match",
   "type": "Data"
  },

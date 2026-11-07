@@ -20,7 +20,7 @@ use serde::Deserialize;
 
 /// Baselines; raise when improving.
 const MIN_CORPUS_PERCENT: f64 = 99.99;
-const MIN_CASES_PERCENT: f64 = 99.5;
+const MIN_CASES_PERCENT: f64 = 99.7;
 
 #[derive(Deserialize)]
 struct Golden {
@@ -58,7 +58,7 @@ const PREDICATE_FUNCTION: &str = "predicate function";
 
 /// Constructs dated by SAP's ABAP release news where abaplint gives another
 /// release: `INTO @DATA(x)` came with 7.40 SP08, not SP05, for example.
-const RELEASE_NEWS: [&str; 15] = [
+const RELEASE_NEWS: [&str; 16] = [
     "inline declaration in SQL",
     "inline declaration for OPEN CURSOR",
     "path expression",
@@ -74,6 +74,7 @@ const RELEASE_NEWS: [&str; 15] = [
     "INDICATORS NULL BITFIELD",
     "SQL regular expression",
     "SUBSTRING_REGEXPR",
+    "FINAL",
 ];
 
 fn by_release_news(needs: &[abap_syntax::release::Need]) -> bool {

@@ -185,6 +185,95 @@
   "type": "Form"
  },
  {
+  "abap": "FORM foobar USING p_param TYPE TABLE.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE table p_other TYPE i.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE STANDARD TABLE OF i.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar CHANGING p_param TYPE SORTED TABLE OF i.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE c length TYPE i.",
+  "expect": "match",
+  "type": "Form"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE TABLE OF i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar CHANGING p_param TYPE TABLE OF i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar TABLES p_param TYPE TABLE OF i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING VALUE(p_param) TYPE TABLE OF i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE TABLE OF REF TO i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE TABLE OF i WITH DEFAULT KEY.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE STANDARD TABLE OF i WITH DEFAULT KEY.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE STANDARD TABLE WITH DEFAULT KEY.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE SORTED TABLE OF i WITH UNIQUE KEY table_line.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE STANDARD TABLE OF REF TO i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE RANGE OF i.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param LIKE TABLE OF gt_foo.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param LIKE RANGE OF gv_foo.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param LIKE STANDARD TABLE OF gt_foo.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE c LENGTH 10.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "FORM foobar USING p_param TYPE p DECIMALS 2.",
+  "expect": "unknown"
+ },
+ {
   "abap": "FORM foobar USING p_param TYPE ANY STRUCTURE.",
   "expect": "match",
   "type": "Form",
