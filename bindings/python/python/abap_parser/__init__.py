@@ -9,6 +9,7 @@ system does not block the event loop and several calls run in parallel.
 """
 
 import asyncio
+import errno
 import json
 from typing import Any, Callable, List, Optional, Tuple, TypedDict, Union
 
@@ -118,39 +119,143 @@ class SourceOptions(TypedDict, total=False):
     type XML of ADT or abapGit's ``<DD40V>`` with ``ROWTYPE`` and ``ROWKIND``
     (``S``, ``E``, ``L``, ``R``) or ``DATATYPE``, ``LENG`` and ``DECIMALS``,
     like ``<DD40V><ROWTYPE>LVC_S_FCAT</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>``,
-    empty values left out. The dictionary kinds are asked while typing,
+    empty values left out; ``ENHO`` the code of an enhancement implementation
+    as ADT's ``enhancements/enhoxhh/<name>/source/main`` gives it, asked for
+    the hooks ``query`` finds. The dictionary kinds are asked while typing,
     whatever the patterns of ``follow`` say; ``follow["dictionary"]`` bounds
-    them. BAdI implementations, classic BAdIs, enhancements and where-used
-    lists come only from ``adt``. ``cache`` holds what ``adt`` fetched, and
-    which objects it does not have, not what ``fetch`` returns.
+    them. Bytes are decoded as UTF-8; an answer that is no text counts as not
+    found and a note says so, as does a dictionary text that cannot be read.
+    An exception counts as not found when it carries the HTTP status 404 or
+    410; otherwise it is listed in ``errors``: code ``auth`` or ``http`` for
+    an HTTP status (``status``, ``status_code``, an int ``code``,
+    ``response.status_code``), ``network`` for ``ConnectionError``,
+    ``TimeoutError`` and the connection errors of requests and urllib3,
+    ``io`` for other ``OSError``, or as a string attribute ``code`` says
+    (``"network"``, ``"io"``, ``"ECONNRESET"`` ...).
+
+    ``query`` answers the lookups an SAP system answers from its tables:
+    BAdIs, classic BAdIs, enhancements, implementations of interfaces and
+    subclasses. It is called with a query on one table, ``{"table":
+    "BADI_IMPL", "columns": ["CLASS_NAME"], "where": {"BADI_NAME":
+    ["ZBADI"]}, "sql": "SELECT class_name FROM badi_impl WHERE badi_name =
+    'ZBADI'"}`` (each column of ``where`` has one of its values), and returns
+    the rows, each a list of values in the order of ``columns`` or a dict by
+    column, or None when it cannot answer, which a note says. The tables:
+    BADI_MAIN, BADI_IMPL, SXS_INTER, SXS_ATTR, SXC_CLASS, SXC_ATTR,
+    SEOMETAREL, TFDIR and ENHINCINX; ``sql`` suits ADT's data preview.
+    Without it these lookups come only from ``src`` and ``adt``. ``cache``
+    holds what ``adt`` fetched, and which objects it does not have, not what
+    ``fetch`` or ``query`` return.
 
     ``follow`` limits which objects calls are followed into, see
-    ``FollowOptions``. ``progress`` is called with ``{"loaded": n, "object":
-    "CLAS:ZCL_X"}`` after each object loaded or looked for, from worker
-    threads. ``cancel`` is a ``CancelToken``."""
+    ``FollowOptions``. ``progress`` is called with ``{"loaded": n, "queued":
+    n, "object": "CLAS:ZCL_X", "kind": "CLAS", "outcome": "loaded"}`` after
+    each object loaded or looked for, from worker threads; ``queued`` counts
+    the work known to come (objects of the current level, or calls whose
+    targets are looked for, not started yet, and objects loading; what is
+    found may add more), ``outcome`` is ``loaded``, ``cached`` (from
+    ``cache``), ``missing`` or ``error``.
+    ``cancel`` is a ``CancelToken``."""
 
     src: List[str]
     cache: str
     adt: AdtOptions
     follow: FollowOptions
     fetch: Callable[[str], Optional[str]]
+    query: Callable[[dict], Optional[List[Any]]]
     progress: Callable[[dict], Any]
     cancel: Any
 
 
-def _split(options: SourceOptions) -> Tuple[str, Any, Any, Any]:
-    """The options as JSON for the native module, and the fetch function, the
-    progress function and the cancel token."""
+_NETWORK = {
+    "ConnectionError",
+    "ConnectTimeout",
+    "ConnectTimeoutError",
+    "IncompleteRead",
+    "NewConnectionError",
+    "ProtocolError",
+    "ProxyError",
+    "ReadTimeout",
+    "ReadTimeoutError",
+    "RemoteDisconnected",
+    "Timeout",
+    "URLError",
+}
+
+
+def _failure(e: BaseException) -> dict:
+    """What an exception of a function of the host tells: its message, an
+    HTTP status and a code for the kind of error."""
+    response = getattr(e, "response", None)
+    status = None
+    for v in (
+        getattr(e, "status", None),
+        getattr(e, "status_code", None),
+        getattr(e, "code", None),
+        getattr(response, "status_code", None),
+        getattr(response, "status", None),
+    ):
+        if isinstance(v, int) and not isinstance(v, bool) and 100 <= v <= 599:
+            status = v
+            break
+    code = getattr(e, "code", None)
+    if not isinstance(code, str):
+        code = None
+        if isinstance(e, (ConnectionError, TimeoutError)) or any(
+            c.__name__ in _NETWORK for c in type(e).__mro__
+        ):
+            code = "network"
+        elif isinstance(e, OSError):
+            code = errno.errorcode.get(e.errno or 0, "io")
+    return {"message": str(e) or type(e).__name__, "status": status, "code": code}
+
+
+def _host(f: Optional[Callable[[Any], Any]], decode: Callable[[str], Any], encode: Callable[[Any], Any]):
+    """A function of the host for the native module: it gets the argument as
+    a string and answers in JSON, ``{"value": ...}`` or ``{"error": ...}``."""
+    if f is None:
+        return None
+
+    def call(argument: str) -> str:
+        try:
+            return json.dumps({"value": encode(f(decode(argument)))})
+        except Exception as e:  # reported to the analysis, not raised
+            return json.dumps({"error": _failure(e)})
+
+    return call
+
+
+def _text(value: Any) -> Any:
+    """Text as the native module takes it: bytes decoded as UTF-8; anything
+    else that is no text is noted by the native module."""
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).decode("utf-8")
+    if value is None or isinstance(value, (str, int, float, bool, list, dict)):
+        return value
+    return repr(value)
+
+
+def _split(options: SourceOptions) -> Tuple[str, Any, Any, Any, Any]:
+    """The options as JSON for the native module, the fetch and query
+    functions answering in JSON, the progress function and the cancel
+    token."""
     rest = dict(options)
     fetch = rest.pop("fetch", None)
+    query = rest.pop("query", None)
     progress = rest.pop("progress", None)
     cancel = rest.pop("cancel", None)
-    for name, f in (("fetch", fetch), ("progress", progress)):
+    for name, f in (("fetch", fetch), ("query", query), ("progress", progress)):
         if f is not None and not callable(f):
             raise TypeError(f"options['{name}'] must be callable")
     if cancel is not None and not isinstance(cancel, CancelToken):
         raise TypeError("options['cancel'] must be a CancelToken")
-    return json.dumps(rest), fetch, progress, cancel
+    return (
+        json.dumps(rest),
+        _host(fetch, lambda reference: reference, _text),
+        _host(query, json.loads, lambda rows: rows),
+        progress,
+        cancel,
+    )
 
 
 def symbols(source: str) -> FileSymbols:
@@ -173,9 +278,9 @@ def calls(source: str) -> List[Call]:
     return json.loads(_native.calls_json(source))
 
 
-def _with_depth(options: SourceOptions, depth: int) -> Tuple[str, int, Any, Any, Any]:
-    text, fetch, progress, cancel = _split(options)
-    return text, depth, fetch, progress, cancel
+def _with_depth(options: SourceOptions, depth: int) -> Tuple[str, int, Any, Any, Any, Any]:
+    text, fetch, query, progress, cancel = _split(options)
+    return text, depth, fetch, query, progress, cancel
 
 
 def call_graph(roots: List[str], options: SourceOptions, depth: int = 1) -> CallGraph:

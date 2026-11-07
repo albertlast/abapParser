@@ -233,11 +233,11 @@ An unresolved call says why in `unresolved`:
 | `cancelled`            | the analysis was cancelled                                                                 |
 | `not_loaded`           | a transaction or transformation, which is not analyzed                                     |
 
-Errors of the source providers are listed in `errors`, each with a `code` (`auth`, `http`, `network`, `io`, `other`), the `object` or lookup it was for, the `cause` as text, the HTTP `status`, and whether trying again may succeed (`retryable`: network failures, HTTP 408, 429 and 5xx).
+Errors of the source providers are listed in `errors`, each with a `code` (`auth`, `http`, `network`, `io`, `other`), the `object` or lookup it was for, the `cause` as text, the HTTP `status`, and whether trying again may succeed (`retryable`: network failures, HTTP 408, 429 and 5xx). Errors of the `fetch` and `query` functions of Node.js and Python get their code from what they carry, see the Node.js and Python sections below.
 
 Requests to the SAP system go through the proxy of `ALL_PROXY`, `HTTPS_PROXY` or `HTTP_PROXY` (the first set, also in lower case), except for the hosts in `NO_PROXY`. `--proxy http://proxy:8080` (`adt.proxy` in Node.js and Python) uses that proxy for every host instead, `--no-proxy` (`proxy: false`) connects directly. A network error names the proxy it went through and where it came from, without user and password, like `CONNECT proxy failed: proxy server did not respond (through the proxy http://proxy:8080 from HTTPS_PROXY; ...)`. HTTP and HTTPS proxies are supported, SOCKS and the proxy of the Windows settings are not.
 
-Following calls into SAP standard code can take long. The follow options load only objects whose names match patterns, like `Z*` or a custom namespace `/ABC/*`, leave out others, and stop after a number of objects; the objects given are always loaded. Objects not loaded are listed in `skipped` with the reason (`not_followed`, `limit` or `cancelled`), not in `missing`, and logic leaves out what they do. The limit counts each object looked for, also those no source has, level by level from the roots; the note says how many were found and how many more were not loaded. Dictionary lookups while typing (data elements, domains, structures, table types) are not objects: `dictionary` (`--dictionary <n>`) bounds them, 0 switches them off; types not looked up stay names, and the note `dictionary: ...` says how many were not made. Logic looks up the dictionary types the declarations of a level's objects name several at once, through `fetch` of Node.js and Python too. A progress function is called after each object, and an analysis can be cancelled: it then finishes with what it has.
+Following calls into SAP standard code can take long. The follow options load only objects whose names match patterns, like `Z*` or a custom namespace `/ABC/*`, leave out others, and stop after a number of objects; the objects given are always loaded. Objects not loaded are listed in `skipped` with the reason (`not_followed`, `limit` or `cancelled`), not in `missing`, and logic leaves out what they do. The limit counts each object looked for, also those no source has, level by level from the roots; the note says how many were found and how many more were not loaded. Dictionary lookups while typing (data elements, domains, structures, table types) are not objects: `dictionary` (`--dictionary <n>`) bounds them, 0 switches them off; types not looked up stay names, and the note `dictionary: ...` says how many were not made. Logic looks up the dictionary types the declarations of a level's objects name several at once, through `fetch` of Node.js and Python too. A progress function is called after each object with how many were loaded, how much work is queued, the object, its kind and the outcome (`loaded`, `cached` from the disk cache, `missing`, `error`); `--progress` writes the same to stderr. An analysis can be cancelled: it then finishes with what it has.
 
 ```sh
 abap graph CLAS:ZCL_ORDERS --src ./src --depth 2
@@ -271,13 +271,13 @@ Which classes a BAdI runs is not in the calling code, so the providers look it u
 | BAdI of an enhancement spot | `GET BADI lo_badi.` `CALL BADI lo_badi->check( ).`                                                                      | the classes of its active implementations, else its fallback class                                                         |
 | classic BAdI                | `cl_exithandler=>get_instance( CHANGING instance = lo_exit )`, then `lo_exit->check( )` on its interface `IF_EX_<name>` | the classes of its active implementations, else its default implementation; with a BAdI it was migrated to, that one's too |
 
-A `CALL BADI` gets the BAdI in `badi` and its interface in `class`. The call graph loads the classes that run, and `logic` follows the call into them, up to 10 like other interface calls. Classes that implement the interface but are not active implementations, like the adapter class `CL_EX_<name>` of a classic BAdI, are left out. An SAP system answers from the BAdI tables (BADI_MAIN and BADI_IMPL; SXS_INTER, SXS_ATTR, SXC_CLASS and SXC_ATTR) through the data preview, folders from the abapGit files. Filters are not evaluated: every active implementation counts. Business transaction events (`OPEN_FI_PERFORM_...`) are not followed: which function modules run is customizing.
+A `CALL BADI` gets the BAdI in `badi` and its interface in `class`. The call graph loads the classes that run, and `logic` follows the call into them, up to 10 like other interface calls. Classes that implement the interface but are not active implementations, like the adapter class `CL_EX_<name>` of a classic BAdI, are left out. An SAP system answers from the BAdI tables (BADI_MAIN and BADI_IMPL; SXS_INTER, SXS_ATTR, SXC_CLASS and SXC_ATTR) through the data preview, folders from the abapGit files, the host of the Node.js and Python packages through its `query` function. Filters are not evaluated: every active implementation counts. Business transaction events (`OPEN_FI_PERFORM_...`) are not followed: which function modules run is customizing.
 
 ### Enhancements
 
 Enhancement implementations add code to programs, function modules and classes without changing them: at an `ENHANCEMENT-POINT`, in place of an `ENHANCEMENT-SECTION`, or implicitly at the begin or end of a form, function module, method or include. When an object is loaded, this code is put where it runs, so calls, database access and logic see it like code of the object; `INCLUDE`s in it are loaded too. It goes on the line of its position, written on one line without comments, so the rows of the rest of the source stay the same. The call graph lists each enhancement implementation applied as a unit `ENHO:<name>` with where its code came from.
 
-An SAP system names the enhancements of a program in its index of enhancement includes (ENHINCINX, through the data preview); their code comes from ADT. That is one more query per object loaded, about 0.1 s; with `--cache` it is asked once, and also "none" is kept. Implementations switched off by the switch framework are left out, except at static points, which hold declarations. Folders give the `.enho.<hash>.abap` files abapGit writes for each position. Not handled: enhancements of function module parameters, and class enhancements (pre-, post- and overwrite methods, added attributes).
+An SAP system names the enhancements of a program in its index of enhancement includes (ENHINCINX, through the data preview); their code comes from ADT. That is one more query per object loaded, about 0.1 s; with `--cache` it is asked once, and also "none" is kept. Implementations switched off by the switch framework are left out, except at static points, which hold declarations. Folders give the `.enho.<hash>.abap` files abapGit writes for each position. A `query` function of the host answers the same tables (ENHINCINX, and TFDIR for the programs of function modules), and `fetch` gives the code as `ENHO:<name>`; it should give active implementations only. Not handled: enhancements of function module parameters, and class enhancements (pre-, post- and overwrite methods, added attributes).
 
 ### Testing without an SAP system
 
@@ -363,7 +363,7 @@ abap logic FUGR:ZORDERS --src ./src --depth 2
 Not covered yet:
 
 - Dynamic names computed at runtime, e.g. by concatenation or read from a table, are not followed.
-- Implementations of global interfaces and subclasses of global classes come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview. Where that is not allowed, implementations come from the where-used list, whose index may be incomplete for SAP standard code, and subclasses are not found.
+- Implementations of global interfaces and subclasses of global classes come from the source folders, or from an SAP system through ADT: from the class relations (table SEOMETAREL) read through the data preview, or through the `query` function of the host. Where that is not allowed, implementations come from the where-used list, whose index may be incomplete for SAP standard code, and subclasses are not found.
 - A field symbol or reference stored in a structure, table or attribute is not followed.
 
 ### Database access and logic together
@@ -515,17 +515,22 @@ Every function has an `…Async` variant. It runs on the libuv thread pool, so l
 
 Sources can come from the host program: `fetch` in the options is called with each object the analysis needs and returns its source, a promise of it, or `null`. It is asked after the folders and before the SAP system, and only the `…Async` functions take it, since it runs in the JavaScript thread while the analysis waits for it; the blocking ones throw a `TypeError`.
 
+`query` answers the lookups an SAP system answers from its tables, which otherwise come only from folders and `adt`: BAdIs, classic BAdIs, enhancements, implementations of interfaces and subclasses. It gets a query on one table, `{table, columns, where, sql}` like `{table: "BADI_IMPL", columns: ["CLASS_NAME"], where: {BADI_NAME: ["ZBADI"]}, sql: "SELECT class_name FROM badi_impl WHERE badi_name = 'ZBADI'"}`, each column of `where` having one of its values. It returns the rows (arrays in the order of `columns`, or objects by column), or `null` when it cannot answer, which `notes` then say. The tables are BADI_MAIN, BADI_IMPL, SXS_INTER, SXS_ATTR, SXC_CLASS, SXC_ATTR, SEOMETAREL, TFDIR and ENHINCINX; `sql` can go to ADT's data preview as it is. The code of the enhancements found is asked from `fetch` as `ENHO:<name>`.
+
 ```js
 const graph = await abap.callGraphAsync(
   ["CLAS:ZCL_ORDERS"],
   {
     fetch: async (reference) => myAdtClient.source(reference), // "CLAS:ZCL_ORDERS/implementations", "FUNC:Z_FM", ...
+    query: async ({sql}) => myAdtClient.dataPreview(sql), // rows, or null
   },
   2,
 );
 ```
 
-`follow` limits which objects calls are followed into, `progress` is called with `{loaded, object}` after each object, and an aborted `signal` stops loading; the last two only in the `…Async` functions.
+An error the functions throw is listed in `errors` with a code from what it carries: `auth` or `http` for an HTTP `status` (also `statusCode`, `response.status`), `network` for codes like `ECONNREFUSED`, `ETIMEDOUT` or `UND_ERR_...` (`code`, `cause.code`) and a `TimeoutError`, `io` for other `E...` codes like `ENOENT`, `other` for the rest; the status 404 or 410 means not found. An answer that is no text counts as not found, and a dictionary text that cannot be read leaves the type a name; `notes` count both.
+
+`follow` limits which objects calls are followed into, `progress` is called with `{loaded, queued, object, kind, outcome}` after each object, and an aborted `signal` stops loading; the last two only in the `…Async` functions.
 
 ```js
 const controller = new AbortController();
@@ -534,7 +539,7 @@ const logic = await abap.logicObjectAsync(
   {
     adt,
     follow: {include: ["Z*", "/ABC/*"], exclude: ["ZTEST*"], limit: 500},
-    progress: ({loaded, object}) => console.log(loaded, object),
+    progress: ({loaded, queued, object, outcome}) => console.log(loaded, queued, object, outcome),
     signal: controller.signal,
   },
   2,
@@ -563,20 +568,23 @@ outline = abap_parser.object_text("symbols", ["CLAS:ZCL_ORDERS"], {"src": ["./sr
 
 Every function has an `..._async` variant for asyncio, running in a worker thread. The native code releases the GIL.
 
-`fetch` in the options gives sources of the host: a function called with each object the analysis needs, returning its source or `None`. It is asked after the folders and before the SAP system; the native code takes the GIL to call it, from worker threads, also several at once.
+`fetch` in the options gives sources of the host: a function called with each object the analysis needs, returning its source or `None`. It is asked after the folders and before the SAP system; the native code takes the GIL to call it, from worker threads, also several at once. `query` answers table lookups as in Node.js, with a dict `{"table", "columns", "where", "sql"}`, returning a list of rows or `None`. Exceptions get their code from `status`, `status_code`, an int `code` or `response.status_code` (`auth`, `http`; 404 and 410 mean not found), from `ConnectionError`, `TimeoutError` and the connection errors of requests and urllib3 (`network`), from other `OSError` (`io`), or from a string attribute `code`.
 
 ```python
-graph = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], {"fetch": lambda ref: my_cache.get(ref)}, 2)
+graph = abap_parser.call_graph(["CLAS:ZCL_ORDERS"], {
+    "fetch": lambda ref: my_cache.get(ref),
+    "query": lambda q: my_adt.data_preview(q["sql"]),  # rows, or None
+}, 2)
 ```
 
-`follow` limits which objects calls are followed into, `progress` is called with `{"loaded": n, "object": "..."}` after each object, and a `CancelToken` stops loading, also from another thread or the event loop.
+`follow` limits which objects calls are followed into, `progress` is called with `{"loaded": n, "queued": n, "object": "...", "kind": "...", "outcome": "..."}` after each object, and a `CancelToken` stops loading, also from another thread or the event loop.
 
 ```python
 token = abap_parser.CancelToken()
 logic = await abap_parser.logic_object_async("CLAS:ZCL_ORDERS", {
     "adt": adt,
     "follow": {"include": ["Z*", "/ABC/*"], "exclude": ["ZTEST*"], "limit": 500},
-    "progress": lambda p: print(p["loaded"], p["object"]),
+    "progress": lambda p: print(p["loaded"], p["queued"], p["object"], p["outcome"]),
     "cancel": token,          # token.cancel() stops loading
 }, 2)
 ```

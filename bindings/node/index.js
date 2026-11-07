@@ -30,7 +30,7 @@ function loadNative() {
 const native = loadNative();
 
 /** The functions and the signal of the options, which do not go to the native module as JSON. */
-const HOOKS = ["fetch", "progress", "signal"];
+const HOOKS = ["fetch", "query", "progress", "signal"];
 
 /**
  * The options as JSON for the native module, without the hooks.
@@ -48,15 +48,55 @@ function json(options) {
 }
 
 /**
- * The hooks of the options for the native module: the fetch function, made
- * to always return a promise; the progress function, called with
- * `{loaded, object}`; and a cancel token the signal cancels.
+ * What a thrown error or rejection of a function of the host tells: its
+ * message, an HTTP status (`status`, `statusCode`, `response.status` as
+ * axios has it) and a code like `ECONNREFUSED` (`code`, `cause.code` as
+ * fetch has it, or the name `TimeoutError`).
+ * @param {any} e
+ */
+function failure(e) {
+  const number = (v) => (typeof v === "number" ? v : undefined);
+  const text = (v) => (typeof v === "string" ? v : undefined);
+  return {
+    message: String(e?.message ?? e),
+    status:
+      number(e?.status) ?? number(e?.statusCode) ?? number(e?.response?.status) ?? number(e?.response?.statusCode),
+    code: text(e?.code) ?? text(e?.cause?.code) ?? (e?.name === "TimeoutError" ? "TimeoutError" : undefined),
+  };
+}
+
+/**
+ * A function of the host for the native module: it gets the argument as a
+ * string and answers in JSON, `{"value": ...}` or `{"error": {...}}`.
+ * @param {(argument: any) => any} f
+ * @param {(argument: string) => any} input
+ * @param {(value: any) => any} output
+ */
+function hostFunction(f, input, output) {
+  return async (argument) => {
+    try {
+      return JSON.stringify({value: output(await f(input(argument))) ?? null});
+    } catch (e) {
+      return JSON.stringify({error: failure(e)});
+    }
+  };
+}
+
+/** Text as the native module takes it: bytes decoded as UTF-8. */
+const textOf = (v) => (v instanceof Uint8Array ? new TextDecoder().decode(v) : v);
+
+/**
+ * The hooks of the options for the native module: the fetch and query
+ * functions, answering in JSON; the progress function, called with
+ * `{loaded, queued, object, kind, outcome}`; and a cancel token the signal
+ * cancels.
  * @param {import("./index").SourceOptions} options
  */
 function hooksOf(options) {
-  const {fetch, progress, signal} = options ?? {};
+  const {fetch, query, progress, signal} = options ?? {};
   for (const [name, f] of [
     ["fetch", fetch],
+    ["query", query],
     ["progress", progress],
   ]) {
     if (f != null && typeof f !== "function") {
@@ -73,7 +113,8 @@ function hooksOf(options) {
     }
   }
   return [
-    fetch == null ? undefined : async (reference) => fetch(reference),
+    fetch == null ? undefined : hostFunction(fetch, (reference) => reference, textOf),
+    query == null ? undefined : hostFunction(query, JSON.parse, (rows) => rows),
     progress == null ? undefined : (text) => progress(JSON.parse(text)),
     token,
   ];

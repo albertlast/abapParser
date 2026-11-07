@@ -5,9 +5,11 @@
 //! pool and returns a promise, so loading sources from an SAP system or
 //! analyzing large files does not block the event loop.
 //!
-//! The async variants loading sources take a `fetch` function of the host:
-//! the worker threads call it through a threadsafe function and wait for
-//! the promise it returns, while the event loop runs it. They also take a
+//! The async variants loading sources take the `fetch` and `query`
+//! functions of the host: the worker threads call them through threadsafe
+//! functions and wait for the promises they return, while the event loop
+//! runs them. index.js wraps them to answer in JSON, `{"value": ...}` or
+//! `{"error": {...}}` (see [`FnProvider::json`]). They also take a
 //! `progress` function, called without waiting, and a [`CancelToken`].
 
 use std::future::Future;
@@ -15,7 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::task::{Context, Poll, Wake, Waker};
 
-use abap_analysis::abap_source::{FnProvider, SourceError, SourceRef};
+use abap_analysis::abap_source::{FnProvider, HostFn};
 use abap_analysis::json::Hooks;
 use napi::bindgen_prelude::{AsyncTask, Env, Error, Function, Promise, Result, Task};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
@@ -52,12 +54,13 @@ impl Task for JsonTask {
     }
 }
 
-/// `(reference) => Promise<string | null>`, index.js makes every fetch
-/// function of the host return a promise.
-type FetchJs<'a> = Function<'a, String, Promise<Option<String>>>;
-type FetchTsfn = ThreadsafeFunction<String, Promise<Option<String>>, String, Status, false>;
+/// `(argument) => Promise<string>`: index.js wraps the fetch and query
+/// functions of the host to answer in JSON.
+type HostJs<'a> = Function<'a, String, Promise<String>>;
+type HostTsfn = ThreadsafeFunction<String, Promise<String>, String, Status, false>;
 
-/// `(json) => void`, called with `{"loaded": 3, "object": "CLAS:ZCL_X"}`.
+/// `(json) => void`, called with `{"loaded": 3, "queued": 2, "object":
+/// "CLAS:ZCL_X", "kind": "CLAS", "outcome": "loaded"}`.
 type ProgressJs<'a> = Function<'a, String, ()>;
 type ProgressTsfn = ThreadsafeFunction<String, (), String, Status, false>;
 
@@ -88,20 +91,17 @@ impl CancelToken {
 /// The functions of the host for an analysis: built in the JavaScript
 /// thread, called from the worker threads.
 fn hooks(
-    fetch: Option<FetchJs>,
+    fetch: Option<HostJs>,
+    query: Option<HostJs>,
     progress: Option<ProgressJs>,
     cancel: Option<&CancelToken>,
 ) -> Result<Hooks> {
     let mut hooks = Hooks::default();
-    if let Some(f) = fetch {
-        let tsfn: Arc<FetchTsfn> = Arc::new(
-            f.build_threadsafe_function()
-                .callee_handled::<false>()
-                .build()?,
-        );
-        hooks.host = Some(Box::new(FnProvider::new("fetch", move |r| {
-            call_fetch(&tsfn, r)
-        })));
+    if fetch.is_some() || query.is_some() {
+        hooks.host = Some(Box::new(FnProvider::json(
+            fetch.map(host_fn).transpose()?,
+            query.map(host_fn).transpose()?,
+        )));
     }
     if let Some(f) = progress {
         let tsfn: ProgressTsfn = f
@@ -109,7 +109,13 @@ fn hooks(
             .callee_handled::<false>()
             .build()?;
         hooks.progress = Some(Box::new(move |p| {
-            let json = serde_json::json!({"loaded": p.loaded, "object": p.object});
+            let json = serde_json::json!({
+                "loaded": p.loaded,
+                "queued": p.queued,
+                "object": p.object,
+                "kind": p.kind,
+                "outcome": p.outcome.as_str(),
+            });
             tsfn.call(json.to_string(), ThreadsafeFunctionCallMode::NonBlocking);
         }));
     }
@@ -117,14 +123,21 @@ fn hooks(
     Ok(hooks)
 }
 
-fn call_fetch(
-    tsfn: &FetchTsfn,
-    r: &SourceRef,
-) -> abap_analysis::abap_source::Result<Option<String>> {
-    let failed = |e: String| SourceError::Other(format!("fetch {r}: {e}"));
+/// A function of the host, callable from the worker threads.
+fn host_fn(f: HostJs) -> Result<HostFn> {
+    let tsfn: Arc<HostTsfn> = Arc::new(
+        f.build_threadsafe_function()
+            .callee_handled::<false>()
+            .build()?,
+    );
+    Ok(Box::new(move |argument| call_host(&tsfn, argument)))
+}
+
+/// Calls a function of the host and waits for the promise it returns.
+fn call_host(tsfn: &HostTsfn, argument: String) -> std::result::Result<String, String> {
     let (tx, rx) = mpsc::channel();
     let status = tsfn.call_with_return_value(
-        r.to_string(),
+        argument,
         ThreadsafeFunctionCallMode::Blocking,
         move |promise, _env| {
             let _ = tx.send(promise);
@@ -132,13 +145,13 @@ fn call_fetch(
         },
     );
     if status != Status::Ok {
-        return Err(failed(format!("not called ({status})")));
+        return Err(format!("not called ({status})"));
     }
     let promise = rx
         .recv()
-        .map_err(|_| failed("no answer".to_string()))?
-        .map_err(|e| failed(e.reason.clone()))?;
-    block_on(promise).map_err(|e| failed(e.reason.clone()))
+        .map_err(|_| "no answer".to_string())?
+        .map_err(|e| e.reason.clone())?;
+    block_on(promise).map_err(|e| e.reason.clone())
 }
 
 /// Waits in this thread for a future, like the promise of the fetch
@@ -203,11 +216,12 @@ pub fn call_graph_json_async(
     roots: Vec<String>,
     options: String,
     depth: u32,
-    fetch: Option<FetchJs>,
+    fetch: Option<HostJs>,
+    query: Option<HostJs>,
     progress: Option<ProgressJs>,
     cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let hooks = hooks(fetch, progress, cancel)?;
+    let hooks = hooks(fetch, query, progress, cancel)?;
     Ok(JsonTask::new(move || {
         abap_analysis::json::call_graph(&roots, &options, depth, hooks)
     }))
@@ -223,11 +237,12 @@ pub fn fetch_source(reference: String, options: String) -> Result<Option<String>
 pub fn fetch_source_json_async(
     reference: String,
     options: String,
-    fetch: Option<FetchJs>,
+    fetch: Option<HostJs>,
+    query: Option<HostJs>,
     progress: Option<ProgressJs>,
     cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let hooks = hooks(fetch, progress, cancel)?;
+    let hooks = hooks(fetch, query, progress, cancel)?;
     Ok(JsonTask::new(move || {
         let text = abap_analysis::json::fetch(&reference, &options, hooks)?;
         Ok(serde_json::to_string(&text).expect("text serializes"))
@@ -256,11 +271,12 @@ pub fn logic_object_json_async(
     reference: String,
     options: String,
     depth: u32,
-    fetch: Option<FetchJs>,
+    fetch: Option<HostJs>,
+    query: Option<HostJs>,
     progress: Option<ProgressJs>,
     cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let hooks = hooks(fetch, progress, cancel)?;
+    let hooks = hooks(fetch, query, progress, cancel)?;
     Ok(JsonTask::new(move || {
         abap_analysis::json::logic_object(&reference, &options, depth, hooks)
     }))
@@ -309,17 +325,20 @@ pub fn object_text(
         .map_err(Error::from_reason)
 }
 
+// the arguments index.js passes
+#[allow(clippy::too_many_arguments)]
 #[napi(ts_return_type = "Promise<string>")]
 pub fn object_text_async(
     analysis: String,
     objects: Vec<String>,
     options: String,
     depth: u32,
-    fetch: Option<FetchJs>,
+    fetch: Option<HostJs>,
+    query: Option<HostJs>,
     progress: Option<ProgressJs>,
     cancel: Option<&CancelToken>,
 ) -> Result<AsyncTask<JsonTask>> {
-    let hooks = hooks(fetch, progress, cancel)?;
+    let hooks = hooks(fetch, query, progress, cancel)?;
     Ok(JsonTask::new(move || {
         abap_analysis::json::object_text(&analysis, &objects, &options, depth, hooks)
     }))

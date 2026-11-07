@@ -5,23 +5,28 @@
 //! `CLAS:ZCL_ORDERS`, `CLAS:ZCL_ORDERS/implementations`, `INTF:ZIF_X`,
 //! `FUGR:ZORDERS` or `FUNC:Z_ORDER_CREATE`; dictionary types as
 //! `TABL:BAPIRET2` (structures and tables) and `DTEL:XUBNAME`, CDS data
-//! definitions as `DDLS:I_COUNTRY`.
+//! definitions as `DDLS:I_COUNTRY`, the code of enhancement implementations
+//! as `ENHO:ZENH`.
 
 #[cfg(feature = "adt")]
 mod adt;
 mod badi;
 mod cache;
 mod fs;
+mod host;
 mod mock;
 mod options;
+mod tables;
 
 #[cfg(feature = "adt")]
 pub use adt::{AdtConfig, AdtProvider, AdtProxy};
 pub use badi::Badi;
 pub use cache::CachedProvider;
 pub use fs::FsProvider;
+pub use host::{FetchFn, FnProvider, HostFn, QueryFn};
 pub use mock::{MockAdtConfig, MockAdtServer, MockRelease};
 pub use options::{AdtOptions, ProviderOptions, ProxyOption};
+pub use tables::{Query, Rows};
 
 use std::fmt;
 use std::str::FromStr;
@@ -52,6 +57,10 @@ pub enum ObjectKind {
     Type,
     /// CDS data definition, its DDL source; abapGit `.ddls.asddls`
     Ddls,
+    /// enhancement implementation, its code (`ENHANCEMENT 1 ...`) as ADT's
+    /// `enhancements/enhoxhh/<name>/source/main` gives it; asked for the
+    /// hooks the enhancement index names
+    Enho,
 }
 
 impl ObjectKind {
@@ -68,6 +77,7 @@ impl ObjectKind {
             ObjectKind::Ttyp => "TTYP",
             ObjectKind::Type => "TYPE",
             ObjectKind::Ddls => "DDLS",
+            ObjectKind::Enho => "ENHO",
         }
     }
 }
@@ -191,7 +201,7 @@ impl FromStr for SourceRef {
     type Err = String;
 
     /// `KIND:NAME[/part]`, kind one of PROG, CLAS, INTF, FUGR, FUNC, TABL, DTEL, DOMA,
-    /// TTYP, TYPE, DDLS
+    /// TTYP, TYPE, DDLS, ENHO
     fn from_str(s: &str) -> std::result::Result<Self, String> {
         let (kind, rest) = s
             .split_once(':')
@@ -208,6 +218,7 @@ impl FromStr for SourceRef {
             "TTYP" => ObjectKind::Ttyp,
             "TYPE" => ObjectKind::Type,
             "DDLS" => ObjectKind::Ddls,
+            "ENHO" => ObjectKind::Enho,
             other => return Err(format!("unknown object kind {other:?}")),
         };
         // names may contain namespaces like /ABC/ZCL_X; a part follows the
@@ -280,6 +291,8 @@ pub struct Source {
     pub text: String,
     /// file path or URL the text came from
     pub origin: String,
+    /// read from a disk cache, not from the system
+    pub cached: bool,
 }
 
 #[derive(Debug)]
@@ -308,6 +321,71 @@ impl SourceError {
             SourceError::Http { status, .. } => matches!(status, 408 | 429 | 500..=599),
             _ => false,
         }
+    }
+
+    /// The error a function of the host reports for `what`, like `fetch
+    /// CLAS:ZCL_X`: by its HTTP `status` (401 and 403 authorization, others
+    /// HTTP; 404 and 410 are no error but not found, `None`), else by its
+    /// `code`: `network`, or one of Node.js and the operating system like
+    /// `ECONNREFUSED`, `ETIMEDOUT`, `ENOTFOUND`, `UND_ERR_...` or
+    /// `TimeoutError` is a network error; `io`, or another `E...` code like
+    /// `ENOENT` or `EACCES`, a file error; anything else is other.
+    pub fn from_host(
+        what: &str,
+        message: &str,
+        status: Option<u16>,
+        code: Option<&str>,
+    ) -> Option<SourceError> {
+        let detail = format!("{what}: {message}");
+        match status {
+            Some(404 | 410) => return None,
+            Some(401 | 403) => return Some(SourceError::Auth { url: detail }),
+            Some(status @ 100..=599) => {
+                return Some(SourceError::Http {
+                    status,
+                    url: detail,
+                })
+            }
+            _ => {}
+        }
+        let code = code.unwrap_or_default().trim();
+        const NETWORK: [&str; 13] = [
+            "ECONNREFUSED",
+            "ECONNRESET",
+            "ECONNABORTED",
+            "ETIMEDOUT",
+            "ESOCKETTIMEDOUT",
+            "ENOTFOUND",
+            "EAI_AGAIN",
+            "EHOSTUNREACH",
+            "EHOSTDOWN",
+            "ENETUNREACH",
+            "ENETDOWN",
+            "EPIPE",
+            "TimeoutError",
+        ];
+        if code.eq_ignore_ascii_case("network")
+            || NETWORK.contains(&code)
+            || code.starts_with("UND_ERR")
+        {
+            return Some(SourceError::Network(detail));
+        }
+        // errno names; Node.js' own codes are ERR_...
+        let errno = code.len() > 1
+            && code.starts_with('E')
+            && !code.starts_with("ERR_")
+            && code
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+        if code.eq_ignore_ascii_case("io") || errno {
+            let kind = match code {
+                "ENOENT" => std::io::ErrorKind::NotFound,
+                "EACCES" | "EPERM" => std::io::ErrorKind::PermissionDenied,
+                _ => std::io::ErrorKind::Other,
+            };
+            return Some(SourceError::Io(std::io::Error::new(kind, detail)));
+        }
+        Some(SourceError::Other(detail))
     }
 }
 
@@ -552,45 +630,6 @@ fn merged(answers: impl Iterator<Item = Result<Option<Badi>>>) -> Result<Option<
     Ok(out)
 }
 
-/// The function of [`FnProvider`]: the source of an object, `None` when
-/// there is none.
-pub type FetchFn = dyn Fn(&SourceRef) -> Result<Option<String>> + Send + Sync;
-
-/// Sources from a function of the caller, like a callback of the Node.js or
-/// Python package that reads them from its own ADT client or cache. It gets
-/// the object as written, like `CLAS:ZCL_X/implementations` or `FUNC:Z_FM`.
-pub struct FnProvider {
-    name: String,
-    fetch: Box<FetchFn>,
-}
-
-impl FnProvider {
-    /// `name` describes the provider in messages and in the origin of sources.
-    pub fn new(
-        name: impl Into<String>,
-        fetch: impl Fn(&SourceRef) -> Result<Option<String>> + Send + Sync + 'static,
-    ) -> Self {
-        FnProvider {
-            name: name.into(),
-            fetch: Box::new(fetch),
-        }
-    }
-}
-
-impl SourceProvider for FnProvider {
-    fn fetch(&self, reference: &SourceRef) -> Result<Option<Source>> {
-        Ok((self.fetch)(reference)?.map(|text| Source {
-            reference: reference.clone(),
-            text,
-            origin: format!("{}:{reference}", self.name),
-        }))
-    }
-
-    fn describe(&self) -> String {
-        self.name.clone()
-    }
-}
-
 /// A provider with fixed sources, for tests and for sources passed in by callers.
 #[derive(Default)]
 pub struct MemoryProvider {
@@ -639,6 +678,7 @@ impl SourceProvider for MemoryProvider {
             reference: reference.clone(),
             text: t.clone(),
             origin: format!("memory:{reference}"),
+            cached: false,
         }))
     }
 
@@ -705,6 +745,42 @@ mod tests {
         assert_eq!(s.text, "REPORT zreport.");
         assert_eq!(s.origin, "host:PROG:ZREPORT");
         assert!(p.fetch(&SourceRef::program("ZOTHER")).unwrap().is_none());
+    }
+
+    #[test]
+    fn errors_of_the_host_by_status_and_code() {
+        let e = |status, code| SourceError::from_host("fetch X", "m", status, code);
+        assert!(e(Some(404), None).is_none());
+        assert!(e(Some(410), Some("ECONNRESET")).is_none());
+        assert!(matches!(e(Some(403), None), Some(SourceError::Auth { .. })));
+        assert!(matches!(
+            e(Some(503), None),
+            Some(SourceError::Http { status: 503, .. })
+        ));
+        assert!(e(Some(503), None).unwrap().retryable());
+        for code in [
+            "ECONNRESET",
+            "ETIMEDOUT",
+            "UND_ERR_SOCKET",
+            "TimeoutError",
+            "network",
+        ] {
+            assert!(
+                matches!(e(None, Some(code)), Some(SourceError::Network(_))),
+                "{code}"
+            );
+        }
+        let Some(SourceError::Io(io)) = e(None, Some("ENOENT")) else {
+            panic!("ENOENT is a file error");
+        };
+        assert_eq!(io.kind(), std::io::ErrorKind::NotFound);
+        assert!(matches!(e(None, Some("io")), Some(SourceError::Io(_))));
+        assert!(matches!(
+            e(None, Some("ERR_X")),
+            Some(SourceError::Other(_))
+        ));
+        assert!(matches!(e(None, None), Some(SourceError::Other(_))));
+        assert_eq!(e(None, None).unwrap().to_string(), "fetch X: m");
     }
 
     #[test]

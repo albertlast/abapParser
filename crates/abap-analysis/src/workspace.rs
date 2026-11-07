@@ -92,8 +92,39 @@ fn matches(pattern: &str, name: &str) -> bool {
 #[derive(Debug, Clone)]
 pub struct Progress {
     pub loaded: usize,
+    /// work known to come: the objects of the current level, or the calls
+    /// whose targets are looked for, not started yet, and the objects
+    /// loading in other threads; what is found may add more
+    pub queued: usize,
     /// like `CLAS:ZCL_X`
     pub object: String,
+    /// its kind, like `CLAS`
+    pub kind: &'static str,
+    pub outcome: Outcome,
+}
+
+/// What became of an object loaded or looked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    /// fetched from a folder, the host or the system
+    Loaded,
+    /// read from the disk cache
+    Cached,
+    /// no source has it
+    Missing,
+    /// fetching failed, `errors` says why
+    Error,
+}
+
+impl Outcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Outcome::Loaded => "loaded",
+            Outcome::Cached => "cached",
+            Outcome::Missing => "missing",
+            Outcome::Error => "error",
+        }
+    }
 }
 
 /// Called after each object loaded, from the loading threads.
@@ -110,8 +141,14 @@ pub struct Workspace {
     skipped: Mutex<BTreeMap<SourceRef, m::Unresolved>>,
     /// objects loaded or looked for
     loads: AtomicUsize,
+    /// items of the loading step not started yet (see
+    /// [`Workspace::queued_map`]), and objects loading
+    waiting: AtomicUsize,
+    loading: AtomicUsize,
     /// sources whose loading failed
     failed: Mutex<HashSet<SourceRef>>,
+    /// sources read from a disk cache
+    cached: Mutex<HashSet<SourceRef>>,
     units: Mutex<HashMap<SourceRef, Slot<Unit>>>,
     objects: Mutex<HashMap<SourceRef, Slot<Object>>>,
     /// calls of each object, worked out once
@@ -124,6 +161,9 @@ pub struct Workspace {
     dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
     /// failed lookups that only add types, per kind: how many, the first
     lookups_failed: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
+    /// dictionary texts that could not be read, per kind: how many, the
+    /// first with its origin
+    unreadable: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
     /// dictionary lookups made, and those not made because of
     /// `follow.dictionary`
     dictionary_asked: AtomicUsize,
@@ -494,7 +534,10 @@ impl Workspace {
             roots: Mutex::new(HashSet::new()),
             skipped: Mutex::new(BTreeMap::new()),
             loads: AtomicUsize::new(0),
+            waiting: AtomicUsize::new(0),
+            loading: AtomicUsize::new(0),
             failed: Mutex::new(HashSet::new()),
+            cached: Mutex::new(HashSet::new()),
             units: Mutex::new(HashMap::new()),
             objects: Mutex::new(HashMap::new()),
             calls: Mutex::new(HashMap::new()),
@@ -505,6 +548,7 @@ impl Workspace {
             table_types: Mutex::new(HashMap::new()),
             dictionary_types: Mutex::new(HashMap::new()),
             lookups_failed: Mutex::new(BTreeMap::new()),
+            unreadable: Mutex::new(BTreeMap::new()),
             dictionary_asked: AtomicUsize::new(0),
             dictionary_skipped: AtomicUsize::new(0),
             errors: Mutex::new(Vec::new()),
@@ -647,15 +691,23 @@ impl Workspace {
         if skipped.values().any(|w| *w == m::Unresolved::Cancelled) {
             notes.push("cancelled: objects after it were not loaded".to_string());
         }
+        let what = |kind: &ObjectKind| match kind {
+            ObjectKind::Ttyp => "table types",
+            ObjectKind::Dtel => "data elements",
+            ObjectKind::Doma => "domains",
+            ObjectKind::Tabl => "structures",
+            _ => "type groups",
+        };
         for (kind, (count, first)) in self.lookups_failed.lock().unwrap().iter() {
-            let what = match kind {
-                ObjectKind::Ttyp => "table types",
-                ObjectKind::Dtel => "data elements",
-                ObjectKind::Doma => "domains",
-                _ => "type groups",
-            };
             notes.push(format!(
-                "{what}: {count} lookups failed, their types stay names (first: {first})"
+                "{}: {count} lookups failed, their types stay names (first: {first})",
+                what(kind)
+            ));
+        }
+        for (kind, (count, first)) in self.unreadable.lock().unwrap().iter() {
+            notes.push(format!(
+                "{}: {count} texts could not be read, their types stay names (first: {first})",
+                what(kind)
             ));
         }
         notes.sort();
@@ -672,6 +724,9 @@ impl Workspace {
     fn load_unit(&self, r: &SourceRef) -> Option<Arc<Unit>> {
         match self.provider.fetch(r) {
             Ok(Some(source)) => {
+                if source.cached {
+                    self.cached.lock().unwrap().insert(r.clone());
+                }
                 let file = abap_syntax::parse(&source.text);
                 let mut symbols = crate::symbols_of(&file);
                 if r.kind == ObjectKind::Func {
@@ -721,6 +776,12 @@ impl Workspace {
 
     /// The text of a dictionary type, `None` if no provider has it.
     fn fetch_text(&self, r: &SourceRef) -> Option<String> {
+        self.fetch_dictionary(r).map(|s| s.text)
+    }
+
+    /// The source of a dictionary type, `None` if no provider has it or
+    /// `follow.dictionary` allows no more lookups.
+    fn fetch_dictionary(&self, r: &SourceRef) -> Option<abap_source::Source> {
         if let Some(limit) = self.follow.dictionary {
             if self.dictionary_asked.fetch_add(1, Ordering::SeqCst) >= limit {
                 self.dictionary_skipped.fetch_add(1, Ordering::SeqCst);
@@ -728,12 +789,38 @@ impl Workspace {
             }
         }
         match self.provider.fetch(r) {
-            Ok(s) => s.map(|s| s.text),
+            Ok(s) => s,
             Err(e) => {
                 self.record_of(r, &e);
                 None
             }
         }
+    }
+
+    /// A dictionary type fetched and parsed; `None` if no provider has it
+    /// or its text could not be read, which a note counts.
+    fn read<T>(&self, r: &SourceRef, parse: impl FnOnce(&str) -> Option<T>) -> Option<T> {
+        let source = self.fetch_dictionary(r)?;
+        self.parsed(&source, parse)
+    }
+
+    /// The text of a dictionary type parsed; one that gives nothing is
+    /// counted for the note.
+    fn parsed<T>(
+        &self,
+        source: &abap_source::Source,
+        parse: impl FnOnce(&str) -> Option<T>,
+    ) -> Option<T> {
+        let out = parse(&source.text);
+        if out.is_none() {
+            let r = &source.reference;
+            let mut unreadable = self.unreadable.lock().unwrap();
+            let entry = unreadable
+                .entry(r.kind)
+                .or_insert_with(|| (0, format!("{r} from {}", source.origin)));
+            entry.0 += 1;
+        }
+        out
     }
 
     /// A dictionary structure or table.
@@ -745,8 +832,7 @@ impl Workspace {
         let s = if is_builtin_type(&key) {
             None
         } else {
-            self.fetch_text(&SourceRef::table(&key))
-                .and_then(|text| ddic::structure(&text))
+            self.read(&SourceRef::table(&key), ddic::structure)
                 .map(Arc::new)
         };
         self.structures.lock().unwrap().insert(key, s.clone());
@@ -763,8 +849,7 @@ impl Workspace {
         let t = if is_builtin_type(&key) {
             None
         } else {
-            self.fetch_text(&SourceRef::table_type(&key))
-                .and_then(|text| ddic::table_type_line(&text))
+            self.read(&SourceRef::table_type(&key), ddic::table_type_line)
         };
         self.table_types.lock().unwrap().insert(key, t.clone());
         t
@@ -788,12 +873,10 @@ impl Workspace {
     }
 
     fn load_dictionary_type(&self, key: &str) -> Option<m::DataType> {
-        if let Some(text) = self.fetch_text(&SourceRef::data_element(key)) {
-            let ty = match ddic::data_element(&text)? {
+        if let Some(source) = self.fetch_dictionary(&SourceRef::data_element(key)) {
+            let ty = match self.parsed(&source, ddic::data_element)? {
                 ddic::Element::Type(t) => t,
-                ddic::Element::Domain(d) => {
-                    ddic::domain_type(&self.fetch_text(&SourceRef::domain(&d))?)?
-                }
+                ddic::Element::Domain(d) => self.read(&SourceRef::domain(&d), ddic::domain_type)?,
                 ddic::Element::Reference(r) => return Some(r),
             };
             return Some(m::DataType {
@@ -883,11 +966,28 @@ impl Workspace {
                 self.skip(&r, m::Unresolved::Limit);
                 return None;
             }
+            self.loading.fetch_add(1, Ordering::SeqCst);
             let object = self.load_object(&r).map(Arc::new);
+            self.loading.fetch_sub(1, Ordering::SeqCst);
             if let Some(progress) = &self.progress {
+                let outcome = if object.is_some() {
+                    if self.cached.lock().unwrap().contains(&r) {
+                        Outcome::Cached
+                    } else {
+                        Outcome::Loaded
+                    }
+                } else if self.failed.lock().unwrap().contains(&r) {
+                    Outcome::Error
+                } else {
+                    Outcome::Missing
+                };
                 progress(&Progress {
                     loaded,
+                    queued: self.waiting.load(Ordering::SeqCst)
+                        + self.loading.load(Ordering::SeqCst),
                     object: r.to_string(),
+                    kind: r.kind.as_str(),
+                    outcome,
                 });
             }
             object
@@ -903,10 +1003,7 @@ impl Workspace {
         let mut level: Vec<SourceRef> = roots.iter().map(SourceRef::object).collect();
         let mut seen: BTreeSet<SourceRef> = level.iter().cloned().collect();
         for d in 0..=depth {
-            let objects: Vec<Arc<Object>> = parallel_map(&level, |r| self.object(r))
-                .into_iter()
-                .flatten()
-                .collect();
+            let objects: Vec<Arc<Object>> = self.load_level(&level).into_iter().flatten().collect();
             self.load_named_types(&objects);
             self.load_declared_types(&objects);
             let calls: Vec<m::Call> = parallel_map(&objects, |o| self.object_calls(o))
@@ -917,12 +1014,31 @@ impl Workspace {
             if d == depth {
                 break;
             }
-            level = parallel_map(&calls, |c| self.logic_targets(c))
+            level = self
+                .queued_map(&calls, |c| self.logic_targets(c))
                 .into_iter()
                 .flatten()
                 .filter(|t| seen.insert(t.clone()))
                 .collect();
         }
+    }
+
+    /// The objects of a level, several at once.
+    fn load_level(&self, level: &[SourceRef]) -> Vec<Option<Arc<Object>>> {
+        self.queued_map(level, |r| self.object(r))
+    }
+
+    /// [`parallel_map`] of a step that loads objects, like those of a level
+    /// or the targets of calls: the items not started yet are `queued` in
+    /// the progress.
+    fn queued_map<T: Sync, R: Send>(&self, items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+        self.waiting.store(items.len(), Ordering::SeqCst);
+        let out = parallel_map(items, |item| {
+            self.waiting.fetch_sub(1, Ordering::SeqCst);
+            f(item)
+        });
+        self.waiting.store(0, Ordering::SeqCst);
+        out
     }
 
     /// Working out the calls of an object loads the classes they are of,
@@ -1319,7 +1435,7 @@ impl Workspace {
         // one level after the other; within a level, objects, their calls and
         // what the calls need are loaded several at once
         while !level.is_empty() {
-            let objects = parallel_map(&level, |r| self.object(r));
+            let objects = self.load_level(&level);
             if d < depth {
                 let loaded: Vec<Arc<Object>> = objects.iter().flatten().cloned().collect();
                 self.load_named_types(&loaded);
@@ -1333,7 +1449,7 @@ impl Workspace {
                 .enumerate()
                 .flat_map(|(i, c)| (0..c.len()).map(move |k| (i, k)))
                 .collect();
-            let facts = parallel_map(&each, |(i, k)| {
+            let facts = self.queued_map(&each, |(i, k)| {
                 let (Some(object), c) = (&objects[*i], &calls[*i][*k]) else {
                     return (Vec::new(), false, false, None);
                 };
@@ -2186,6 +2302,87 @@ START-OF-SELECTION.
         assert_eq!(*seen.lock().unwrap(), ["PROG:ZMAIN", "FUNC:Z_ONE"]);
         assert!(reasons(&g).contains(&"Z_TWO Some(Cancelled)".to_string()));
         assert!(g.notes.iter().any(|n| n.starts_with("cancelled")));
+    }
+
+    /// Sources of a cache for Z_ONE, an error for Z_TWO.
+    struct Mixed(MemoryProvider);
+
+    impl SourceProvider for Mixed {
+        fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+            if r.name == "Z_TWO" {
+                return Err(SourceError::Network("down".into()));
+            }
+            Ok(self.0.fetch(r)?.map(|s| abap_source::Source {
+                cached: r.name == "Z_ONE",
+                ..s
+            }))
+        }
+
+        fn describe(&self) -> String {
+            "test".to_string()
+        }
+    }
+
+    #[test]
+    fn progress_tells_kind_outcome_and_queue() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let log = seen.clone();
+        let ws = Workspace::new(Box::new(Mixed(report()))).with_progress(Box::new(move |p| {
+            log.lock().unwrap().push((
+                p.loaded,
+                p.queued,
+                p.object.clone(),
+                p.kind,
+                p.outcome.as_str(),
+            ))
+        }));
+        // one by one, so the order is known
+        IN_PARALLEL.with(|p| p.set(true));
+        ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
+        IN_PARALLEL.with(|p| p.set(false));
+        let seen = seen.lock().unwrap();
+        let outcomes: Vec<(&str, &str, &str)> = seen
+            .iter()
+            .map(|(_, _, o, k, outcome)| (o.as_str(), *k, *outcome))
+            .collect();
+        assert_eq!(
+            outcomes,
+            [
+                ("PROG:ZMAIN", "PROG", "loaded"),
+                ("FUNC:Z_ONE", "FUNC", "cached"),
+                ("FUNC:Z_TWO", "FUNC", "error"),
+                ("FUNC:BAPI_USER_GET_DETAIL", "FUNC", "loaded"),
+                ("FUNC:Z_GONE", "FUNC", "missing"),
+            ]
+        );
+        let counts: Vec<(usize, usize)> = seen.iter().map(|(l, q, ..)| (*l, *q)).collect();
+        // the targets load while the 7 calls of ZMAIN are resolved
+        assert_eq!(counts, [(1, 0), (2, 6), (3, 5), (4, 4), (5, 3)]);
+    }
+
+    #[test]
+    fn dictionary_texts_that_cannot_be_read_are_noted() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZREPORT"),
+            "REPORT zreport.\nDATA: a TYPE zd_json, b TYPE zd_json2, c TYPE zd_ok, s TYPE zs_bad.\nWRITE a.",
+        );
+        p.insert(SourceRef::data_element("ZD_JSON"), r#"{"type": "CHAR"}"#);
+        p.insert(SourceRef::data_element("ZD_JSON2"), "");
+        p.insert(
+            SourceRef::data_element("ZD_OK"),
+            "<DD04V><DATATYPE>CHAR</DATATYPE><LENG>000002</LENG></DD04V>",
+        );
+        p.insert(SourceRef::table("ZS_BAD"), "no structure");
+        let ws = Workspace::new(Box::new(p));
+        let l = ws.logic(&SourceRef::program("ZREPORT"), 0);
+        assert_eq!(
+            l.notes,
+            [
+                "data elements: 2 texts could not be read, their types stay names (first: DTEL:ZD_JSON from memory:DTEL:ZD_JSON)",
+                "structures: 1 texts could not be read, their types stay names (first: TABL:ZS_BAD from memory:TABL:ZS_BAD)",
+            ]
+        );
     }
 
     /// A provider failing for one object.
