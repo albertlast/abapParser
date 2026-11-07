@@ -127,6 +127,12 @@ impl<'a> Check<'a> {
             {
                 return error(i + 1, "SINGLE in a subquery");
             }
+            if let Some(e) = self.single_order_by(i).or_else(|| self.select_list(i)) {
+                return Some(e);
+            }
+        }
+        if let Some(e) = self.dynamic_aggregate() {
+            return Some(e);
         }
         let into = self.top("INTO");
         if into.len() > 1 {
@@ -140,6 +146,167 @@ impl<'a> Check<'a> {
                 .any(|&i| (i + 1..(i + 5).min(self.w.len())).any(|k| self.word(k) == "TABLE"));
             if !table && self.word(size + 1) == "SIZE" {
                 return error(size, "PACKAGE SIZE without a table");
+            }
+        }
+        None
+    }
+
+    /// The end of the query of the SELECT at `select`: where its
+    /// parenthesis closes, or the end of the statement.
+    fn query_end(&self, select: usize) -> usize {
+        let d = self.depth[select];
+        (select + 1..self.w.len())
+            .find(|&k| self.depth[k] < d)
+            .unwrap_or(self.w.len())
+    }
+
+    /// `SELECT SINGLE` takes no ORDER BY, before or after INTO.
+    fn single_order_by(&self, select: usize) -> Option<SyntaxError> {
+        if self.word(select + 1) != "SINGLE" {
+            return None;
+        }
+        let d = self.depth[select];
+        (select + 2..self.query_end(select))
+            .find(|&k| self.depth[k] == d && self.word(k) == "ORDER" && self.word(k + 1) == "BY")
+            .and_then(|k| error(k, "ORDER BY with SELECT SINGLE"))
+    }
+
+    /// The SELECT list: separated by commas throughout or by blanks
+    /// throughout (`a b, c` is neither), and a parenthesis around an
+    /// expression holds neither an alias nor a list (`( a AS b )`,
+    /// `( a, b )`); `( a ) AS b` is fine.
+    fn select_list(&self, select: usize) -> Option<SyntaxError> {
+        /// what ends the list
+        const END: [&str; 23] = [
+            "FROM",
+            "INTO",
+            "APPENDING",
+            "WHERE",
+            "GROUP",
+            "HAVING",
+            "ORDER",
+            "UNION",
+            "INTERSECT",
+            "EXCEPT",
+            "UP",
+            "OFFSET",
+            "BYPASSING",
+            "CONNECTION",
+            "FOR",
+            "PACKAGE",
+            "CLIENT",
+            "USING",
+            "WITH",
+            "PRIVILEGED",
+            "INDICATORS",
+            "EXTENDED",
+            "%_HINTS",
+        ];
+        /// words inside an element of the list, not columns
+        const KEYWORDS: [&str; 26] = [
+            "AS",
+            "CASE",
+            "WHEN",
+            "THEN",
+            "ELSE",
+            "END",
+            "IS",
+            "NOT",
+            "NULL",
+            "AND",
+            "OR",
+            "IN",
+            "LIKE",
+            "BETWEEN",
+            "ESCAPE",
+            "DISTINCT",
+            "OVER",
+            "ORDER",
+            "BY",
+            "PARTITION",
+            "ROWS",
+            "ASCENDING",
+            "DESCENDING",
+            "DIV",
+            "MOD",
+            "SINGLE",
+        ];
+        let d = self.depth[select];
+        let end = self.query_end(select);
+        let mut start = select + 1;
+        while matches!(self.word(start), "SINGLE" | "DISTINCT") {
+            start += 1;
+        }
+        if self.word(start) == "FROM" {
+            // SELECT FROM ... FIELDS list
+            start = (start..end).find(|&k| self.depth[k] == d && self.word(k) == "FIELDS")? + 1;
+        }
+        let stop = (start..end)
+            .find(|&k| self.depth[k] == d && (END.contains(&self.word(k)) || self.word(k) == "."))
+            .unwrap_or(end);
+        let top: Vec<usize> = (start..stop).filter(|&k| self.depth[k] == d).collect();
+        // a name, not an operator like `/`, `&&` or `=`, which are
+        // identifiers to the lexer too
+        let column = |k: usize| {
+            let text = self.t[k].text.as_str();
+            let name = text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                || (text.starts_with('/') && text.len() > 1);
+            self.t[k].kind == TokenKind::Identifier && name && !KEYWORDS.contains(&self.word(k))
+        };
+        if top.iter().any(|&k| self.word(k) == ",") {
+            for pair in top.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                if b == a + 1 && self.t[b].ws_before && column(a) && column(b) {
+                    return error(b, "blanks and commas mixed in the SELECT list");
+                }
+            }
+        }
+        for &k in &top {
+            let open = self.t[k];
+            // `( expression )`, not `(dynamic)` and not the parenthesis of a call
+            let bare = open.kind == TokenKind::ParenLeft
+                && open.ws_after
+                && (open.ws_before || k == start);
+            if !bare {
+                continue;
+            }
+            let close = (k + 1..stop).find(|&j| self.depth[j] == d).unwrap_or(stop);
+            if let Some(j) = (k + 1..close)
+                .find(|&j| self.depth[j] == d + 1 && matches!(self.word(j), "AS" | ","))
+            {
+                return error(j, "alias or list inside parentheses");
+            }
+        }
+        None
+    }
+
+    /// An aggregate function takes no dynamic column: `SUM( (name) )`,
+    /// `COUNT( DISTINCT (name) )`.
+    fn dynamic_aggregate(&self) -> Option<SyntaxError> {
+        const AGGREGATES: [&str; 8] = [
+            "SUM",
+            "COUNT",
+            "AVG",
+            "MIN",
+            "MAX",
+            "MEDIAN",
+            "STRING_AGG",
+            "GROUPING",
+        ];
+        for k in 0..self.t.len() {
+            if !AGGREGATES.contains(&self.word(k)) || !self.call_at(k) {
+                continue;
+            }
+            let mut j = k + 2;
+            if self.word(j) == "DISTINCT" {
+                j += 1;
+            }
+            if self
+                .t
+                .get(j)
+                .is_some_and(|t| t.kind == TokenKind::ParenLeft && !t.ws_after)
+            {
+                return error(j, "dynamic column in an aggregate");
             }
         }
         None
@@ -572,6 +739,77 @@ mod tests {
             .find(|s| s.kind != K::Comment)
             .unwrap();
         syntax_error(&file, s).map(|e| e.message)
+    }
+
+    /// What the syntax check of an SAP system (ABAP Platform 2025) rejects
+    /// and accepts.
+    #[test]
+    fn select_rules_of_the_sap_system() {
+        for (abap, expected) in [
+            (
+                "SELECT SINGLE * FROM t100 INTO @DATA(ls) ORDER BY arbgb.",
+                "ORDER BY with SELECT SINGLE",
+            ),
+            (
+                "SELECT SINGLE * FROM t100 ORDER BY arbgb INTO @DATA(ls).",
+                "ORDER BY with SELECT SINGLE",
+            ),
+            (
+                "SELECT SINGLE * FROM t100 INTO ls ORDER BY arbgb.",
+                "ORDER BY with SELECT SINGLE",
+            ),
+            (
+                "SELECT arbgb msgnr, text FROM t100 INTO TABLE @DATA(lt).",
+                "blanks and commas mixed in the SELECT list",
+            ),
+            (
+                "SELECT arbgb, msgnr text FROM t100 INTO TABLE @DATA(lt).",
+                "blanks and commas mixed in the SELECT list",
+            ),
+            (
+                "SELECT foo bar, moo FROM ztab INTO TABLE @DATA(tab) ORDER BY PRIMARY KEY.",
+                "blanks and commas mixed in the SELECT list",
+            ),
+            (
+                "SELECT ( arbgb AS bar ) FROM t100 INTO TABLE @DATA(lt).",
+                "alias or list inside parentheses",
+            ),
+            (
+                "SELECT ( arbgb, text ) AS bar FROM t100 INTO TABLE @DATA(lt).",
+                "alias or list inside parentheses",
+            ),
+            (
+                "SELECT FROM t100 FIELDS ( arbgb AS bar ) INTO TABLE @DATA(lt).",
+                "alias or list inside parentheses",
+            ),
+            (
+                "SELECT SUM( (l_field) ) INTO l_value FROM (l_table).",
+                "dynamic column in an aggregate",
+            ),
+            (
+                "SELECT COUNT( DISTINCT (l_field) ) INTO l_value FROM t100.",
+                "dynamic column in an aggregate",
+            ),
+        ] {
+            assert_eq!(check(abap), Some(expected), "{abap}");
+        }
+        for ok in [
+            "SELECT * FROM t100 INTO TABLE @DATA(lt) ORDER BY arbgb.",
+            "SELECT * FROM t100 INTO TABLE lt ORDER BY arbgb.",
+            "SELECT * FROM t100 ORDER BY arbgb INTO @DATA(ls) UP TO 1 ROWS.",
+            "SELECT arbgb msgnr text FROM t100 INTO CORRESPONDING FIELDS OF TABLE lt.",
+            "SELECT arbgb, msgnr, text FROM t100 INTO TABLE @DATA(lt).",
+            "SELECT ( arbgb ) FROM t100 INTO TABLE @DATA(lt).",
+            "SELECT ( arbgb ) AS bar FROM t100 INTO TABLE @DATA(lt).",
+            "SELECT (l_cols) INTO CORRESPONDING FIELDS OF TABLE lt FROM (l_table).",
+            "SELECT SUM( msgnr ) INTO l_value FROM (l_table).",
+            "SELECT a AS x, CASE b WHEN 1 THEN 'A' ELSE 'B' END AS y, c + d AS z, cast( e AS CHAR( 10 ) ) AS w FROM t INTO TABLE @lt.",
+            "SELECT a, ROW_NUMBER( ) OVER( PARTITION BY b ORDER BY c DESCENDING ) AS n FROM t INTO TABLE @lt.",
+            "SELECT t1~a, t2~b FROM t1 INNER JOIN t2 ON t2~k = t1~k INTO TABLE @lt.",
+            "SELECT SINGLE a FROM t WHERE b IN ( SELECT b FROM u ) INTO @lv.",
+        ] {
+            assert_eq!(check(ok), None, "{ok}");
+        }
     }
 
     #[test]
