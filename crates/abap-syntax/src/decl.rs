@@ -389,6 +389,8 @@ pub fn typing(c: &mut Cursor) -> Option<Typing> {
                 TypingKind::TypeRefTo
             };
             t.name = c.operand();
+        } else if let Some(derived) = (!like).then(|| derived_type(c)).flatten() {
+            t.name = Some(derived);
         } else if c.eat_seq("LINE OF") {
             t.kind = TypingKind::LineOf;
             t.name = c.operand();
@@ -684,38 +686,61 @@ pub fn method_def(file: &File, s: &Statement) -> Option<MethodDef> {
     Some(m)
 }
 
-/// RAP handler signatures: `IMPORTING keys FOR entity REQUEST req RESULT result`.
+/// RAP handler signatures: `IMPORTING keys FOR entity REQUEST req RESULT
+/// result`. The parameters of reading and changing operations get the BDEF
+/// derived type SAP documents for them, see [`rap_type`].
 fn rap_parameters(c: &mut Cursor, m: &mut MethodDef) {
     const RAP_WORDS: &[&str] = &[
         "IMPORTING",
         "REQUEST",
         "RESULT",
+        "LINK",
+        "FULL",
         "CHANGING",
         "FOR",
         "RAISING",
     ];
     let mut direction = None;
+    // the operation and entity of the last FOR, like ["READ", "zi_x"]
+    let mut operation: Vec<String> = Vec::new();
+    let mut pending: Option<usize> = None;
     while !c.done() {
         if c.eat("RAISING") {
             names(c, &mut m.raising);
             continue;
         }
-        let next_direction = if c.eat("IMPORTING") || c.eat("REQUEST") {
-            Some(Direction::Importing)
-        } else if c.eat("RESULT") {
-            Some(Direction::Exporting)
-        } else if c.eat("CHANGING") {
-            Some(Direction::Changing)
-        } else {
-            None
+        let word = c.word_at(0).map(|(w, _)| w).unwrap_or_default();
+        let next_direction = match word.as_str() {
+            "IMPORTING" | "REQUEST" | "FULL" => Some(Direction::Importing),
+            "RESULT" | "LINK" => Some(Direction::Exporting),
+            "CHANGING" => Some(Direction::Changing),
+            _ => None,
         };
         if let Some(d) = next_direction {
+            c.bump();
+            // IMPORTING REQUEST req, IMPORTING FULL full
+            if word == "IMPORTING" && !c.eat("REQUEST") {
+                c.eat("FULL");
+            }
+            c.eat("REFERENCE");
             direction = Some(d);
             if let Some((name, _, _)) = c.name() {
+                let typing = match word.as_str() {
+                    "RESULT" => rap_type(&operation, "RESULT"),
+                    "LINK" => rap_type(&operation, "LINK"),
+                    _ => None,
+                };
+                pending = (word == "IMPORTING").then_some(m.parameters.len());
+                // CHANGING failed TYPE data
+                let typing = typing.or_else(|| {
+                    (c.at("TYPE") || c.at("LIKE"))
+                        .then(|| self::typing(c))
+                        .flatten()
+                });
                 m.parameters.push(Parameter {
                     name,
                     direction: d,
-                    typing: None,
+                    typing,
                     by_value: false,
                     optional: false,
                     default: None,
@@ -723,8 +748,17 @@ fn rap_parameters(c: &mut Cursor, m: &mut MethodDef) {
                 });
             }
         } else if c.eat("FOR") {
+            let start = c.pos;
             while !c.done() && !is_stop(c, RAP_WORDS) {
                 c.bump();
+            }
+            operation = c
+                .text(start, c.pos)
+                .split_whitespace()
+                .map(str::to_string)
+                .collect();
+            if let Some(k) = pending.take() {
+                m.parameters[k].typing = rap_type(&operation, "IMPORT");
             }
         } else if direction == Some(Direction::Changing) {
             // CHANGING failed TYPE ... reported TYPE ...
@@ -732,7 +766,7 @@ fn rap_parameters(c: &mut Cursor, m: &mut MethodDef) {
                 m.parameters.push(Parameter {
                     name,
                     direction: Direction::Changing,
-                    typing: None,
+                    typing: typing(c),
                     by_value: false,
                     optional: false,
                     default: None,
@@ -743,6 +777,88 @@ fn rap_parameters(c: &mut Cursor, m: &mut MethodDef) {
             c.bump();
         }
     }
+}
+
+/// The BDEF derived type of a parameter of a RAP handler method, from the
+/// operation and entity after FOR, like `CREATE zi_x`, `READ zi_x\_assoc`
+/// or `ACTION zi_x~approve`; `part` is `IMPORT`, `RESULT` or `LINK`. Only
+/// the reading and changing operations, as their handler methods document.
+fn rap_type(operation: &[String], part: &str) -> Option<Typing> {
+    let [op, entity] = operation else {
+        return None;
+    };
+    let op = op.to_ascii_uppercase();
+    let derived = match (op.as_str(), part) {
+        ("CREATE" | "UPDATE" | "DELETE", "IMPORT") => format!("TABLE FOR {op}"),
+        ("ACTION" | "FUNCTION" | "READ", "IMPORT" | "RESULT") => format!("TABLE FOR {op} {part}"),
+        ("READ", "LINK") => "TABLE FOR READ LINK".to_string(),
+        ("LOCK", "IMPORT") => "TABLE FOR KEY OF".to_string(),
+        _ => return None,
+    };
+    let text = format!("TYPE {derived} {entity}");
+    Some(Typing {
+        kind: TypingKind::Type,
+        name: Some(format!("{derived} {entity}").to_ascii_lowercase()),
+        table: None,
+        length: None,
+        decimals: None,
+        text,
+    })
+}
+
+/// `TYPE TABLE FOR CREATE zi_x`, `TYPE STRUCTURE FOR ...`, `TYPE REQUEST
+/// FOR ...`, `TYPE RESPONSE FOR FAILED EARLY zi_x`: the BDEF derived type,
+/// its words up to the entity.
+fn derived_type(c: &mut Cursor) -> Option<String> {
+    const WORDS: &[&str] = &[
+        "ACTION",
+        "AUTHORIZATION",
+        "CHANGE",
+        "CREATE",
+        "DELETE",
+        "DETERMINATION",
+        "EARLY",
+        "EVENT",
+        "FAILED",
+        "FEATURES",
+        "FUNCTION",
+        "GLOBAL",
+        "HIERARCHY",
+        "IMPORT",
+        "INSTANCE",
+        "KEY",
+        "LATE",
+        "LINK",
+        "LOCK",
+        "MAPPED",
+        "OF",
+        "PERMISSIONS",
+        "READ",
+        "REPORTED",
+        "REQUEST",
+        "RESULT",
+        "UPDATE",
+        "VALIDATION",
+    ];
+    let first = c.word_at(0).map(|(w, _)| w)?;
+    if !matches!(
+        first.as_str(),
+        "TABLE" | "STRUCTURE" | "REQUEST" | "RESPONSE"
+    ) || !c.word_at(1).is_some_and(|(w, _)| w == "FOR")
+    {
+        return None;
+    }
+    let mut words = vec![first.to_ascii_lowercase(), "for".to_string()];
+    c.pos += 2;
+    while let Some((w, _)) = c.word_at(0) {
+        if !WORDS.contains(&w.as_str()) {
+            break;
+        }
+        words.push(w.to_ascii_lowercase());
+        c.bump();
+    }
+    words.push(c.operand()?.to_ascii_lowercase());
+    Some(words.join(" "))
 }
 
 /// CLASS ... DEFINITION.

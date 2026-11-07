@@ -2332,6 +2332,81 @@ fn data_type(f: &SystemField) -> m::DataType {
     crate::types::system(f)
 }
 
+/// Where `GROUP BY` of a LOOP starts.
+fn group_by(toks: &[&Token]) -> Option<usize> {
+    toks.windows(2)
+        .position(|w| w[0].is("GROUP") && w[1].is("BY"))
+}
+
+/// The line type of the table a LOOP or READ TABLE reads, or changes
+/// through REFERENCE INTO and ASSIGNING.
+fn loop_line(
+    ctx: &Ctx,
+    toks: &[&Token],
+    ops: &abap_syntax::operands::Operands,
+) -> Option<m::DataType> {
+    use abap_syntax::operands::Operand;
+    let table = ops.items.iter().find_map(|i| match i {
+        Operand::Expr { expr, access } if *access != Access::Write => Some(expr),
+        _ => None,
+    })?;
+    // a table, or an expression like CAST zcl( ... )->components
+    expr_type(ctx, toks, table).and_then(|t| ctx.types.line_of(&t))
+}
+
+/// The type of a group key starting at `start`: of the expression, or a
+/// structure of `( name = expr ... )`, whose components are declared as
+/// `group-name`; `GROUP SIZE` and `GROUP INDEX` components are `i`.
+fn group_key(
+    ctx: &Ctx,
+    toks: &[&Token],
+    ops: &abap_syntax::operands::Operands,
+    start: usize,
+    group: &str,
+) -> Option<m::DataType> {
+    use crate::types;
+    use abap_syntax::operands::Operand;
+    let at = |first: usize| {
+        ops.items.iter().find_map(|i| match i {
+            Operand::Expr { expr, .. } if expr.first == first => expr_type(ctx, toks, expr),
+            _ => None,
+        })
+    };
+    if toks.get(start)?.kind != TokenKind::ParenLeft {
+        return at(start);
+    }
+    let mut depth = 0;
+    let mut i = start;
+    while i < toks.len() {
+        match toks[i].kind {
+            TokenKind::ParenLeft => depth += 1,
+            TokenKind::ParenRight => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ if depth == 1 && toks.get(i + 1).is_some_and(|t| t.text == "=") => {
+                let counted = toks.get(i + 2).is_some_and(|t| t.is("GROUP"))
+                    && toks
+                        .get(i + 3)
+                        .is_some_and(|t| t.is("SIZE") || t.is("INDEX"));
+                let ty = if counted {
+                    Some(types::builtin("i", None, None))
+                } else {
+                    at(i + 2)
+                };
+                if let Some(ty) = ty {
+                    ctx.types.declare(&format!("{group}-{}", toks[i].text), ty);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    Some(types::structure())
+}
+
 /// The type of an inline declaration, from what the statement puts there:
 /// the value assigned, the line of the table read, the rows selected, the
 /// exception caught.
@@ -2410,22 +2485,41 @@ fn inline_type(
             }
             line
         }
-        // LOOP ... GROUP BY ... INTO DATA(group): a group, not a line
-        K::Loop
-            if toks[..inline_at]
-                .windows(2)
-                .any(|w| w[0].is("GROUP") && w[1].is("BY")) =>
-        {
-            None
+        // LOOP ... GROUP BY key INTO DATA(group): the group key, its
+        // members the lines of the table
+        K::Loop if group_by(toks).is_some_and(|by| by < inline_at) => {
+            let by = group_by(toks)?;
+            let name = &toks.get(inline_at + 2)?.text;
+            if let Some(line) = loop_line(ctx, toks, ops) {
+                ctx.types.declare_members(name, line);
+            }
+            let key = group_key(ctx, toks, ops, by + 2, name)?;
+            if inline_at > 1 && toks[inline_at - 2].is("REFERENCE") {
+                return Some(m::DataType {
+                    line: Some(Box::new(key)),
+                    ..types::reference("data")
+                });
+            }
+            Some(key)
         }
         K::Loop | K::ReadTable => {
-            // read, or changed through REFERENCE INTO and ASSIGNING
-            let table = ops.items.iter().find_map(|i| match i {
-                Operand::Expr { expr, access } if *access != Access::Write => Some(expr),
-                _ => None,
-            })?;
-            // a table, or an expression like CAST zcl( ... )->components
-            let line = expr_type(ctx, toks, table).and_then(|t| ctx.types.line_of(&t));
+            // LOOP AT GROUP group: the members of the group
+            let members = (s.kind == K::Loop && toks.get(2).is_some_and(|t| t.is("GROUP")))
+                .then(|| toks.get(3).and_then(|g| ctx.types.members(&g.text)))
+                .flatten();
+            let line = match members {
+                Some(line) => Some(line),
+                None => loop_line(ctx, toks, ops),
+            };
+            // without a group target, the line is the representative of its group
+            if let (K::Loop, Some(by), Some(line), Some(name)) =
+                (s.kind, group_by(toks), &line, toks.get(inline_at + 2))
+            {
+                let target = toks[by..].iter().any(|t| t.is("INTO") || t.is("ASSIGNING"));
+                if !target {
+                    ctx.types.declare_members(&name.text, line.clone());
+                }
+            }
             // REFERENCE INTO DATA(r)
             if inline_at > 1 && toks[inline_at - 2].is("REFERENCE") {
                 return Some(m::DataType {
@@ -2563,7 +2657,7 @@ fn inline_type(
 /// value, `INDEX INTO i` an integer.
 fn declare_locals(ctx: &Ctx, toks: &[&Token], e: &Expr) {
     match &e.kind {
-        ExprKind::Constructor(c) => declare_items(ctx, toks, &c.items),
+        ExprKind::Constructor(c) => declare_items(ctx, toks, &c.items, Some(c)),
         ExprKind::Paren(inner) | ExprKind::Unary { operand: inner, .. } => {
             declare_locals(ctx, toks, inner)
         }
@@ -2576,7 +2670,7 @@ fn declare_locals(ctx: &Ctx, toks: &[&Token], e: &Expr) {
         // inline declarations there: get( IMPORTING ev = DATA(x) )
         ExprKind::Chain(chain) => {
             if let Head::Constructor(c) = &chain.head {
-                declare_items(ctx, toks, &c.items);
+                declare_items(ctx, toks, &c.items, Some(c));
             }
             chain_type(ctx, toks, chain, &mut |class, method, args| {
                 declare_arguments(ctx, toks, class, method, args)
@@ -2792,6 +2886,17 @@ fn constructor_type(
         }),
         // FILTER #( itab ... ): the type of the table
         "FILTER" if name == "#" => first_value(),
+        // VALUE #( itab[ ... ] OPTIONAL | DEFAULT x ): the line read
+        "VALUE"
+            if name == "#"
+                && c.items.iter().any(|i| {
+                    matches!(i, Item::Value(v) if toks
+                        .get(v.last + 1)
+                        .is_some_and(|t| t.is("OPTIONAL") || t.is("DEFAULT")))
+                }) =>
+        {
+            first_value()
+        }
         // COND #( WHEN ... THEN x ), SWITCH #: the type of the first result
         "COND" | "SWITCH" if name == "#" => c.items.iter().find_map(|i| match i {
             Item::Value(v) if v.first > 0 && toks[v.first - 1].is("THEN") => {
@@ -2805,22 +2910,53 @@ fn constructor_type(
     }
 }
 
-fn declare_items(ctx: &Ctx, toks: &[&Token], items: &[Item]) {
+/// Declares the local names of a constructor expression `owner`: LET,
+/// INIT and FOR variables, the groups of FOR GROUPS.
+fn declare_items(
+    ctx: &Ctx,
+    toks: &[&Token],
+    items: &[Item],
+    owner: Option<&abap_syntax::expr::Constructor>,
+) {
     use crate::types;
     let before = |pos: usize| (pos > 0).then(|| toks[pos - 1]);
+    let word_before = |pos: usize, word: &str| before(pos).is_some_and(|t| t.is(word));
+    // FOR GROUPS [group] OF wa IN itab GROUP BY key: the group, or the
+    // representative wa when it has no name
+    let mut groups: Vec<(String, usize)> = Vec::new();
+    // FOR m IN GROUP group: typed once the groups are
+    let mut members: Vec<(String, String)> = Vec::new();
     for (k, item) in items.iter().enumerate() {
         match item {
             Item::Define { name, value } => {
-                // FOR x IN itab: the table follows as a value
-                let table = match (value, items.get(k + 1)) {
-                    (None, Some(Item::Value(v))) if before(v.first).is_some_and(|t| t.is("IN")) => {
-                        Some(v)
+                let this = text(toks, name.first, name.last);
+                // FOR x IN itab: the table follows as a value; FOR m IN
+                // GROUP group: the members of the group
+                let (table, group) = match (value, items.get(k + 1)) {
+                    (None, Some(Item::Value(v))) if word_before(v.first, "IN") => (Some(v), None),
+                    (None, Some(Item::Value(v))) if word_before(v.first, "GROUP") => {
+                        (None, Some(text(toks, v.first, v.last)))
                     }
-                    _ => None,
+                    _ => (None, None),
                 };
+                let of_groups = word_before(name.first, "OF")
+                    && name.first >= 2
+                    && toks[name.first - 2].is("GROUPS");
+                if word_before(name.first, "GROUPS") || of_groups {
+                    groups.push((this.clone(), k));
+                }
+                let init =
+                    word_before(name.first, "INIT") && owner.is_some_and(|o| o.keyword == "REDUCE");
                 let ty = match (value, table) {
                     (_, Some(t)) => expr_type(ctx, toks, t).and_then(|t| ctx.types.line_of(&t)),
+                    // INIT x = VALUE #( ): the type of the REDUCE
+                    (Some(v), _) if init => expr_type(ctx, toks, v)
+                        .or_else(|| owner.and_then(|o| constructor_type(ctx, toks, o))),
                     (Some(v), _) => expr_type(ctx, toks, v),
+                    (None, None) if group.is_some() => {
+                        members.push((this.clone(), group.clone().unwrap_or_default()));
+                        None
+                    }
                     // INDEX INTO i
                     (None, None) if before(name.first).is_some_and(|t| t.is("INTO")) => {
                         Some(types::builtin("i", None, None))
@@ -2844,9 +2980,74 @@ fn declare_items(ctx: &Ctx, toks: &[&Token], items: &[Item]) {
                 ..
             }
             | Item::Cond(c) => declare_cond(ctx, toks, c),
-            Item::Row(row) => declare_items(ctx, toks, row),
+            Item::Row(row) => declare_items(ctx, toks, row, None),
         }
     }
+    for (group, k) in groups {
+        group_of_items(ctx, toks, items, &group, k);
+    }
+    for (name, group) in members {
+        if let Some(line) = ctx.types.members(&group) {
+            ctx.types.declare(&name, line);
+        }
+    }
+}
+
+/// The group of FOR GROUPS declared as item `k`: its key from GROUP BY,
+/// its members the lines of the table after IN. A group without a name,
+/// `FOR GROUPS OF wa`, is the representative `wa`: its type stays the line.
+fn group_of_items(ctx: &Ctx, toks: &[&Token], items: &[Item], group: &str, k: usize) {
+    use crate::types;
+    let before = |pos: usize, word: &str| pos > 0 && toks[pos - 1].is(word);
+    let named = matches!(&items[k], Item::Define { name, .. } if before(name.first, "GROUPS"));
+    let table = items[k..].iter().find_map(|i| match i {
+        Item::Value(v) if before(v.first, "IN") => Some(v),
+        _ => None,
+    });
+    if let Some(line) = table
+        .and_then(|t| expr_type(ctx, toks, t))
+        .and_then(|t| ctx.types.line_of(&t))
+    {
+        ctx.types.declare_members(group, line);
+    }
+    if !named {
+        return;
+    }
+    let Some(by) = toks
+        .windows(2)
+        .enumerate()
+        .skip(table.map_or(0, |t| t.last))
+        .find(|(_, w)| w[0].is("GROUP") && w[1].is("BY"))
+        .map(|(i, _)| i + 2)
+    else {
+        return;
+    };
+    let key = items.iter().find_map(|i| match i {
+        Item::Value(v) if v.first == by => expr_type(ctx, toks, v),
+        _ => None,
+    });
+    let key = match key {
+        Some(k) => k,
+        None if toks.get(by).is_some_and(|t| t.kind == TokenKind::ParenLeft) => {
+            for i in items {
+                if let Item::Named {
+                    name,
+                    value: abap_syntax::expr::Value::Expr(v),
+                } = i
+                {
+                    if *name > by {
+                        if let Some(ty) = expr_type(ctx, toks, v) {
+                            ctx.types
+                                .declare(&format!("{group}-{}", toks[*name].text), ty);
+                        }
+                    }
+                }
+            }
+            types::structure()
+        }
+        None => return,
+    };
+    ctx.types.declare(group, key);
 }
 
 /// The operands of an arithmetic expression, through its operators and
@@ -3061,8 +3262,59 @@ fn sets_fields(
         K::MacroCall => abap_syntax::sap_macro(file, s)
             .and_then(|(name, _)| crate::hr::macro_access(name))
             .map_or(&[], |m| m.system),
+        // output statements set the position in the list being created
+        K::Write
+        | K::Uline
+        | K::Skip
+        | K::NewLine
+        | K::NewPage
+        | K::Position
+        | K::Reserve
+        | K::Back => LIST_POSITION,
+        // the selected line, and the list fields as after a list event
+        K::ReadLine => &[
+            ("sy-lisel", false),
+            ("sy-pagno", false),
+            ("sy-linno", false),
+            ("sy-colno", false),
+        ],
+        K::SetTitlebar => &[("sy-title", true)],
+        K::SetMargin => &[("sy-macol", true), ("sy-marow", true)],
         _ => &[],
     });
+    let toks = tokens(file, s);
+    let has = |word: &str| toks.iter().any(|t| t.is(word));
+    match s.kind {
+        // LOOP AT itab fills them, not LOOP AT SCREEN or LOOP AT GROUP
+        K::Loop if !toks.get(2).is_some_and(|t| t.is("SCREEN") || t.is("GROUP")) => {
+            out.extend_from_slice(&[("sy-tfill", true), ("sy-tleng", true)]);
+        }
+        K::NewPage => {
+            // hyphenated words are several tokens
+            let text = file.statement_text(s).to_ascii_uppercase();
+            let words: Vec<&str> = text.split_whitespace().collect();
+            if words.contains(&"LINE-SIZE") {
+                out.push(("sy-linsz", true));
+            }
+            if words.contains(&"LINE-COUNT") {
+                out.push(("sy-linct", true));
+            }
+        }
+        // MESSAGE ... RAISING in the called procedure sets the message
+        // fields in the caller that handles the exception
+        K::CallFunction | K::Call if has("EXCEPTIONS") => {
+            out.extend_from_slice(&[
+                ("sy-msgid", false),
+                ("sy-msgty", false),
+                ("sy-msgno", false),
+                ("sy-msgv1", false),
+                ("sy-msgv2", false),
+                ("sy-msgv3", false),
+                ("sy-msgv4", false),
+            ]);
+        }
+        _ => {}
+    }
     // CO, CN, CA, NA, CS, NS, CP and NP set sy-fdpos, true or not
     fn compares_strings(c: &m::Condition) -> bool {
         c.operator
@@ -3075,6 +3327,13 @@ fn sets_fields(
     }
     out
 }
+
+/// The position in the list being created, which output statements set.
+const LIST_POSITION: &[(&str, bool)] = &[
+    ("sy-colno", false),
+    ("sy-linno", false),
+    ("sy-pagno", false),
+];
 
 /// Whether a call sets `sy-subrc`: every method call sets it to 0 when the
 /// method is called, the method may change it then; a form may set it.
@@ -4416,22 +4675,137 @@ fn data_flow(body: &mut [m::Step], edges: &[m::FlowEdge]) {
         preds[*to].push(from);
     }
 
+    // Loops give their counter back: behind the loop sy-tabix (LOOP AT)
+    // and sy-index (DO, WHILE) have the value from before it. LOOP AT sets
+    // sy-subrc when the loop is left, not on entry.
+    let mask = |name: &str| {
+        let mut b = Bits::new(n);
+        for d in defs_of.get(name).into_iter().flatten() {
+            b.set(*d);
+        }
+        b
+    };
+    let mut loops: HashMap<usize, LoopFields> = HashMap::new();
+    let mut within: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut enclosing: Vec<usize> = Vec::new();
+    collect_loops(body, &index, &mut enclosing, &mut within, &mut |s, k| {
+        let counter = match kind_of(s) {
+            K::Loop => "sy-tabix",
+            K::Do | K::While => "sy-index",
+            _ => return,
+        };
+        if !s.writes.iter().any(|w| w.name == counter) {
+            return;
+        }
+        let subrc = (kind_of(s) == K::Loop)
+            .then(|| {
+                defs_of
+                    .get("sy-subrc")
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .find(|d| defs[*d].0 == s.id)
+            })
+            .flatten();
+        loops.insert(
+            k,
+            LoopFields {
+                counter: mask(counter),
+                subrc,
+            },
+        );
+    });
+    let subrc_mask = mask("sy-subrc");
+    let inside = |step: usize, l: usize| within.get(&step).is_some_and(|ls| ls.contains(&l));
+    // how each edge passes definitions: as they are, into the body of a
+    // loop, or out of loops (innermost first)
+    let mut kinds: Vec<Vec<Pass>> = vec![Vec::new(); steps.len()];
+    for (to, ps) in preds.iter().enumerate() {
+        for p in ps {
+            let pass = match p {
+                None => Pass::Plain,
+                Some(f) => {
+                    let mut left: Vec<usize> = within
+                        .get(f)
+                        .into_iter()
+                        .flatten()
+                        .rev()
+                        .copied()
+                        .filter(|l| loops.contains_key(l) && !inside(to, *l) && to != *l)
+                        .collect();
+                    if loops.contains_key(f) {
+                        if inside(to, *f) {
+                            Pass::Into(*f)
+                        } else {
+                            left.insert(0, *f);
+                            Pass::Out(left)
+                        }
+                    } else if left.is_empty() {
+                        Pass::Plain
+                    } else {
+                        Pass::Out(left)
+                    }
+                }
+            };
+            kinds[to].push(pass);
+        }
+    }
+    let replace = |v: &mut [u64], m: &Bits, with: &[u64]| {
+        for ((a, m), w) in v.iter_mut().zip(&m.0).zip(with) {
+            *a = (*a & !m) | (w & m);
+        }
+    };
+
     let words = n.div_ceil(64);
     let mut ins: Vec<Bits> = steps.iter().map(|_| Bits::new(n)).collect();
     let mut outs: Vec<Bits> = steps.iter().map(|_| Bits::new(n)).collect();
+    // definitions reaching a loop from outside it
+    let mut before: HashMap<usize, Vec<u64>> = HashMap::new();
     let mut changed = true;
     while changed {
         changed = false;
         for k in 0..steps.len() {
             let mut input = vec![0u64; words];
-            for p in &preds[k] {
-                let src = match p {
-                    None => &entry.0,
-                    Some(p) => &outs[*p].0,
+            let mut outside = vec![0u64; words];
+            for (p, pass) in preds[k].iter().zip(&kinds[k]) {
+                let mut src = match p {
+                    None => entry.0.clone(),
+                    Some(p) => outs[*p].0.clone(),
                 };
-                for (a, b) in input.iter_mut().zip(src) {
+                match pass {
+                    Pass::Plain => {}
+                    Pass::Into(l) => {
+                        if loops[l].subrc.is_some() {
+                            replace(&mut src, &subrc_mask, &ins[*l].0);
+                        }
+                    }
+                    Pass::Out(left) => {
+                        for l in left {
+                            let f = &loops[l];
+                            match before.get(l) {
+                                Some(b) => replace(&mut src, &f.counter, b),
+                                None => replace(&mut src, &f.counter, &vec![0u64; words]),
+                            }
+                            if let (Some(d), true) = (f.subrc, *p != Some(*l)) {
+                                let mut set = Bits::new(n);
+                                set.set(d);
+                                replace(&mut src, &subrc_mask, &set.0);
+                            }
+                        }
+                    }
+                }
+                if loops.contains_key(&k) && !p.is_some_and(|p| inside(p, k) || p == k) {
+                    for (a, b) in outside.iter_mut().zip(&src) {
+                        *a |= b;
+                    }
+                }
+                for (a, b) in input.iter_mut().zip(&src) {
                     *a |= b;
                 }
+            }
+            if loops.contains_key(&k) && before.get(&k) != Some(&outside) {
+                before.insert(k, outside);
+                changed = true;
             }
             let output: Vec<u64> = input
                 .iter()
@@ -4464,6 +4838,48 @@ fn data_flow(body: &mut [m::Step], edges: &[m::FlowEdge]) {
             r.sources = sources.into_iter().collect();
         }
     });
+}
+
+/// The system fields a loop gives back when it is left.
+struct LoopFields {
+    /// the definitions of its counter
+    counter: Bits,
+    /// its own definition of sy-subrc, for LOOP AT
+    subrc: Option<usize>,
+}
+
+/// How an edge of the control flow passes definitions on.
+#[derive(Clone)]
+enum Pass {
+    Plain,
+    /// from a loop into its body
+    Into(usize),
+    /// out of these loops, innermost first
+    Out(Vec<usize>),
+}
+
+/// The loops each step is in, outermost first, by index; `found` sees each
+/// step with its index.
+fn collect_loops(
+    steps: &[m::Step],
+    index: &HashMap<u32, usize>,
+    enclosing: &mut Vec<usize>,
+    within: &mut HashMap<usize, Vec<usize>>,
+    found: &mut dyn FnMut(&m::Step, usize),
+) {
+    for s in steps {
+        let k = index[&s.id];
+        within.insert(k, enclosing.clone());
+        found(s, k);
+        let looped = is_loop(kind_of(s));
+        if looped {
+            enclosing.push(k);
+        }
+        collect_loops(&s.children, index, enclosing, within, found);
+        if looped {
+            enclosing.pop();
+        }
+    }
 }
 
 /// Non-local data and database tables written, and the inputs and tables
@@ -5299,6 +5715,87 @@ ENDFORM.",
         assert_eq!(msgid.data_type.unwrap().length, Some(20));
         // no system field is an effect
         assert!(f.effects.iter().all(|e| !e.name.starts_with("sy-")));
+    }
+
+    #[test]
+    fn loop_counters_list_and_message_fields() {
+        let l = logic(
+            "FORM f TABLES it STRUCTURE zrow.
+  READ TABLE it INDEX 1 TRANSPORTING NO FIELDS.
+  LOOP AT it.
+    gv_in = sy-tabix.
+    gv_rc_in = sy-subrc.
+    LOOP AT it.
+      IF sy-tabix = 2.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+    gv_outer = sy-tabix.
+  ENDLOOP.
+  gv_after = sy-tabix.
+  gv_rc = sy-subrc.
+  gv_lines = sy-tfill.
+  DO 3 TIMES.
+    WHILE gv_in < 3.
+      gv_in = gv_in + sy-index.
+    ENDWHILE.
+    gv_do = sy-index.
+  ENDDO.
+  gv_index = sy-index.
+  WRITE 'x'.
+  gv_col = sy-colno.
+  NEW-PAGE LINE-SIZE 200.
+  gv_size = sy-linsz.
+  READ LINE 1.
+  gv_line = sy-lisel.
+  SET TITLEBAR 'T01'.
+  gv_title = sy-title.
+  CALL FUNCTION 'Z_FM' EXCEPTIONS error_message = 1 OTHERS = 2.
+  gv_msg = sy-msgid.
+  CALL FUNCTION 'Z_OTHER'.
+  gv_msg2 = sy-msgid.
+ENDFORM.",
+        );
+        let f = procedure(&l, "f");
+        let read = |text: &str| {
+            let r = find(&f.body, text)
+                .reads
+                .iter()
+                .find(|r| r.name.starts_with("sy-"))
+                .unwrap()
+                .clone();
+            (r.sources, r.from_entry)
+        };
+        let id = |text: &str| find(&f.body, text).id;
+        let (read_table, outer, inner) = (
+            id("READ TABLE it INDEX 1 TRANSPORTING NO FIELDS."),
+            find(&f.body, "LOOP AT it.").id,
+            find(&find(&f.body, "LOOP AT it.").children, "LOOP AT it.").id,
+        );
+        // in the loop: its counter; sy-subrc as before the loop
+        assert_eq!(read("gv_in = sy-tabix.").0, [outer]);
+        assert_eq!(read("gv_rc_in = sy-subrc.").0, [read_table, inner]);
+        // after an inner loop, also left with EXIT, the outer loop's counter
+        assert_eq!(read("gv_outer = sy-tabix.").0, [outer]);
+        // after the loop: the counter from before it, sy-subrc from the loop
+        assert_eq!(read("gv_after = sy-tabix.").0, [read_table]);
+        assert_eq!(read("gv_rc = sy-subrc.").0, [outer]);
+        assert_eq!(read("gv_lines = sy-tfill.").0, [outer]);
+        let r#do = id("DO 3 TIMES.");
+        assert_eq!(read("gv_do = sy-index.").0, [r#do]);
+        assert_eq!(read("gv_index = sy-index."), (vec![], true));
+        // lists
+        assert_eq!(read("gv_col = sy-colno.").0, [id("WRITE 'x'.")]);
+        assert_eq!(
+            read("gv_size = sy-linsz.").0,
+            [id("NEW-PAGE LINE-SIZE 200.")]
+        );
+        assert_eq!(read("gv_line = sy-lisel.").0, [id("READ LINE 1.")]);
+        assert_eq!(read("gv_title = sy-title.").0, [id("SET TITLEBAR 'T01'.")]);
+        // a call handling exceptions may set the message fields
+        let call = id("CALL FUNCTION 'Z_FM' EXCEPTIONS error_message = 1 OTHERS = 2.");
+        assert_eq!(read("gv_msg = sy-msgid."), (vec![call], true));
+        assert_eq!(read("gv_msg2 = sy-msgid."), (vec![call], true));
     }
 
     #[test]
