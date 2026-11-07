@@ -17,6 +17,7 @@ single file:
                               those with a syntax error
   symbols <file>              classes, interfaces, routines and declarations
   db <file>                   database accesses: tables, fields, joins, conditions
+                              of the SQL; all tables a program uses are in logic
   calls <file>                calls: methods, function modules, forms, programs
   logic <file>                per procedure: statements with conditions, data
                               read and written, control flow, effects

@@ -477,7 +477,7 @@ fn tools() -> Value {
         {
             "name": "get_db_access",
             "title": "Database access",
-            "description": "Open SQL and native SQL statements of an object, one line each: row, procedure, operation, tables, statement. detail=full adds fields, joins, conditions and targets as JSON.",
+            "description": "Open SQL and native SQL statements of an object, one line each: row, procedure, operation, tables, statement. detail=full adds fields, joins, conditions and targets as JSON. Tables read without SQL (logical database, HR_READ_INFOTYPE, PNP macros) and those of called procedures are only in get_logic.",
             "inputSchema": {"type": "object", "properties": {"object": object, "detail": detail}, "required": ["object"]},
             "annotations": read_only,
         },

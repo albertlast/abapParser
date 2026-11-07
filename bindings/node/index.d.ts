@@ -5,7 +5,12 @@ export * from "./types";
 /** Classes, interfaces, routines and declarations of one ABAP source file. */
 export function symbols(source: string): FileSymbols;
 
-/** Database accesses of one ABAP source file: tables, fields, joins, conditions, targets. */
+/**
+ * Database accesses of one ABAP source file: tables, fields, joins,
+ * conditions, targets of its database statements. Tables read without SQL
+ * (logical database, HR_READ_INFOTYPE, PNP macros), those of called
+ * procedures and the data flow are in `logic`; a lineage needs both.
+ */
 export function dbAccess(source: string): DbAccess[];
 
 /**
