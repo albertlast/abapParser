@@ -43,6 +43,7 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         K::CreateData => c.create_data(),
         K::MergeDatabase => c.merge(),
         K::ReadTable => c.read_table(),
+        K::Message => c.message(file, s),
         _ => None,
     };
     error.or_else(|| c.dynamic_component())
@@ -504,6 +505,31 @@ impl<'a> Check<'a> {
         None
     }
 
+    /// MESSAGE: `ID mid`, `TYPE mtype` and `NUMBER num` take data objects,
+    /// not calls or constructor expressions (`oref` of `MESSAGE oref` and
+    /// the operands of `WITH` are other positions).
+    fn message(&self, file: &File, s: &Statement) -> Option<SyntaxError> {
+        for item in operands(file, s).items {
+            let Operand::Expr { expr, .. } = item else {
+                continue;
+            };
+            let after = expr.first.checked_sub(1).map_or("", |i| self.word(i));
+            if !matches!(after, "ID" | "TYPE" | "NUMBER") {
+                continue;
+            }
+            let computed = is_call(&expr.kind)
+                || matches!(expr.kind, ExprKind::Constructor(_) | ExprKind::Template(_))
+                || self
+                    .t
+                    .get(expr.first)
+                    .is_some_and(|t| t.kind == TokenKind::StringTemplate);
+            if computed {
+                return error(expr.first, "MESSAGE ID, TYPE and NUMBER take data objects");
+            }
+        }
+        None
+    }
+
     /// `ref->( name )`: no blanks inside the parentheses of a dynamic
     /// component.
     fn dynamic_component(&self) -> Option<SyntaxError> {
@@ -546,6 +572,23 @@ mod tests {
             .find(|s| s.kind != K::Comment)
             .unwrap();
         syntax_error(&file, s).map(|e| e.message)
+    }
+
+    #[test]
+    fn message_takes_data_objects() {
+        let e = Some("MESSAGE ID, TYPE and NUMBER take data objects");
+        assert_eq!(check("MESSAGE ID get_msg_id( ) TYPE 'E' NUMBER '004'."), e);
+        assert_eq!(check("MESSAGE ID 'ZX' TYPE lo->kind( ) NUMBER '004'."), e);
+        assert_eq!(check("MESSAGE ID 'ZX' TYPE 'E' NUMBER |{ n }|."), e);
+        for ok in [
+            "MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno WITH sy-msgv1.",
+            "MESSAGE ID ls_msg-id TYPE 'E' NUMBER ls_msg-number WITH lo->text( ).",
+            "MESSAGE e001(zx) WITH get( ) INTO DATA(lv).",
+            "MESSAGE lo_error->get_text( ) TYPE 'I' DISPLAY LIKE 'E'.",
+            "MESSAGE NEW zcx_x( ) TYPE 'E'.",
+        ] {
+            assert_eq!(check(ok), None, "{ok}");
+        }
     }
 
     #[test]

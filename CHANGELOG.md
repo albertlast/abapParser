@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Calls on CAST:** a method call on a `CAST` expression as a statement of its own, like `CAST zcl_x( lo_any )->run( ).`, is a call statement; it was unknown, so its operands were not read. Five such statements in the corpus now have the kind abaplint gives them.
+- **Release of path expressions:** a CDS path expression with a blank before the backslash, like `FROM ztab \_assoc ( p = 'A' )` or `WHERE t1~ \_assoc-col = 5`, needs 7.50, with parameters or a filter after the association 7.52, as SAP's release news say; it needed no release. Of abaplint's 1,016 release-tagged test cases, 1,012 are met instead of 1,006.
+- **MESSAGE ID, TYPE and NUMBER take data objects:** a method call, constructor expression or string template there, like `MESSAGE ID get_id( ) TYPE 'E' NUMBER '004'`, is a syntax error, as in SAP's documentation of MESSAGE.
+
 ## 0.6.0
 
 Fixes from the second trip to an SAP_BASIS 7.50 system: lock modules, table types, dynamic joins and the release of `LOOP`, and conditions that never hold are marked. Loading from a system costs less: objects it does not have are asked once, dictionary lookups can be bounded and run several at once. A host of the Node.js and Python packages can answer BAdI, enhancement and where-used lookups through a `query` function, its errors get proper codes, and progress tells what became of each object. Loop counters, list and message fields follow SAP's documentation; groups, event handler parameters and RAP derived types have types. Logic takes 6% more time than in 0.5.1, the logic of whole objects 8%, for the constants, the restored loop counters and the new types; the other stages are as fast.

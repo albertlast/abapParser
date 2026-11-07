@@ -796,7 +796,11 @@ impl<'a> Scan<'a> {
                     }
                 }
             }
-            if t.kind == TokenKind::AssociationName {
+            // after a blank, like `FROM ztab \_assoc ( p = 1 )` or `t1~ \_a`,
+            // the lexer gives `\_assoc` as an identifier, as abaplint does
+            if t.kind == TokenKind::AssociationName
+                || (t.kind == TokenKind::Identifier && t.text.starts_with('\\'))
+            {
                 self.need(Release::V750, "path expression");
                 if matches!(self.word(i + 1), "(" | "[") {
                     self.need(Release::V752, "path expression with parameters or filter");
@@ -1452,6 +1456,24 @@ mod tests {
         assert_eq!(
             need("SELECT FROM t FIELDS substring_regexpr( pcre = 'a', value = b ) AS c INTO TABLE @lt."),
             Some((Release::V756, "SUBSTRING_REGEXPR"))
+        );
+        // path expressions came with 7.50, parameters and filters after an
+        // association with 7.52; also with a blank before the backslash
+        assert_eq!(
+            need("SELECT \\_a-col FROM t INTO TABLE lt."),
+            Some((Release::V750, "path expression"))
+        );
+        assert_eq!(
+            need("SELECT t1~key1 FROM t AS t1 WHERE t1~ \\_a-key1 = 5 INTO TABLE lt."),
+            Some((Release::V750, "path expression"))
+        );
+        assert_eq!(
+            need("SELECT * FROM t \\_a ( p = 'AB' ) AS r INTO TABLE lt."),
+            Some((Release::V752, "path expression with parameters or filter"))
+        );
+        assert_eq!(
+            need("SELECT * FROM t \\_a [ c = 1 ] AS r INTO TABLE lt."),
+            Some((Release::V752, "path expression with parameters or filter"))
         );
     }
 

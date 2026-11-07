@@ -20,7 +20,7 @@ use serde::Deserialize;
 
 /// Baselines; raise when improving.
 const MIN_CORPUS_PERCENT: f64 = 99.99;
-const MIN_CASES_PERCENT: f64 = 99.0;
+const MIN_CASES_PERCENT: f64 = 99.5;
 
 #[derive(Deserialize)]
 struct Golden {

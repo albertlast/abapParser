@@ -1609,10 +1609,13 @@ CLASS lcl_main IMPLEMENTATION.
     lo_b->save( ).
     DATA(lo_c) = NEW lcl_repo( ).
     lo_c->get_item( ).
+    CAST lcl_repo( io_any )->get_item( )->save( ).
+    NEW lcl_repo( )->get_item( ).
   ENDMETHOD.
 ENDCLASS.",
         );
-        // the variables hold the results of the chains, not the classes
+        // the variables hold the results of the chains, not the classes; a
+        // chain on CAST or NEW is a statement of its own too
         let got: Vec<String> = c
             .iter()
             .filter(|c| c.kind == m::CallKind::Method)
@@ -1630,6 +1633,9 @@ ENDCLASS.",
             [
                 "lcl_repo.get_item true",
                 "lcl_item.save true",
+                "lcl_repo.get_item true",
+                "lcl_item.save true",
+                "lcl_repo.get_item true",
                 "lcl_repo.get_item true",
                 "lcl_item.save true",
                 "lcl_repo.get_item true",
