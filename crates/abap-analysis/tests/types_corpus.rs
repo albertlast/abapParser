@@ -12,8 +12,8 @@ use abap_analysis::Workspace;
 use abap_model as m;
 
 /// Percent of typed inline declarations, at least.
-const FILES: f64 = 62.5;
-const WORKSPACE: f64 = 66.3;
+const FILES: f64 = 64.1;
+const WORKSPACE: f64 = 68.0;
 
 fn count(steps: &[m::Step], typed: &mut usize, all: &mut usize) {
     for s in steps {

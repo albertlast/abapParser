@@ -69,6 +69,26 @@ pub(crate) fn named(name: &str) -> m::DataType {
     }
 }
 
+/// A BDEF derived type of RAP by its name, like `table for create zi_x`:
+/// a table whose line is the structure of the same name, `structure for
+/// create zi_x`; `structure for`, `request for` and `response for` are
+/// structures. Their components are known only to the ABAP compiler.
+pub(crate) fn derived(name: &str) -> Option<m::DataType> {
+    let (kind, rest) = name.split_once(" for ")?;
+    let named = |kind: &str| m::DataType {
+        name: Some(format!("{kind} for {rest}")),
+        ..structure()
+    };
+    match kind {
+        "table" => Some(m::DataType {
+            name: Some(name.to_string()),
+            ..table(named("structure"))
+        }),
+        "structure" | "request" | "response" => Some(named(kind)),
+        _ => None,
+    }
+}
+
 /// A reference to a class, interface or type.
 pub(crate) fn reference(name: &str) -> m::DataType {
     m::DataType {
@@ -182,6 +202,11 @@ enum Member<'n> {
         method: &'n str,
         name: Option<&'n str>,
     },
+    /// a parameter an event exports
+    EventParameter {
+        event: &'n str,
+        name: &'n str,
+    },
     Attribute(&'n str),
     /// a type, and components of it
     Type(&'n str, &'n [&'n str]),
@@ -208,6 +233,8 @@ pub(crate) struct Types<'a> {
     /// the interface or superclass that declares the signature of the
     /// method, for `zif_x~meth` and redefinitions, with the method's name
     inherited: Option<(String, String)>,
+    /// the class or interface and the event an event handler is for
+    event: Option<(String, String)>,
     inline: RefCell<HashMap<String, m::DataType>>,
 }
 
@@ -220,6 +247,7 @@ impl<'a> Types<'a> {
         let mut parameters: Vec<&'a m::Parameter> = Vec::new();
         let mut class = None;
         let mut inherited = None;
+        let mut event = None;
         match block.kind.as_str() {
             "method" => {
                 let name = block.class.as_deref().unwrap_or_default();
@@ -242,6 +270,10 @@ impl<'a> Types<'a> {
                     let md = c.methods.iter().find(|m| eq(&m.name, method));
                     if let Some(md) = md {
                         parameters.extend(&md.parameters);
+                        event = md
+                            .event_handler
+                            .as_ref()
+                            .map(|e| (e.class.to_ascii_lowercase(), e.event.to_ascii_lowercase()));
                     }
                     // the signature is the interface's or the superclass's
                     inherited = match (block.name.split_once('~'), md) {
@@ -279,6 +311,7 @@ impl<'a> Types<'a> {
             class,
             classes: None,
             inherited,
+            event,
             inline: RefCell::new(HashMap::new()),
         }
     }
@@ -298,6 +331,7 @@ impl<'a> Types<'a> {
             class: None,
             classes: None,
             inherited: None,
+            event: None,
             inline: RefCell::new(HashMap::new()),
         }
     }
@@ -308,11 +342,26 @@ impl<'a> Types<'a> {
         self
     }
 
-    /// Records the type of an inline declaration.
+    /// Records the type of an inline declaration; `name-comp` records a
+    /// component of a structure declared inline, like one of a group key.
     pub(crate) fn declare(&self, name: &str, ty: m::DataType) {
         self.inline
             .borrow_mut()
             .insert(name.to_ascii_lowercase(), ty);
+    }
+
+    /// Records the line type of the members of a group of a grouping, by
+    /// the name of the group (its key, or its representative).
+    pub(crate) fn declare_members(&self, group: &str, line: m::DataType) {
+        self.declare(&format!("#members {group}"), line);
+    }
+
+    /// The line type of the members of a group, see [`Self::declare_members`].
+    pub(crate) fn members(&self, group: &str) -> Option<m::DataType> {
+        self.inline
+            .borrow()
+            .get(&format!("#members {}", group.trim().to_ascii_lowercase()))
+            .cloned()
     }
 
     fn find(&self, name: &str, types: bool) -> Option<&'a m::Declaration> {
@@ -492,6 +541,9 @@ impl<'a> Types<'a> {
                 decl: None,
             };
         }
+        if let Some(ty) = derived(&lower) {
+            return Found { ty, decl: None };
+        }
         if let Some(d) = self.find(&lower, true) {
             if let Some(mut f) = self.declared(d, depth + 1) {
                 f.ty.name.get_or_insert(lower);
@@ -544,6 +596,7 @@ impl<'a> Types<'a> {
             class: None,
             classes: self.classes,
             inherited: None,
+            event: None,
             inline: RefCell::new(HashMap::new()),
         };
         let mut found = scope.declared(d, depth + 1)?;
@@ -570,6 +623,15 @@ impl<'a> Types<'a> {
         // a table expression `lt[ id = 1 ]` is a line: `~` marks it
         let lower = lines_marked(lower)?;
         let lower = lower.as_str();
+        // a component of a structure declared inline, like a group key
+        if lower.contains('-') {
+            if let Some(ty) = self.inline.borrow().get(lower) {
+                return Some(Found {
+                    ty: ty.clone(),
+                    decl: None,
+                });
+            }
+        }
         if let Some(f) = system_field(lower) {
             return Some(Found {
                 ty: system(f),
@@ -729,7 +791,23 @@ impl<'a> Types<'a> {
             .iter()
             .find(|p| p.name.trim_start_matches('!').eq_ignore_ascii_case(name))
         {
-            return self.typing(p.typing.as_ref()?, depth);
+            return match (&p.typing, &self.event) {
+                (Some(t), _) => self.typing(t, depth),
+                // an event handler's parameters are those of the event; sender
+                // is the object raising it
+                (None, Some((class, _))) if name == "sender" => Some(Found {
+                    ty: reference(class),
+                    decl: None,
+                }),
+                (None, Some((class, event))) => {
+                    let parameter = Member::EventParameter { event, name };
+                    Some(Found {
+                        ty: self.member(class, parameter, depth + 1)?,
+                        decl: None,
+                    })
+                }
+                (None, None) => None,
+            };
         }
         if let Some(d) = self.find(name, false) {
             return self.declared(d, depth);
@@ -810,6 +888,7 @@ impl<'a> Types<'a> {
             class: None,
             classes: self.classes,
             inherited: None,
+            event: None,
             inline: RefCell::new(HashMap::new()),
         };
         scope.typing(p.typing.as_ref()?, 1).map(|f| f.ty)
@@ -880,11 +959,12 @@ fn member_in(
     if c.is_none() && i.is_none() {
         return None;
     }
-    let (attributes, types, methods, aliases, parents) = match (c, i) {
+    let (attributes, types, methods, events, aliases, parents) = match (c, i) {
         (Some(c), _) => (
             &c.attributes,
             &c.types,
             &c.methods,
+            &c.events,
             &c.aliases,
             c.interfaces
                 .iter()
@@ -896,6 +976,7 @@ fn member_in(
             &i.attributes,
             &i.types,
             &i.methods,
+            &i.events,
             &i.aliases,
             i.interfaces.iter().map(|x| x.name.as_str()).collect(),
         ),
@@ -909,11 +990,13 @@ fn member_in(
         class: Some(class.to_string()),
         classes,
         inherited: None,
+        event: None,
         inline: RefCell::new(HashMap::new()),
     };
     // zif_x~name, directly or through an alias
     let named = match member {
         Member::Parameter { method, .. } => method,
+        Member::EventParameter { event, .. } => event,
         Member::Attribute(a) => a,
         Member::Type(t, _) => t,
     };
@@ -926,6 +1009,10 @@ fn member_in(
         let inner = match member {
             Member::Parameter { name: p, .. } => Member::Parameter {
                 method: name,
+                name: p,
+            },
+            Member::EventParameter { name: p, .. } => Member::EventParameter {
+                event: name,
                 name: p,
             },
             Member::Attribute(_) => Member::Attribute(name),
@@ -942,6 +1029,19 @@ fn member_in(
                     Some(n) => eq(p.name.trim_start_matches('!'), n),
                     None => p.direction == m::Direction::Returning,
                 })
+            })
+            .map(|p| {
+                p.typing
+                    .as_ref()
+                    .and_then(|t| scope.typing(t, depth + 1).map(|f| f.ty))
+            }),
+        Member::EventParameter { event, name } => events
+            .iter()
+            .find(|e| eq(&e.name, event))
+            .and_then(|e| {
+                e.parameters
+                    .iter()
+                    .find(|p| eq(p.name.trim_start_matches('!'), name))
             })
             .map(|p| {
                 p.typing
@@ -1312,7 +1412,7 @@ ENDCLASS.",
                 "lv_there c(1) xsdboolean",
                 "lr_row ref data of structure ty_row",
                 "ls_any structure ty_row",
-                "lv_group ",
+                "lv_group i",
                 "lv_matnr named mara-matnr",
                 "lt_mara table of named mara",
                 "lv_count int8",
@@ -1343,6 +1443,152 @@ ENDCLASS.",
             .writes
             .iter()
             .all(|w| w.data_type.as_ref().map(short).as_deref() == Some("i")));
+    }
+
+    /// The types of the data written and read by the steps, `name type`.
+    fn typed(l: &m::FileLogic, procedure: usize) -> Vec<String> {
+        let mut got: Vec<String> = Vec::new();
+        fn walk(steps: &[m::Step], got: &mut Vec<String>) {
+            for s in steps {
+                for a in s.writes.iter().filter(|w| w.declared).chain(&s.reads) {
+                    let ty = a.data_type.as_ref().map(short).unwrap_or_default();
+                    let name = if a.declared { &a.name } else { &a.path };
+                    let entry = format!("{name} {ty}");
+                    if !got.contains(&entry) {
+                        got.push(entry);
+                    }
+                }
+                walk(&s.children, got);
+            }
+        }
+        walk(&l.procedures[procedure].body, &mut got);
+        got
+    }
+
+    #[test]
+    fn groups_reductions_and_event_handlers() {
+        let l = crate::logic(
+            "REPORT z.
+TYPES: BEGIN OF ty_row, id TYPE i, name TYPE string, END OF ty_row,
+       ty_rows TYPE STANDARD TABLE OF ty_row WITH EMPTY KEY.
+DATA gt TYPE ty_rows.
+CLASS lcl_button DEFINITION.
+  PUBLIC SECTION.
+    EVENTS clicked EXPORTING VALUE(ev_id) TYPE i.
+ENDCLASS.
+CLASS lcl_handler DEFINITION.
+  PUBLIC SECTION.
+    METHODS on_click FOR EVENT clicked OF lcl_button IMPORTING ev_id sender.
+ENDCLASS.
+CLASS lcl_handler IMPLEMENTATION.
+  METHOD on_click.
+    DATA(lo) = sender.
+    DATA(lv) = ev_id.
+  ENDMETHOD.
+ENDCLASS.
+START-OF-SELECTION.
+  DATA(lt_red) = REDUCE ty_rows( INIT t = VALUE #( ) FOR r IN gt NEXT t = VALUE #( BASE t ( r ) ) ).
+  DATA(lv_let) = VALUE string( LET first = VALUE #( gt[ 1 ] OPTIONAL ) IN first-name ).
+  LOOP AT gt INTO DATA(ls) GROUP BY ls-id INTO DATA(lv_group).
+    LOOP AT GROUP lv_group INTO DATA(ls_member).
+    ENDLOOP.
+  ENDLOOP.
+  LOOP AT gt INTO DATA(ls2) GROUP BY ( id = ls2-id size = GROUP SIZE ) REFERENCE INTO DATA(lr_key).
+  ENDLOOP.
+  LOOP AT gt INTO DATA(ls3) GROUP BY ( id = ls3-id name = ls3-name ) INTO DATA(ls_key).
+    DATA(lv_name) = ls_key-name.
+  ENDLOOP.
+  LOOP AT gt ASSIGNING FIELD-SYMBOL(<wa>) GROUP BY <wa>-name.
+    LOOP AT GROUP <wa> ASSIGNING FIELD-SYMBOL(<m>).
+    ENDLOOP.
+  ENDLOOP.
+  DATA(lt_ids) = VALUE ty_rows( FOR GROUPS g OF r2 IN gt GROUP BY r2-id ( id = g ) ).
+  DATA(lt_all) = VALUE ty_rows( FOR GROUPS grp OF r4 IN gt GROUP BY ( key = r4-name )
+                                FOR m IN GROUP grp ( m ) ).",
+        );
+        assert_eq!(
+            typed(&l, 0),
+            [
+                "lo ref lcl_button",
+                "sender ref lcl_button",
+                "lv i",
+                "ev_id i"
+            ]
+        );
+        let got = typed(&l, 1);
+        for expected in [
+            "t table ty_rows of structure ty_row",
+            "first structure ty_row",
+            "lv_group i",
+            "ls_member structure ty_row",
+            "lr_key ref data of structure",
+            "ls_key structure",
+            "ls_key-name string",
+            "<m> structure ty_row",
+            "g i",
+            "grp structure",
+            "m structure ty_row",
+        ] {
+            assert!(got.iter().any(|g| g == expected), "{expected}: {got:?}");
+        }
+    }
+
+    #[test]
+    fn bdef_derived_types() {
+        let s = crate::symbols(
+            "REPORT z.
+DATA lt_create TYPE TABLE FOR CREATE zi_travel.
+DATA ls_failed TYPE RESPONSE FOR FAILED EARLY zi_travel.
+TYPES ty_upd TYPE STRUCTURE FOR UPDATE zi_travel\\_booking.
+CLASS lhc DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+    METHODS read FOR READ IMPORTING keys FOR READ travel RESULT result.
+    METHODS approve FOR MODIFY IMPORTING keys FOR ACTION travel~approve RESULT result.
+    METHODS lock FOR LOCK IMPORTING keys FOR LOCK travel.
+    METHODS upd FOR MODIFY IMPORTING entities FOR UPDATE travel
+      CHANGING failed TYPE data reported TYPE data.
+    METHODS get_auth FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR travel RESULT result.
+ENDCLASS.",
+        );
+        let declared: Vec<String> = s
+            .declarations
+            .iter()
+            .map(|d| format!("{} {}", d.name, short(d.data_type.as_ref().unwrap())))
+            .collect();
+        assert_eq!(
+            declared,
+            [
+                "lt_create table table for create zi_travel of structure structure for create zi_travel",
+                "ls_failed structure response for failed early zi_travel",
+                "ty_upd structure structure for update zi_travel\\_booking",
+            ]
+        );
+        let parameters: Vec<String> = s.classes[0]
+            .methods
+            .iter()
+            .flat_map(|m| {
+                m.parameters.iter().map(move |p| {
+                    let ty = p.typing.as_ref().and_then(|t| t.name.clone());
+                    format!("{} {} {}", m.name, p.name, ty.unwrap_or_default())
+                })
+            })
+            .collect();
+        assert_eq!(
+            parameters,
+            [
+                "read keys table for read import travel",
+                "read result table for read result travel",
+                "approve keys table for action import travel~approve",
+                "approve result table for action result travel~approve",
+                "lock keys table for key of travel",
+                "upd entities table for update travel",
+                "upd failed data",
+                "upd reported data",
+                "get_auth requested_authorizations ",
+                "get_auth result ",
+            ]
+        );
     }
 
     #[test]
