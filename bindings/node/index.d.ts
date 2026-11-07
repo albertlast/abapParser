@@ -122,7 +122,9 @@ export interface SourceOptions {
   /**
    * Once aborted, nothing more is loaded and the analysis finishes with what
    * it has; calls into objects not loaded are unresolved with the reason
-   * `cancelled`. Only the async functions take it.
+   * `cancelled`. Logic analyzes no more procedures: those not analyzed are
+   * left out, and the note `cancelled: n procedures were not analyzed`
+   * counts them. Only the async functions take it.
    */
   signal?: AbortSignal;
   /**

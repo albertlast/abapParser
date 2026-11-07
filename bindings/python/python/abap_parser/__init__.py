@@ -96,7 +96,9 @@ class FollowOptions(TypedDict, total=False):
 CancelToken = _native.CancelToken
 """Stops an analysis loading sources: ``token.cancel()``, also from another
 thread or the event loop; nothing more is loaded and the analysis finishes
-with what it has."""
+with what it has. Logic analyzes no more procedures: those not analyzed are
+left out, and the note ``cancelled: n procedures were not analyzed`` counts
+them."""
 
 
 class SourceOptions(TypedDict, total=False):

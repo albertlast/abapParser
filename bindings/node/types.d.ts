@@ -45,6 +45,8 @@ export interface Call {
   from?: BlockRef;
   /** the class of the target inherits from or implements types that are not in the sources, e.g. SAP standard classes; an unresolved method may be defined there */
   hierarchy_incomplete: boolean;
+  /** classes that run for a BAdI call, `CALL BADI` or a method of the interface of a classic BAdI: those of its active implementations, else its fallback class; upper case, as far as the sources tell */
+  implementations?: string[];
   /** `=>`, a static method */
   is_static: boolean;
   kind: CallKind;

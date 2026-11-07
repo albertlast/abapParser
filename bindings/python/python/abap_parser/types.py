@@ -77,7 +77,7 @@ class BlockRef(_BlockRefRequired, _BlockRefOptional):
 _CallRequired = TypedDict("_CallRequired", {"dynamic": "bool", "hierarchy_incomplete": "bool", "is_static": "bool", "kind": "CallKind", "name": "str", "options": "List[str]", "resolved": "bool", "span": "Span", "text": "str"})
 
 
-_CallOptional = TypedDict("_CallOptional", {"badi": "str", "class": "str", "from": "BlockRef", "program": "str", "receiver": "str", "unit": "str", "unresolved": "Unresolved"}, total=False)
+_CallOptional = TypedDict("_CallOptional", {"badi": "str", "class": "str", "from": "BlockRef", "implementations": "List[str]", "program": "str", "receiver": "str", "unit": "str", "unresolved": "Unresolved"}, total=False)
 
 
 class Call(_CallRequired, _CallOptional):

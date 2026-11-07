@@ -661,6 +661,11 @@ pub struct Call {
     /// is then its interface
     #[serde(skip_serializing_if = "Option::is_none")]
     pub badi: Option<String>,
+    /// classes that run for a BAdI call, `CALL BADI` or a method of the
+    /// interface of a classic BAdI: those of its active implementations,
+    /// else its fallback class; upper case, as far as the sources tell
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub implementations: Vec<String>,
     /// program of `PERFORM ... IN PROGRAM`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub program: Option<String>,
