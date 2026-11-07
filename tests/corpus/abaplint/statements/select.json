@@ -1537,6 +1537,30 @@
   "release": "v750"
  },
  {
+  "abap": "SELECT Status, \\_Text-ShortText FROM zi_status WHERE \\_Text-Language = 'E' AND Status IN ( @lv_next, @ls_curr-Status ) INTO TABLE @DATA(lt_texts).",
+  "expect": "match",
+  "type": "Select",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT SINGLE Status FROM zi_status WHERE \\_Text-Language = 'E' INTO @DATA(ls_text).",
+  "expect": "match",
+  "type": "Select",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT * FROM ztab1 \\_assoc1 WHERE \\_assoc2-col = 'E' INTO TABLE @DATA(lt).",
+  "expect": "match",
+  "type": "Select",
+  "release": "v740sp05"
+ },
+ {
+  "abap": "SELECT Status FROM zi_status WHERE \\_Text[ ONE TO ONE ]-Language = 'E' INTO TABLE @DATA(lt_texts).",
+  "expect": "match",
+  "type": "Select",
+  "release": "v751"
+ },
+ {
   "abap": "SELECT * FROM ztab1 \\_assoc1 ( col1 = 'AB' ) AS r WHERE col4 = @sy-uname INTO TABLE @result.",
   "expect": "unknown",
   "release": "v751"

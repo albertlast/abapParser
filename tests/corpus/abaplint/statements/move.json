@@ -655,6 +655,11 @@
   "type": "Move"
  },
  {
+  "abap": "lv_text = |{ ev_netwr CURRENCY = ev_ccrcy NUMBER = USER } { ev_ccrcy }|.",
+  "expect": "match",
+  "type": "Move"
+ },
+ {
   "abap": "MOVE <fs>-field+40() TO adr-name2.",
   "expect": "match",
   "type": "Move"

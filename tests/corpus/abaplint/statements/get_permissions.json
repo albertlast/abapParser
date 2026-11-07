@@ -10,9 +10,113 @@
   "type": "GetPermissions"
  },
  {
+  "abap": "GET PERMISSIONS ONLY GLOBAL ENTITY demo_managed_root_3\n     REQUEST request\n     RESULT FINAL(result1)\n     FAILED FINAL(failed1)\n     REPORTED FINAL(reported1).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL FEATURES ENTITY demo_managed_root_3\n     REQUEST request\n     RESULT FINAL(result2)\n     FAILED FINAL(failed2)\n     REPORTED FINAL(reported2).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 )\n                   ( %key-key_field = 2 ) )\n     REQUEST request\n     RESULT FINAL(result5)\n     FAILED FINAL(failed5)\n     REPORTED FINAL(reported5).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE AUTHORIZATION\n     ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result6)\n     FAILED FINAL(failed6)\n     REPORTED FINAL(reported6).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY FEATURES ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result7)\n     FAILED FINAL(failed7)\n     REPORTED FINAL(reported7).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY AUTHORIZATION ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result8)\n     FAILED FINAL(failed8)\n     REPORTED FINAL(reported8).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY (if_abap_behv=>permissions_only-authorization)\n     ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result9)\n     FAILED FINAL(failed9)\n     REPORTED FINAL(reported9).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result)\n     FAILED FINAL(failed)\n     REPORTED FINAL(reported).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL ENTITY demo_managed_root_3 REQUEST request RESULT FINAL(result).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL ENTITY demo_managed_root_3 REQUEST request RESULT result FAILED failed.",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS PRIVILEGED ONLY INSTANCE ENTITY demo_managed_root_3\n     FROM keys REQUEST request RESULT result FAILED failed REPORTED reported.",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS FORWARDING PRIVILEGED ENTITY demo_managed_root_3\n     FROM keys REQUEST request RESULT result.",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES\n     ENTITY zdemo_root\\\\root\n     FROM VALUE #( ( %key-key_field = 1 ) )\n     REQUEST request\n     RESULT FINAL(result)\n     FAILED FINAL(failed)\n     REPORTED FINAL(reported).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL ENTITY /dmo/r_root REQUEST request RESULT result.",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES OF demo_managed_root_3\n     ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 3 )\n                   ( %key-key_field = 4 ) )\n     REQUEST VALUE #(\n       %field-data_field1_root = if_abap_behv=>mk-on\n       %field-data_field2_root = if_abap_behv=>mk-on )\n     RESULT FINAL(result2)\n     ENTITY child\n     FROM VALUE #( ( %key-key_field = 3 )\n                   ( %key-key_field = 4 ) )\n     REQUEST VALUE #(\n       %field-data_field1_child = if_abap_behv=>mk-on\n       %field-data_field2_child = if_abap_behv=>mk-on )\n     RESULT FINAL(result3)\n     FAILED FINAL(failed2)\n     REPORTED FINAL(reported2).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES OPERATIONS perm_tab\n     FAILED FINAL(failed)\n     REPORTED FINAL(reported).",
+  "expect": "match",
+  "type": "GetPermissions"
+ },
+ {
   "abap": "GET PERMISSIONS ONLY GLOBAL AUTHORIZATION ENTITY ent\n    REQUEST sourc\n    RESULT DATA(result)\n    FAILED DATA(failed)\n    REPORTED DATA(reported).",
   "expect": "match",
   "type": "GetPermissions",
   "release": "OpenABAP"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES ENTITY demo_managed_root_3\n     FROM VALUE #( ( %key-key_field = 1 )\n                   ( %key-key_field = 2 ) )\n     REQUEST request\n     RESULT FINAL(result5)\n     FAILED FINAL(failed5)\n     REPORTED FINAL(reported5).",
+  "expect": "match",
+  "type": "GetPermissions",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY INSTANCE FEATURES OPERATIONS perm_tab\n     FAILED FINAL(failed)\n     REPORTED FINAL(reported).",
+  "expect": "match",
+  "type": "GetPermissions",
+  "minRelease": "v754"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL ENTITY demo_managed_root_3 RESULT result.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY LOCAL ENTITY demo_managed_root_3 REQUEST request RESULT result.",
+  "expect": "unknown"
+ },
+ {
+  "abap": "GET PERMISSIONS ONLY GLOBAL INSTANCE ENTITY demo_managed_root_3 REQUEST request RESULT result.",
+  "expect": "unknown"
  }
 ]

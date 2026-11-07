@@ -44,6 +44,8 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         K::MergeDatabase => c.merge(),
         K::ReadTable => c.read_table(),
         K::Message => c.message(file, s),
+        K::Form => c.form_parameters(),
+        K::GetPermissions => c.get_permissions(),
         _ => None,
     };
     error.or_else(|| c.dynamic_component())
@@ -697,6 +699,115 @@ impl<'a> Check<'a> {
         None
     }
 
+    /// FORM parameters are typed with an existing type, a generic one, `REF
+    /// TO` or `LINE OF`; they cannot build one, as `TYPE TABLE OF i`, `TYPE
+    /// c LENGTH 10` or `TYPE STANDARD TABLE WITH DEFAULT KEY` do.
+    fn form_parameters(&self) -> Option<SyntaxError> {
+        const MESSAGE: &str = "FORM parameter typed with a type built in place";
+        let table_kind = |k: usize| {
+            matches!(
+                self.word(k),
+                "STANDARD" | "SORTED" | "HASHED" | "INDEX" | "ANY"
+            ) && self.word(k + 1) == "TABLE"
+        };
+        let of = |k: usize| matches!(self.word(k), "TABLE" | "RANGE") && self.word(k + 1) == "OF";
+        for i in 0..self.w.len() {
+            if self.depth[i] != 0 {
+                continue;
+            }
+            let k = i + 1;
+            match self.word(i) {
+                "TYPE" => {
+                    if of(k) {
+                        return error(k, MESSAGE);
+                    }
+                    if table_kind(k) {
+                        // `TYPE STANDARD TABLE [OF type]`, without a key
+                        let mut end = k + 2;
+                        if self.word(end) == "OF" {
+                            if self.word(end + 1) == "REF" && self.word(end + 2) == "TO" {
+                                return error(end, MESSAGE);
+                            }
+                            end += 2;
+                        }
+                        if self.word(end) == "WITH" {
+                            return error(end, MESSAGE);
+                        }
+                        continue;
+                    }
+                    let name = if matches!(self.word(k), "REF" | "LINE") {
+                        k + 2
+                    } else {
+                        k
+                    };
+                    // `TYPE c length TYPE i` has a parameter named length
+                    let number = !self.word(name + 2).is_empty()
+                        && self.word(name + 2).bytes().all(|b| b.is_ascii_digit());
+                    if matches!(self.word(name + 1), "LENGTH" | "DECIMALS") && number {
+                        return error(name + 1, MESSAGE);
+                    }
+                }
+                "LIKE" if of(k) || table_kind(k) => return error(k, MESSAGE),
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// GET PERMISSIONS: the variants of `ONLY`, `FROM keys` only and always
+    /// for instances, and `REQUEST` for every entity.
+    fn get_permissions(&self) -> Option<SyntaxError> {
+        let mut i = 2;
+        if self.word(i) == "FORWARDING" {
+            i += 1;
+        }
+        if self.word(i) == "PRIVILEGED" {
+            i += 1;
+        }
+        let mut global = None;
+        if self.word(i) == "ONLY" {
+            i += 1;
+            match self.word(i) {
+                "GLOBAL" | "INSTANCE" => {
+                    global = Some(self.word(i) == "GLOBAL");
+                    i += 1;
+                    if matches!(self.word(i), "FEATURES" | "AUTHORIZATION") {
+                        i += 1;
+                    }
+                }
+                "FEATURES" | "AUTHORIZATION" => {
+                    global = Some(false);
+                    i += 1;
+                }
+                "(" => {
+                    i = (i + 1..self.w.len())
+                        .find(|&k| self.depth[k] == 0 && self.word(k) == ")")?
+                        + 1;
+                }
+                _ => return error(i, "unknown ONLY clause"),
+            }
+            if !matches!(self.word(i), "ENTITY" | "OF" | "OPERATIONS") {
+                return error(i, "unknown ONLY clause");
+            }
+        }
+        // the short and the long form: each ENTITY with its REQUEST
+        let entities = self.top("ENTITY");
+        for (n, &e) in entities.iter().enumerate() {
+            let end = entities.get(n + 1).copied().unwrap_or(self.w.len());
+            let has =
+                |word: &str| (e + 2..end).find(|&k| self.depth[k] == 0 && self.word(k) == word);
+            if has("REQUEST").is_none() {
+                return error(e, "REQUEST missing");
+            }
+            match (global, has("FROM")) {
+                (Some(true), Some(from)) => return error(from, "FROM with ONLY GLOBAL"),
+                (Some(false), None) => return error(e, "FROM missing for instances"),
+                _ => {}
+            }
+        }
+        None
+    }
+
     /// `ref->( name )`: no blanks inside the parentheses of a dynamic
     /// component.
     fn dynamic_component(&self) -> Option<SyntaxError> {
@@ -807,6 +918,73 @@ mod tests {
             "SELECT a, ROW_NUMBER( ) OVER( PARTITION BY b ORDER BY c DESCENDING ) AS n FROM t INTO TABLE @lt.",
             "SELECT t1~a, t2~b FROM t1 INNER JOIN t2 ON t2~k = t1~k INTO TABLE @lt.",
             "SELECT SINGLE a FROM t WHERE b IN ( SELECT b FROM u ) INTO @lv.",
+        ] {
+            assert_eq!(check(ok), None, "{ok}");
+        }
+    }
+
+    #[test]
+    fn form_parameters_take_existing_types() {
+        let e = Some("FORM parameter typed with a type built in place");
+        for abap in [
+            "FORM f USING p TYPE TABLE OF i.",
+            "FORM f TABLES p TYPE TABLE OF i.",
+            "FORM f USING VALUE(p) TYPE RANGE OF i.",
+            "FORM f USING p TYPE STANDARD TABLE OF REF TO i.",
+            "FORM f USING p TYPE STANDARD TABLE WITH DEFAULT KEY.",
+            "FORM f USING p TYPE SORTED TABLE OF i WITH UNIQUE KEY table_line.",
+            "FORM f USING p LIKE TABLE OF gt_foo.",
+            "FORM f USING p LIKE STANDARD TABLE OF gt_foo.",
+            "FORM f USING p TYPE c LENGTH 10.",
+            "FORM f CHANGING p TYPE p DECIMALS 2.",
+        ] {
+            assert_eq!(check(abap), e, "{abap}");
+        }
+        for ok in [
+            "FORM f USING p TYPE STANDARD TABLE.",
+            "FORM f USING p TYPE STANDARD TABLE OF ty_line.",
+            "FORM f USING p TYPE ANY TABLE q TYPE INDEX TABLE.",
+            "FORM f USING p TYPE REF TO zcl_x q LIKE LINE OF gt_foo r TYPE LINE OF ty_tab.",
+            "FORM f TABLES t STRUCTURE /foo/bar USING VALUE(type) TYPE c CHANGING x LIKE sy-tabix.",
+            "FORM f USING p TYPE c length TYPE i decimals.",
+        ] {
+            assert_eq!(check(ok), None, "{ok}");
+        }
+    }
+
+    #[test]
+    fn get_permissions_variants() {
+        for (abap, expected) in [
+            (
+                "GET PERMISSIONS ONLY LOCAL ENTITY e REQUEST r RESULT res.",
+                "unknown ONLY clause",
+            ),
+            (
+                "GET PERMISSIONS ONLY GLOBAL INSTANCE ENTITY e REQUEST r RESULT res.",
+                "unknown ONLY clause",
+            ),
+            (
+                "GET PERMISSIONS ONLY GLOBAL ENTITY e RESULT res.",
+                "REQUEST missing",
+            ),
+            (
+                "GET PERMISSIONS ONLY GLOBAL ENTITY e FROM keys REQUEST r RESULT res.",
+                "FROM with ONLY GLOBAL",
+            ),
+            (
+                "GET PERMISSIONS ONLY INSTANCE FEATURES ENTITY e REQUEST r RESULT res.",
+                "FROM missing for instances",
+            ),
+        ] {
+            assert_eq!(check(abap), Some(expected), "{abap}");
+        }
+        for ok in [
+            "GET PERMISSIONS ONLY GLOBAL AUTHORIZATION ENTITY e REQUEST r RESULT res FAILED f.",
+            "GET PERMISSIONS PRIVILEGED ONLY INSTANCE ENTITY e FROM keys REQUEST r RESULT res.",
+            "GET PERMISSIONS ONLY (if_abap_behv=>permissions_only-authorization) ENTITY e FROM keys REQUEST r RESULT res.",
+            "GET PERMISSIONS FORWARDING PRIVILEGED ENTITY e FROM keys REQUEST r RESULT res.",
+            "GET PERMISSIONS ONLY INSTANCE FEATURES OF root ENTITY root FROM k1 REQUEST r1 RESULT res1 ENTITY child FROM k2 REQUEST r2 RESULT res2 FAILED f.",
+            "GET PERMISSIONS ONLY INSTANCE FEATURES OPERATIONS perm_tab FAILED f REPORTED r.",
         ] {
             assert_eq!(check(ok), None, "{ok}");
         }
