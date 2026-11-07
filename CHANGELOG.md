@@ -4,7 +4,8 @@
 
 - **Calls on CAST:** a method call on a `CAST` expression as a statement of its own, like `CAST zcl_x( lo_any )->run( ).`, is a call statement; it was unknown, so its operands were not read. Five such statements in the corpus now have the kind abaplint gives them.
 - **Release of path expressions:** a CDS path expression with a blank before the backslash, like `FROM ztab \_assoc ( p = 'A' )` or `WHERE t1~ \_assoc-col = 5`, needs 7.50, with parameters or a filter after the association 7.52, as SAP's release news say; it needed no release. Of abaplint's 1,016 release-tagged test cases, 1,012 are met instead of 1,006.
-- **MESSAGE ID, TYPE and NUMBER take data objects:** a method call, constructor expression or string template there, like `MESSAGE ID get_id( ) TYPE 'E' NUMBER '004'`, is a syntax error, as in SAP's documentation of MESSAGE.
+- **MESSAGE ID, TYPE and NUMBER take data objects:** a method call, constructor expression or string template there, like `MESSAGE ID get_id( ) TYPE 'E' NUMBER '004'`, is a syntax error, as in SAP's documentation of MESSAGE. The syntax check of the SAP ABAP Cloud Developer Trial 2025 rejects it too.
+- **SELECT rules of the SAP system:** four syntax errors that the syntax check of the SAP ABAP Cloud Developer Trial 2025 reports, and abaplint takes for valid in newer releases: `SELECT SINGLE` with `ORDER BY`, before or after INTO; a SELECT list with blanks and commas mixed, like `a b, c` or `a, b c`; an alias or a list inside the parentheses of an expression, like `( a AS b )` or `( a, b ) AS c` (`( a ) AS b` is fine); a dynamic column in an aggregate, like `SUM( (name) )` or `COUNT( DISTINCT (name) )`. Of abaplint's release-tagged test cases, 1,013 of 1,016 are met.
 
 ## 0.6.0
 
