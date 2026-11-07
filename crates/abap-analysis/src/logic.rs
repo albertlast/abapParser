@@ -1270,10 +1270,12 @@ fn build_unit<'a>(
             }
         })
         .collect();
-    for a in db_access_with(file, symbols) {
+    let constants = literal_constants(symbols);
+    for mut a in db_access_with(file, symbols) {
         let Some((k, id)) = locate(&procs, &a.span.start) else {
             continue;
         };
+        resolve_tables(&procs[k].procedure, id, &mut a, &constants);
         if let Some(s) = find_step_mut(&mut procs[k].procedure.body, id) {
             for t in table_accesses(&a) {
                 if !s.tables.contains(&t) {
@@ -1284,7 +1286,6 @@ fn build_unit<'a>(
     }
     // data kept outside the program: memory, parameters, files, locks;
     // infotype tables of HR
-    let constants = literal_constants(symbols);
     let infotypes = crate::hr::infotypes(symbols);
     for st in &file.statements {
         let mut found = crate::stores::store_accesses(file, st, &constants);
@@ -1476,32 +1477,7 @@ fn resolve_dynamic(
         if !constants.contains_key(&var) {
             deciding.borrow_mut().push(var.clone());
         }
-        let mut defs: HashMap<u32, Vec<String>> = HashMap::new();
-        let mut steps: HashMap<u32, &m::Step> = HashMap::new();
-        walk(&p.body, &mut |s| {
-            steps.insert(s.id, s);
-            if s.writes.iter().any(|w| w.name == var) {
-                defs.insert(s.id, vec![var.clone()]);
-            }
-        });
-        let uses = HashMap::from([(step, vec![var.clone()])]);
-        let reach = reaching(&p.body, &p.flow, &defs, &uses);
-        let mut out: Vec<String> = Vec::new();
-        let Some((sources, entry)) = reach.get(&(step, var.clone())) else {
-            return out;
-        };
-        let assigned = sources.iter().filter_map(|s| {
-            steps
-                .get(s)
-                .and_then(|s| assigned_value(s, &var, constants))
-        });
-        let constant = entry.then(|| constants.get(&var).cloned()).flatten();
-        for v in assigned.chain(constant) {
-            if !out.contains(&v) {
-                out.push(v);
-            }
-        }
-        out
+        reaching_values(p, step, &var, constants)
     };
     let mut out: Vec<m::Call> = Vec::new();
     let mut add = |name: String, class: Option<String>| {
@@ -1555,25 +1531,188 @@ fn resolve_dynamic(
     (out, deciding.into_inner())
 }
 
+/// The values `var` can have at `step`: the literals and constants assigned
+/// to it on the way there, and its constant value when it is one.
+fn reaching_values(
+    p: &m::Procedure,
+    step: u32,
+    var: &str,
+    constants: &HashMap<String, String>,
+) -> Vec<String> {
+    let mut defs: HashMap<u32, Vec<String>> = HashMap::new();
+    let mut steps: HashMap<u32, &m::Step> = HashMap::new();
+    walk(&p.body, &mut |s| {
+        steps.insert(s.id, s);
+        if s.writes.iter().any(|w| w.name == var) {
+            defs.insert(s.id, vec![var.to_string()]);
+        }
+    });
+    let uses = HashMap::from([(step, vec![var.to_string()])]);
+    let reach = reaching(&p.body, &p.flow, &defs, &uses);
+    let mut out: Vec<String> = Vec::new();
+    let Some((sources, entry)) = reach.get(&(step, var.to_string())) else {
+        return out;
+    };
+    let assigned = sources
+        .iter()
+        .filter_map(|s| steps.get(s).and_then(|s| assigned_value(s, var, constants)));
+    let constant = entry.then(|| constants.get(var).cloned()).flatten();
+    for v in assigned.chain(constant) {
+        if !out.contains(&v) {
+            out.push(v);
+        }
+    }
+    out
+}
+
+/// Dynamic tables of `a` without a constant: the literals assigned to their
+/// operand on the way to the statement, each a table name or a whole FROM
+/// clause; at most [`MAX_DYNAMIC`] values.
+fn resolve_tables(
+    p: &m::Procedure,
+    step: u32,
+    a: &mut m::DbAccess,
+    constants: &HashMap<String, String>,
+) {
+    let mut added = Vec::new();
+    for t in a
+        .tables
+        .iter_mut()
+        .filter(|t| t.dynamic && t.resolved.is_none())
+    {
+        let var = t.name.trim().to_ascii_lowercase();
+        let mut values = reaching_values(p, step, &var, constants)
+            .into_iter()
+            .take(MAX_DYNAMIC);
+        let unresolved = t.clone();
+        if let Some(v) = values.next() {
+            added.extend(crate::db::resolve_table(t, v));
+        }
+        for v in values {
+            let mut other = unresolved.clone();
+            let joined = crate::db::resolve_table(&mut other, v);
+            added.push(other);
+            added.extend(joined);
+        }
+    }
+    a.tables.extend(added);
+}
+
 /// The literal or constant a step assigns to `var`: `var = 'X'`,
-/// `DATA var TYPE t VALUE 'X'`.
+/// `var = 'A' && 'B'`, `MOVE 'X' TO var`, `DATA var TYPE t VALUE 'X'`,
+/// `CONCATENATE 'A' 'B' INTO var SEPARATED BY space`.
 fn assigned_value(s: &m::Step, var: &str, constants: &HashMap<String, String>) -> Option<String> {
     let text = s.text.trim().trim_end_matches(['.', ',']).trim();
     let upper = text.to_ascii_uppercase();
-    let rhs = match kind_of(s) {
+    let is_var = |lhs: &str| {
+        let lhs = lhs.trim().to_ascii_lowercase();
+        lhs == var || lhs.ends_with(&format!("({var})"))
+    };
+    // a literal or constant; a text literal without its trailing blanks, as
+    // `&&` and CONCATENATE take it
+    let value = |w: &str, keep: bool| -> Option<String> {
+        let v = literal_value(w).or_else(|| constants.get(&w.to_ascii_lowercase()).cloned())?;
+        Some(if w.starts_with('\'') && !keep {
+            v.trim_end().to_string()
+        } else {
+            v
+        })
+    };
+    let concat = |words: &[&str]| -> Option<String> {
+        let mut out = String::new();
+        for (n, w) in words.iter().enumerate() {
+            match (n % 2, *w) {
+                (1, "&&") => {}
+                (0, w) => out.push_str(&value(w, false)?),
+                _ => return None,
+            }
+        }
+        (words.len() % 2 == 1).then_some(out)
+    };
+    match kind_of(s) {
+        K::Move if upper.starts_with("MOVE ") => {
+            let w = words(text);
+            (w.len() == 4 && w[2].eq_ignore_ascii_case("TO") && is_var(w[3]))
+                .then(|| value(w[1], true))
+                .flatten()
+        }
         K::Move => {
             let (lhs, rhs) = text.split_once(" = ")?;
-            let lhs = lhs.trim().to_ascii_lowercase();
-            if lhs != var && !lhs.ends_with(&format!("({var})")) {
+            if !is_var(lhs) {
                 return None;
             }
-            rhs
+            let w = words(rhs);
+            if w.len() == 1 {
+                value(w[0], true)
+            } else {
+                concat(&w)
+            }
         }
-        K::Data | K::Static | K::Constant => &text[upper.find(" VALUE ")? + 7..],
-        _ => return None,
-    };
-    let rhs = rhs.trim();
-    literal_value(rhs).or_else(|| constants.get(&rhs.to_ascii_lowercase()).cloned())
+        K::Data | K::Static | K::Constant => value(text[upper.find(" VALUE ")? + 7..].trim(), true),
+        K::Concatenate => {
+            let w = words(text);
+            let up = |n: usize| w.get(n).map(|x| x.to_ascii_uppercase());
+            let into = w.iter().position(|x| x.eq_ignore_ascii_case("INTO"))?;
+            if !w.get(into + 1).is_some_and(|x| is_var(x)) || up(1).as_deref() == Some("LINES") {
+                return None;
+            }
+            let mut separator = String::new();
+            let mut keep = false;
+            let mut n = into + 2;
+            while n < w.len() {
+                match up(n).as_deref() {
+                    Some("SEPARATED") if up(n + 1).as_deref() == Some("BY") => {
+                        let sep = w.get(n + 2)?;
+                        separator = if sep.eq_ignore_ascii_case("space") {
+                            " ".to_string()
+                        } else {
+                            value(sep, true)?
+                        };
+                        n += 3;
+                    }
+                    Some("RESPECTING") if up(n + 1).as_deref() == Some("BLANKS") => {
+                        keep = true;
+                        n += 2;
+                    }
+                    _ => return None,
+                }
+            }
+            let parts = w[1..into]
+                .iter()
+                .map(|x| value(x, keep))
+                .collect::<Option<Vec<_>>>()?;
+            Some(parts.join(&separator))
+        }
+        _ => None,
+    }
+}
+
+/// Words of a statement text, a literal or template one word.
+fn words(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    let mut quote: Option<char> = None;
+    for (i, c) in text.char_indices() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => {}
+            None if c.is_whitespace() => {
+                if let Some(s) = start.take() {
+                    out.push(&text[s..i]);
+                }
+            }
+            None => {
+                start.get_or_insert(i);
+                if matches!(c, '\'' | '`' | '|') {
+                    quote = Some(c);
+                }
+            }
+        }
+    }
+    if let Some(s) = start {
+        out.push(&text[s..]);
+    }
+    out
 }
 
 // ----- statement kinds -------------------------------------------------------
@@ -1819,6 +1958,15 @@ fn procedure<'a>(
         }
     });
     case_conditions(&mut body);
+    let hidden: HashSet<String> = ctx.locals.union(&ctx.parameters).cloned().collect();
+    let names = fixed_constants(symbols, &block, &hidden);
+    if !names.is_empty() {
+        walk_mut(&mut body, &mut |s| {
+            if let Some(c) = &mut s.condition {
+                evaluate(c, &names);
+            }
+        });
+    }
     guards(&mut body, &[]);
     let flow = flow(&body);
 
@@ -2847,6 +2995,9 @@ fn sets_fields(
             ("sy-msgv3", true),
             ("sy-msgv4", true),
         ],
+        K::MacroCall => abap_syntax::sap_macro(file, s)
+            .and_then(|(name, _)| crate::hr::macro_access(name))
+            .map_or(&[], |m| m.system),
         _ => &[],
     });
     // CO, CN, CA, NA, CS, NS, CP and NP set sy-fdpos, true or not
@@ -2932,10 +3083,15 @@ fn macro_accesses(
     for set in effect.sets {
         // like `pnp-sw-found`, a field of the structure `pnp`
         let root = set.split('-').next().unwrap_or(set);
-        writes.push(m::DataAccess {
+        let field = m::DataAccess {
             path: set.to_string(),
             ..implicit(root, at, false)
+        };
+        reads.push(m::DataAccess {
+            access: m::AccessKind::Read,
+            ..field.clone()
         });
+        writes.push(field);
     }
 }
 
@@ -2980,7 +3136,8 @@ fn literal_value(text: &str) -> Option<String> {
         quoted('\'')
     } else if text.starts_with('`') {
         quoted('`')
-    } else if text.starts_with('|') && text.ends_with('|') && text.len() >= 2 {
+    } else if text.starts_with('|') && text.ends_with('|') && text.len() >= 2 && !text.contains('{')
+    {
         Some(text[1..text.len() - 1].to_string())
     } else if text.bytes().all(|b| b.is_ascii_digit()) {
         Some(text.to_string())
@@ -3066,7 +3223,7 @@ fn condition(toks: &[&Token], c: &Cond) -> m::Condition {
             out.left = Some(operand(toks, o));
         }
     }
-    out.constant = constant(&out);
+    out.constant = constant(&out, &HashMap::new());
     out
 }
 
@@ -3074,7 +3231,7 @@ fn condition(toks: &[&Token], c: &Cond) -> m::Condition {
 /// of the constants `abap_true`, `abap_false` and `space`, and AND, OR, NOT
 /// and EQUIV of such parts. Text literals are compared only for equality,
 /// numbers also by size.
-fn constant(c: &m::Condition) -> Option<bool> {
+fn constant(c: &m::Condition, names: &HashMap<String, Fixed>) -> Option<bool> {
     use m::ConditionKind as C;
     let children = || c.children.iter().map(|c| c.constant);
     match c.kind {
@@ -3090,8 +3247,8 @@ fn constant(c: &m::Condition) -> Option<bool> {
         }
         C::Compare => {
             let (left, right) = (
-                fixed_value(c.left.as_ref()?)?,
-                fixed_value(c.right.as_ref()?)?,
+                fixed_value(c.left.as_ref()?, names)?,
+                fixed_value(c.right.as_ref()?, names)?,
             );
             let operator = c.operator.as_deref()?;
             let order = match (&left, &right) {
@@ -3118,18 +3275,38 @@ fn constant(c: &m::Condition) -> Option<bool> {
                 _ => return None,
             })
         }
+        C::Is if c.operator.as_deref() == Some("INITIAL") => {
+            let initial = match fixed_value(c.left.as_ref()?, names)? {
+                Fixed::Number(n) => n == 0,
+                Fixed::Text(t) => t.trim_end().is_empty(),
+                Fixed::Initial => true,
+            };
+            Some(initial != c.negated)
+        }
         _ => None,
     }
 }
 
+/// Sets `constant` of `c` and its parts with the constants `names` too.
+fn evaluate(c: &mut m::Condition, names: &HashMap<String, Fixed>) {
+    for child in &mut c.children {
+        evaluate(child, names);
+    }
+    c.constant = constant(c, names);
+}
+
+#[derive(Clone)]
 enum Fixed {
     Number(i128),
     Text(String),
+    /// `VALUE IS INITIAL`, of a type not known
+    Initial,
 }
 
 /// The value of an operand that is fixed in the code: an integer or a text
-/// literal of type c, or one of the constants of type group ABAP.
-fn fixed_value(o: &m::Operand) -> Option<Fixed> {
+/// literal of type c, one of the constants of type group ABAP, or one of the
+/// constants `names` (`c_x`, `me->c_x`, `lcl=>c_x`).
+fn fixed_value(o: &m::Operand, names: &HashMap<String, Fixed>) -> Option<Fixed> {
     match o.kind {
         m::OperandKind::Literal => {
             let value = o.value.as_deref()?;
@@ -3139,13 +3316,117 @@ fn fixed_value(o: &m::Operand) -> Option<Fixed> {
                 value.parse().ok().map(Fixed::Number)
             }
         }
-        m::OperandKind::Data => match o.text.to_ascii_lowercase().as_str() {
-            "abap_true" => Some(Fixed::Text("X".into())),
-            "abap_false" | "space" => Some(Fixed::Text(String::new())),
-            _ => None,
-        },
+        m::OperandKind::Data => {
+            let name = o.text.to_ascii_lowercase();
+            match name.as_str() {
+                "abap_true" => Some(Fixed::Text("X".into())),
+                "abap_false" | "space" => Some(Fixed::Text(String::new())),
+                _ => names
+                    .get(name.strip_prefix("me->").unwrap_or(&name))
+                    .cloned(),
+            }
+        }
         _ => None,
     }
+}
+
+/// The constants a procedure sees with a value fixed in the code, by lower
+/// case name: those of the program, of its classes and interfaces
+/// (`lcl=>c_x`, and plain in the methods of the class) and its own; data of
+/// the procedure with the same name hides them.
+fn fixed_constants(
+    symbols: &m::FileSymbols,
+    block: &m::BlockRef,
+    hidden: &HashSet<String>,
+) -> HashMap<String, Fixed> {
+    let eq = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+    fn add<'d>(
+        raw: &mut Vec<(String, &'d str)>,
+        prefix: Option<&str>,
+        decls: &'d [m::Declaration],
+    ) {
+        for d in decls
+            .iter()
+            .filter(|d| d.kind == m::DeclarationKind::Constant)
+        {
+            if let Some(v) = d.value.as_deref() {
+                let name = d.name.to_ascii_lowercase();
+                let key = match prefix {
+                    Some(p) => format!("{}=>{name}", p.to_ascii_lowercase()),
+                    None => name,
+                };
+                raw.push((key, v));
+            }
+        }
+    }
+    let mut raw: Vec<(String, &str)> = Vec::new();
+    add(&mut raw, None, &symbols.declarations);
+    let class = block.class.as_deref();
+    for c in &symbols.classes {
+        add(&mut raw, Some(&c.name), &c.attributes);
+        if class.is_some_and(|k| eq(k, &c.name)) {
+            add(&mut raw, None, &c.attributes);
+        }
+    }
+    for i in &symbols.interfaces {
+        add(&mut raw, Some(&i.name), &i.attributes);
+    }
+    raw.retain(|(k, _)| !hidden.contains(k));
+    let routines = match block.kind.as_str() {
+        "form" => &symbols.forms,
+        "function_module" => &symbols.function_modules,
+        _ => &Vec::new(),
+    };
+    let methods = symbols
+        .classes
+        .iter()
+        .filter(|c| class.is_some_and(|k| eq(k, &c.name)))
+        .filter_map(|c| c.implementation.as_ref())
+        .flat_map(|i| &i.methods)
+        .chain(
+            symbols
+                .orphan_implementations
+                .iter()
+                .filter(|o| class.is_some_and(|k| eq(k, &o.class)))
+                .flat_map(|o| &o.implementation.methods),
+        );
+    let locals = routines
+        .iter()
+        .filter(|r| block.kind != "method" && eq(&r.name, &block.name))
+        .map(|r| &r.locals)
+        .chain(
+            methods
+                .filter(|mi| block.kind == "method" && eq(&mi.name, &block.name))
+                .map(|mi| &mi.locals),
+        );
+    for l in locals {
+        add(&mut raw, None, l);
+    }
+    let mut out: HashMap<String, Fixed> = HashMap::new();
+    // a constant with the value of another one comes after it
+    for _ in 0..2 {
+        for (key, value) in &raw {
+            let value = value.trim();
+            let operand = m::Operand {
+                kind: if literal_value(value).is_some() {
+                    m::OperandKind::Literal
+                } else {
+                    m::OperandKind::Data
+                },
+                text: value.to_string(),
+                value: literal_value(value),
+            };
+            let fixed = if value.eq_ignore_ascii_case("IS INITIAL") {
+                Some(Fixed::Initial)
+            } else {
+                fixed_value(&operand, &out)
+            };
+            if let Some(f) = fixed {
+                out.insert(key.clone(), f);
+            }
+        }
+    }
+    out
 }
 
 /// The steps of a procedure nested along its control structures.
@@ -4417,6 +4698,94 @@ ENDCLASS.
         assert_eq!(c.constant, Some(false));
     }
 
+    #[test]
+    fn guards_on_constants_of_the_program() {
+        let l = logic(
+            "CONSTANTS c_off TYPE c VALUE ' '.
+CONSTANTS c_also_off TYPE c VALUE c_off.
+CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    CONSTANTS c_max TYPE i VALUE 3.
+ENDCLASS.
+FORM f.
+  CONSTANTS lc_debug TYPE abap_bool VALUE abap_true.
+  IF c_off = 'X'.
+    x = 1.
+  ENDIF.
+  IF lc_debug IS INITIAL.
+    x = 2.
+  ENDIF.
+  IF lcl=>c_max > 2.
+    x = 3.
+  ENDIF.
+  IF '' IS NOT INITIAL OR c_also_off <> space.
+    x = 4.
+  ENDIF.
+  CASE lc_debug.
+    WHEN abap_true.
+      x = 5.
+  ENDCASE.
+ENDFORM.
+FORM g.
+  DATA c_off TYPE c.
+  IF c_off = 'X'.
+    x = 6.
+  ENDIF.
+ENDFORM.",
+        );
+        let constants = |form: &str, text: &str| -> Vec<Option<bool>> {
+            find(&procedure(&l, form).body, text)
+                .guards
+                .iter()
+                .map(|g| g.constant)
+                .collect()
+        };
+        assert_eq!(constants("f", "x = 1"), [Some(false)]);
+        assert_eq!(constants("f", "x = 2"), [Some(false)]);
+        assert_eq!(constants("f", "x = 3"), [Some(true)]);
+        assert_eq!(constants("f", "x = 4"), [Some(false)]);
+        assert_eq!(constants("f", "x = 5"), [Some(true)]);
+        assert_eq!(constants("g", "x = 6"), [None]);
+    }
+
+    #[test]
+    fn from_clause_held_in_a_variable() {
+        let l = logic(
+            "FORM f.
+  lv_from = 'mara AS m INNER JOIN marc AS c ON c~matnr = m~matnr'.
+  SELECT * FROM (lv_from) INTO TABLE @DATA(a).
+  IF sy-subrc = 0.
+    lv_tab = 'T001'.
+  ELSE.
+    MOVE 'T002' TO lv_tab.
+  ENDIF.
+  SELECT * FROM (lv_tab) INTO TABLE @DATA(b).
+  CONCATENATE 'vbak AS k' 'JOIN vbap AS p ON p~vbeln = k~vbeln' INTO lv_from SEPARATED BY space.
+  SELECT * FROM (lv_from) INTO TABLE @DATA(c).
+  lv_from = `ekko ` && 'AS e  '.
+  SELECT * FROM (lv_from) INTO TABLE @DATA(d).
+  lv_from = |ekpo{ x }|.
+  SELECT * FROM (lv_from) INTO TABLE @DATA(e).
+ENDFORM.",
+        );
+        let mut selects: Vec<Vec<String>> = Vec::new();
+        walk(&l.procedures[0].body, &mut |s| {
+            if s.text.starts_with("SELECT") {
+                selects.push(s.tables.iter().map(|t| t.name.clone()).collect());
+            }
+        });
+        assert_eq!(
+            selects,
+            [
+                vec!["MARA", "MARC"],
+                vec!["T001", "T002"],
+                vec!["VBAK", "VBAP"],
+                vec!["EKKO"],
+                vec!["(lv_from)"],
+            ]
+        );
+    }
+
     fn effect<'a>(p: &'a m::Procedure, name: &str) -> &'a m::Effect {
         p.effects
             .iter()
@@ -4904,6 +5273,36 @@ GET pernr.
         let found = find(&get.body, "IF pnp-sw-found = '1'.");
         assert_eq!(found.reads[0].sources, [name.id - 2]);
         assert!(get.effects.iter().all(|e| e.name != "pnp"));
+    }
+
+    #[test]
+    fn pnp_macros_set_system_fields() {
+        let l = logic(
+            "REPORT zhr.
+INFOTYPES 0001.
+GET pernr.
+  rp-provide-from-last p0001 space pn-begda pn-endda.
+  CHECK sy-subrc = 0.
+  x = sy-tabix + pnp-sy-tabix.",
+        );
+        let body = &l.procedures[0].body;
+        let provide = find(body, "rp-provide-from-last");
+        let fields = |list: &[m::DataAccess]| -> Vec<String> {
+            list.iter()
+                .filter(|a| a.implicit)
+                .map(|a| a.path.clone())
+                .collect()
+        };
+        // one access per variable: `pnp` with the first field
+        assert_eq!(
+            fields(&provide.writes),
+            ["pnp-sw-found", "sy-subrc", "sy-tabix"]
+        );
+        assert_eq!(fields(&provide.reads), ["pnp-sw-found"]);
+        let check = find(body, "CHECK sy-subrc");
+        assert_eq!(check.reads[0].sources, [provide.id]);
+        let x = find(body, "x = ");
+        assert!(x.reads.iter().all(|r| r.sources == [provide.id]));
     }
 
     #[test]

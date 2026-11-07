@@ -919,9 +919,10 @@ pub struct Condition {
     /// `IS NOT`, `NOT IN`, `NOT BETWEEN`
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub negated: bool,
-    /// the value of a condition that reads no data, like `1 = 0` or
-    /// `abap_true = abap_false`, and of AND, OR and NOT whose value such
-    /// parts decide
+    /// the value of a condition that reads no data, like `1 = 0`,
+    /// `abap_true = abap_false`, `c_debug = 'X'` with a constant of the
+    /// program, its classes or the procedure, or `c_off IS INITIAL`; and of
+    /// AND, OR and NOT whose value such parts decide
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub constant: Option<bool>,
 }

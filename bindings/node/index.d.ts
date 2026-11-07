@@ -24,9 +24,11 @@ export interface SourceOptions {
   /**
    * Sources of the host, e.g. from its own ADT client or cache. Called with
    * a reference `KIND:NAME`, it returns the text, or null or undefined when
-   * it has none. Each reference is asked once, one at a time. A thrown error
-   * or rejected promise is listed in `errors`. Only the async functions take
-   * it; the blocking ones throw a TypeError. What to return, by kind:
+   * it has none. Each reference is asked once, up to 8 at a time: the
+   * objects of a level, and the dictionary types their declarations name,
+   * load several at once. A thrown error or rejected promise is listed in
+   * `errors`. Only the async functions take it; the blocking ones throw a
+   * TypeError. What to return, by kind:
    *
    * - `PROG:ZREPORT` (also includes, like `PROG:ZREPORT_TOP`), `INTF:ZIF_X`,
    *   `CLAS:ZCL_X`, `CLAS:ZCL_X/definitions` (`/implementations`, `/macros`,
@@ -48,8 +50,9 @@ export interface SourceOptions {
    *   `<DD40V><DATATYPE>STRG</DATATYPE></DD40V>`; leave out empty values.
    *   DD40L gives these columns.
    *
-   * The dictionary kinds are asked while typing, whatever `follow` says. A
-   * text that cannot be read leaves the type a name. BAdI implementations,
+   * The dictionary kinds are asked while typing, whatever the patterns of
+   * `follow` say; `follow.dictionary` bounds them. A text that cannot be
+   * read leaves the type a name. BAdI implementations,
    * classic BAdIs, enhancements and where-used lists come only from `adt`.
    */
   fetch?: (reference: string) => string | null | undefined | Promise<string | null | undefined>;
@@ -74,6 +77,12 @@ export interface SourceOptions {
      * not loaded.
      */
     limit?: number;
+    /**
+     * At most this many dictionary lookups while typing (`TABL:`, `DTEL:`,
+     * `DOMA:`, `TTYP:`), each name asked once; 0 for none. Types not looked
+     * up stay names; the note `dictionary: ...` says how many were not made.
+     */
+    dictionary?: number;
   };
   /**
    * Called after each object loaded or looked for, without waiting for it.
@@ -86,7 +95,10 @@ export interface SourceOptions {
    * `cancelled`. Only the async functions take it.
    */
   signal?: AbortSignal;
-  /** cache folder for sources fetched through `adt`; what `fetch` returns is not cached */
+  /**
+   * cache folder for sources fetched through `adt`, and which objects it
+   * does not have; what `fetch` returns is not cached
+   */
   cache?: string;
   adt?: {
     /** e.g. https://host:44300 */

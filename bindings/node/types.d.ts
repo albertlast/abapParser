@@ -183,7 +183,7 @@ export interface ClassImplementation {
 /** A logical expression. */
 export interface Condition {
   children?: Condition[];
-  /** the value of a condition that reads no data, like `1 = 0` or `abap_true = abap_false`, and of AND, OR and NOT whose value such parts decide */
+  /** the value of a condition that reads no data, like `1 = 0`, `abap_true = abap_false`, `c_debug = 'X'` with a constant of the program, its classes or the procedure, or `c_off IS INITIAL`; and of AND, OR and NOT whose value such parts decide */
   constant?: boolean;
   /** upper bound of BETWEEN */
   high?: Operand;

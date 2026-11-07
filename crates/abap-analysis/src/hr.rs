@@ -199,21 +199,27 @@ pub(crate) fn infotype_reads(
 }
 
 /// What a macro of PNP reads and writes, by the position of its
-/// arguments, counted from 0; the macros as SAP documents their use:
+/// arguments, counted from 0; the macros as SAP documents their use, and as
+/// their definitions in DBPNPMAC were compared on a 7.50 system:
 ///
 /// - `RP-PROVIDE-FROM-LAST table subtype begda endda` and
 ///   `RP-PROVIDE-FROM-FRST`: the header line of the infotype table gets the
-///   last (first) record of the period, `pnp-sw-found` whether there is one
+///   last (first) record of the period, `pnp-sw-found` whether there is one,
+///   `pnp-sy-tabix` its line; the LOOP and READ TABLE inside set `sy-subrc`
+///   and `sy-tabix`
 /// - `RP-READ-INFOTYPE pernr infty table begda endda`: the table gets the
-///   records of the infotype of the period
+///   records of the infotype of the period; `sy-subrc` may be set
 /// - `RP-SET-DATA-INTERVAL infty begda endda`: the period the logical
 ///   database reads
 pub(crate) struct MacroAccess {
     pub reads: Vec<usize>,
     /// (argument, whole)
     pub writes: Vec<(usize, bool)>,
-    /// data the macro writes that is not one of its arguments
+    /// data the macro writes that is not one of its arguments; it reads them
+    /// too
     pub sets: &'static [&'static str],
+    /// system fields it sets, and whether always
+    pub system: &'static [(&'static str, bool)],
 }
 
 pub(crate) fn macro_access(name: &str) -> Option<MacroAccess> {
@@ -221,17 +227,20 @@ pub(crate) fn macro_access(name: &str) -> Option<MacroAccess> {
         "RP-PROVIDE-FROM-LAST" | "RP-PROVIDE-FROM-FRST" => MacroAccess {
             reads: vec![0, 1, 2, 3],
             writes: vec![(0, false)],
-            sets: &["pnp-sw-found"],
+            sets: &["pnp-sw-found", "pnp-sy-tabix"],
+            system: &[("sy-subrc", true), ("sy-tabix", true)],
         },
         "RP-READ-INFOTYPE" => MacroAccess {
             reads: vec![0, 3, 4],
             writes: vec![(2, true)],
             sets: &[],
+            system: &[("sy-subrc", false)],
         },
         "RP-SET-DATA-INTERVAL" => MacroAccess {
             reads: vec![1, 2],
             writes: Vec::new(),
             sets: &[],
+            system: &[],
         },
         _ => return None,
     })

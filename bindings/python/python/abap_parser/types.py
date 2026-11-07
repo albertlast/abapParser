@@ -224,7 +224,7 @@ class Condition(_ConditionRequired, total=False):
     """A logical expression."""
     children: List[Condition]
     constant: bool
-    """the value of a condition that reads no data, like `1 = 0` or `abap_true = abap_false`, and of AND, OR and NOT whose value such parts decide"""
+    """the value of a condition that reads no data, like `1 = 0`, `abap_true = abap_false`, `c_debug = 'X'` with a constant of the program, its classes or the procedure, or `c_off IS INITIAL`; and of AND, OR and NOT whose value such parts decide"""
     high: Operand
     """upper bound of BETWEEN"""
     left: Operand
