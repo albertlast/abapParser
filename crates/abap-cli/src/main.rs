@@ -54,6 +54,8 @@ following calls into other objects (graph, logic, mcp):
                        given are always loaded
   --skip <pattern>     do not load objects whose name matches, repeatable
   --limit <n>          load at most n objects
+  --dictionary <n>     at most n dictionary lookups while typing (data
+                       elements, structures, table types); 0 for none
   --progress           write each object loaded to stderr
   ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,
   duration, the SQL of data preview queries; never credentials
@@ -133,6 +135,13 @@ fn parse_args() -> Result<Args, String> {
                     value("--limit")?
                         .parse()
                         .map_err(|_| "--limit needs a number".to_string())?,
+                )
+            }
+            "--dictionary" => {
+                a.follow.dictionary = Some(
+                    value("--dictionary")?
+                        .parse()
+                        .map_err(|_| "--dictionary needs a number".to_string())?,
                 )
             }
             "--port" => {

@@ -170,6 +170,21 @@ class SymbolsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": sources.get, "cancel": True})
 
+    def test_dictionary_lookups_bounded(self):
+        sources = {
+            "PROG:ZMAIN": "REPORT zmain.\nSTART-OF-SELECTION.\n  DATA v TYPE zd_a.\n  DATA(w) = v.",
+            "DTEL:ZD_A": "<DD04V><DATATYPE>CHAR</DATATYPE><LENG>000002</LENG></DD04V>",
+        }
+
+        def typed(logic):
+            writes = [w for s in logic["procedures"][0]["body"] for w in s.get("writes", [])]
+            return [w.get("data_type", {}).get("kind") for w in writes if w.get("declared")]
+
+        self.assertEqual(typed(abap_parser.logic_object("PROG:ZMAIN", {"fetch": sources.get})), ["c"])
+        none = abap_parser.logic_object("PROG:ZMAIN", {"fetch": sources.get, "follow": {"dictionary": 0}})
+        self.assertNotEqual(typed(none), ["c"])
+        self.assertTrue(any(n.startswith("dictionary: limit of 0 lookups") for n in none["notes"]))
+
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):
         path = CORPUS / "abapgit" / "src" / "apack" / "zcl_abapgit_apack_migration.clas.abap"

@@ -271,3 +271,40 @@ test("follow patterns, progress, cancelling and why calls are unresolved", async
   assert.equal(failing.calls.find((c) => c.name === "Z_ONE").unresolved, "lookup_failed");
   assert.throws(() => abap.callGraph(["PROG:ZMAIN"], {fetch: undefined, progress: () => {}}), /callGraphAsync/);
 });
+
+test("fetch is called several at a time, dictionary lookups can be bounded", async () => {
+  const types = ["zd_a", "zd_b", "zd_c", "zd_d"];
+  const sources = {
+    "PROG:ZMAIN":
+      "REPORT zmain.\nSTART-OF-SELECTION.\n" +
+      types.map((t, i) => `  DATA v${i} TYPE ${t}.\n  DATA(w${i}) = v${i}.`).join("\n"),
+  };
+  for (const t of types) {
+    sources[`DTEL:${t.toUpperCase()}`] = "<DD04V><DATATYPE>CHAR</DATATYPE><LENG>000002</LENG></DD04V>";
+  }
+  let inFlight = 0;
+  let most = 0;
+  const fetch = async (r) => {
+    most = Math.max(most, ++inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    inFlight--;
+    return sources[r];
+  };
+  const l = await abap.logicObjectAsync("PROG:ZMAIN", {fetch});
+  assert.ok(most > 1, `at most ${most} in flight`);
+  const typed = (logic) =>
+    logic.procedures[0].body
+      .flatMap((s) => s.writes ?? [])
+      .filter((w) => w.declared)
+      .map((w) => w.data_type?.kind ?? null);
+  assert.deepEqual(typed(l), ["c", "c", "c", "c"]);
+  const none = await abap.logicObjectAsync("PROG:ZMAIN", {fetch, follow: {dictionary: 0}});
+  assert.ok(
+    typed(none).every((k) => k !== "c"),
+    typed(none).join(),
+  );
+  assert.ok(
+    none.notes.some((n) => n.startsWith("dictionary: limit of 0 lookups")),
+    none.notes.join(),
+  );
+});

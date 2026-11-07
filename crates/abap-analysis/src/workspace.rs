@@ -51,6 +51,10 @@ pub struct Follow {
     /// at most this many objects are loaded or looked for, the roots
     /// included
     pub limit: Option<usize>,
+    /// at most this many dictionary lookups while typing (data elements,
+    /// domains, structures and tables, table types), each name asked once;
+    /// 0 for none, then the types stay names; no limit when absent
+    pub dictionary: Option<usize>,
 }
 
 impl Follow {
@@ -120,6 +124,10 @@ pub struct Workspace {
     dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
     /// failed lookups that only add types, per kind: how many, the first
     lookups_failed: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
+    /// dictionary lookups made, and those not made because of
+    /// `follow.dictionary`
+    dictionary_asked: AtomicUsize,
+    dictionary_skipped: AtomicUsize,
     errors: Mutex<Vec<m::LoadError>>,
 }
 
@@ -168,6 +176,81 @@ fn parallel_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Ve
         .into_iter()
         .map(|r| r.expect("every item is done"))
         .collect()
+}
+
+/// The plain type names declarations and parameters of `symbols` are typed
+/// with (`TYPE t`, `TYPE TABLE OF t`, `LINE OF`, `RANGE OF`), lower case;
+/// and the names of the types it declares itself.
+fn declared_type_names(symbols: &m::FileSymbols) -> (BTreeSet<String>, BTreeSet<String>) {
+    let mut named = BTreeSet::new();
+    let mut local = BTreeSet::new();
+    let mut typing = |t: Option<&m::Typing>, named: &mut BTreeSet<String>| {
+        let Some(t) = t else { return };
+        if !matches!(
+            t.kind,
+            m::TypingKind::Type
+                | m::TypingKind::Table
+                | m::TypingKind::LineOf
+                | m::TypingKind::Range
+                | m::TypingKind::Structure
+        ) {
+            return;
+        }
+        if let Some(name) = t.name.as_deref() {
+            let name = name.to_ascii_lowercase();
+            if !name.contains(['-', '=', '~', '(', ' '])
+                && !is_builtin_type(&name.to_ascii_uppercase())
+            {
+                named.insert(name);
+            }
+        }
+    };
+    fn walk(
+        decls: &[m::Declaration],
+        named: &mut BTreeSet<String>,
+        local: &mut BTreeSet<String>,
+        typing: &mut dyn FnMut(Option<&m::Typing>, &mut BTreeSet<String>),
+    ) {
+        for d in decls {
+            if d.kind == m::DeclarationKind::Type {
+                local.insert(d.name.to_ascii_lowercase());
+            }
+            typing(d.typing.as_ref(), named);
+            walk(&d.components, named, local, typing);
+        }
+    }
+    walk(&symbols.declarations, &mut named, &mut local, &mut typing);
+    for c in &symbols.classes {
+        walk(&c.attributes, &mut named, &mut local, &mut typing);
+        for mt in &c.methods {
+            for p in &mt.parameters {
+                typing(p.typing.as_ref(), &mut named);
+            }
+        }
+        for mi in c.implementation.iter().flat_map(|i| &i.methods) {
+            walk(&mi.locals, &mut named, &mut local, &mut typing);
+        }
+    }
+    for i in &symbols.interfaces {
+        walk(&i.attributes, &mut named, &mut local, &mut typing);
+        for mt in &i.methods {
+            for p in &mt.parameters {
+                typing(p.typing.as_ref(), &mut named);
+            }
+        }
+    }
+    for r in symbols.forms.iter().chain(&symbols.function_modules) {
+        for p in &r.parameters {
+            typing(p.typing.as_ref(), &mut named);
+        }
+        walk(&r.locals, &mut named, &mut local, &mut typing);
+    }
+    for o in &symbols.orphan_implementations {
+        for mi in &o.implementation.methods {
+            walk(&mi.locals, &mut named, &mut local, &mut typing);
+        }
+    }
+    (named, local)
 }
 
 /// Classes and interfaces the code of an object names, upper case: after
@@ -422,6 +505,8 @@ impl Workspace {
             table_types: Mutex::new(HashMap::new()),
             dictionary_types: Mutex::new(HashMap::new()),
             lookups_failed: Mutex::new(BTreeMap::new()),
+            dictionary_asked: AtomicUsize::new(0),
+            dictionary_skipped: AtomicUsize::new(0),
             errors: Mutex::new(Vec::new()),
         }
     }
@@ -553,6 +638,12 @@ impl Workspace {
                 "limit: {limit} objects looked for ({found} found), {beyond} more were not loaded"
             ));
         }
+        let not_asked = self.dictionary_skipped.load(Ordering::SeqCst);
+        if let (Some(limit), true) = (self.follow.dictionary, not_asked > 0) {
+            notes.push(format!(
+                "dictionary: limit of {limit} lookups, {not_asked} more were not made, their types stay names"
+            ));
+        }
         if skipped.values().any(|w| *w == m::Unresolved::Cancelled) {
             notes.push("cancelled: objects after it were not loaded".to_string());
         }
@@ -630,6 +721,12 @@ impl Workspace {
 
     /// The text of a dictionary type, `None` if no provider has it.
     fn fetch_text(&self, r: &SourceRef) -> Option<String> {
+        if let Some(limit) = self.follow.dictionary {
+            if self.dictionary_asked.fetch_add(1, Ordering::SeqCst) >= limit {
+                self.dictionary_skipped.fetch_add(1, Ordering::SeqCst);
+                return None;
+            }
+        }
         match self.provider.fetch(r) {
             Ok(s) => s.map(|s| s.text),
             Err(e) => {
@@ -811,6 +908,7 @@ impl Workspace {
                 .flatten()
                 .collect();
             self.load_named_types(&objects);
+            self.load_declared_types(&objects);
             let calls: Vec<m::Call> = parallel_map(&objects, |o| self.object_calls(o))
                 .into_iter()
                 .flatten()
@@ -838,6 +936,28 @@ impl Workspace {
         names.sort();
         names.dedup();
         parallel_map(&names, |n| self.type_object(n));
+    }
+
+    /// Typing data asks the dictionary for one name after the other: the
+    /// types the declarations and parameters of the objects name are looked
+    /// up before, several at once. Names declared with TYPES in the object
+    /// are left out.
+    fn load_declared_types(&self, objects: &[Arc<Object>]) {
+        let mut work: Vec<(Arc<Object>, String)> = Vec::new();
+        for o in objects {
+            let (named, local) = declared_type_names(&o.symbols);
+            work.extend(
+                named
+                    .into_iter()
+                    .filter(|n| !local.contains(n))
+                    .map(|n| (o.clone(), n)),
+            );
+        }
+        parallel_map(&work, |(o, name)| {
+            crate::types::Types::of_program(&o.symbols)
+                .with_classes(Some(self))
+                .type_of_name(name);
+        });
     }
 
     fn load_object(&self, r: &SourceRef) -> Option<Object> {
@@ -1922,6 +2042,7 @@ ENDCLASS."
             include: vec!["Z*".into(), "/ABC/*".into()],
             exclude: vec!["ZTEST*".into()],
             limit: None,
+            dictionary: None,
         };
         assert!(f.allows("ZCL_X") && f.allows("/ABC/CL_Y"));
         assert!(!f.allows("ZTEST_X") && !f.allows("CL_GUI_ALV_GRID"));
@@ -1990,6 +2111,7 @@ START-OF-SELECTION.
             include: vec!["Z*".into()],
             exclude: vec![],
             limit: None,
+            dictionary: None,
         };
         let ws = Workspace::new(Box::new(report())).with_follow(follow.clone());
         let g = ws.call_graph(&[SourceRef::program("ZMAIN")], 1);
@@ -2669,6 +2791,50 @@ CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA ls_order TYPE zs_order.\n 
                 "lv_other named zd_unknown",
             ]
         );
+    }
+
+    #[test]
+    fn dictionary_lookups_bounded() {
+        let provider = || {
+            let mut p = MemoryProvider::new();
+            p.insert(
+                SourceRef::class("ZCL_DD"),
+                "CLASS zcl_dd DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    METHODS run.\nENDCLASS.\n\
+CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA(lv_a) = VALUE zd_a( ).\n    DATA(lv_b) = VALUE zd_b( ).\n  ENDMETHOD.\nENDCLASS.",
+            );
+            for name in ["ZD_A", "ZD_B"] {
+                p.insert(
+                    SourceRef::data_element(name),
+                    "<DD04V><DATATYPE>CHAR</DATATYPE><LENG>000002</LENG></DD04V>",
+                );
+            }
+            Box::new(p)
+        };
+        let types = |dictionary: Option<usize>| -> (Vec<String>, Vec<String>) {
+            let ws = Workspace::new(provider()).with_follow(Follow {
+                dictionary,
+                ..Follow::default()
+            });
+            let l = ws.logic(&SourceRef::class("ZCL_DD"), 1);
+            let types = l.procedures[0]
+                .body
+                .iter()
+                .flat_map(|s| s.writes.iter().filter(|w| w.declared))
+                .map(|w| crate::types::tests::short(w.data_type.as_ref().unwrap()))
+                .collect();
+            (types, l.notes)
+        };
+        let (all, notes) = types(None);
+        assert_eq!(all, ["c(2)", "c(2)"]);
+        assert!(notes.is_empty(), "{notes:?}");
+        let (one, notes) = types(Some(1));
+        assert_eq!(one, ["c(2)", "named zd_b"]);
+        assert!(
+            notes.len() == 1 && notes[0].starts_with("dictionary: limit of 1 lookups, "),
+            "{notes:?}"
+        );
+        let (none, _) = types(Some(0));
+        assert_eq!(none, ["named zd_a", "named zd_b"]);
     }
 
     #[test]

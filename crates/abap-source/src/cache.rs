@@ -1,6 +1,7 @@
 //! Disk cache in front of a slow provider, typically the ADT one: the
-//! sources, and the answers of lookups like the enhancements of a program
-//! or the implementations of an interface, under `lookups/`.
+//! sources, the objects the system does not have (`.missing` files), and
+//! the answers of lookups like the enhancements of a program or the
+//! implementations of an interface, under `lookups/`.
 
 use std::path::{Path, PathBuf};
 
@@ -70,12 +71,17 @@ impl<P: SourceProvider> CachedProvider<P> {
         Ok(answer)
     }
 
-    /// Removes a cached object, so the next fetch asks the inner provider.
+    /// Removes a cached object, or that it is missing, so the next fetch
+    /// asks the inner provider.
     pub fn invalidate(&self, r: &SourceRef) -> Result<()> {
-        match std::fs::remove_file(self.path(r)) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
-            _ => Ok(()),
+        let path = self.path(r);
+        for p in [path.with_extension("missing"), path] {
+            match std::fs::remove_file(p) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+                _ => {}
+            }
         }
+        Ok(())
     }
 }
 
@@ -120,9 +126,18 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
                 origin: path.display().to_string(),
             }));
         }
+        // the system does not have it: asked once too
+        let missing = path.with_extension("missing");
+        if missing.exists() {
+            return Ok(None);
+        }
+        let notes = self.inner.notes().len();
         let fetched = self.inner.fetch(r)?;
-        if let Some(s) = &fetched {
-            write_atomic(&path, &s.text)?;
+        match &fetched {
+            Some(s) => write_atomic(&path, &s.text)?,
+            // not when the system could not tell, which a note says
+            None if self.inner.notes().len() == notes => write_atomic(&missing, "")?,
+            None => {}
         }
         Ok(fetched)
     }
@@ -216,14 +231,46 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn remembers_what_the_system_does_not_have() {
+        let dir = std::env::temp_dir().join(format!("abap-cache-missing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let counting = Counting {
+            inner: MemoryProvider::new(),
+            asked: Default::default(),
+            fetched: Default::default(),
+        };
+        let cached = CachedProvider::new(&dir, counting);
+        let none = SourceRef::class("ZST_ORDER");
+        for _ in 0..2 {
+            assert!(cached.fetch(&none).unwrap().is_none());
+        }
+        let fetched = || {
+            cached
+                .inner
+                .fetched
+                .load(std::sync::atomic::Ordering::SeqCst)
+        };
+        assert_eq!(fetched(), 1);
+        assert!(dir.join("CLAS").join("ZST_ORDER.missing").exists());
+        // asked again once invalidated
+        cached.invalidate(&none).unwrap();
+        assert!(cached.fetch(&none).unwrap().is_none());
+        assert_eq!(fetched(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Counts the lookups that reach the provider.
     struct Counting {
         inner: MemoryProvider,
         asked: std::sync::atomic::AtomicUsize,
+        fetched: std::sync::atomic::AtomicUsize,
     }
 
     impl SourceProvider for Counting {
         fn fetch(&self, r: &SourceRef) -> Result<Option<Source>> {
+            self.fetched
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             self.inner.fetch(r)
         }
 
@@ -260,6 +307,7 @@ mod tests {
         let counting = Counting {
             inner: mem,
             asked: Default::default(),
+            fetched: Default::default(),
         };
         let cached = CachedProvider::new(&dir, counting);
         let programs = ["ZORDERS".to_string(), "ZORDERS_F01".to_string()];

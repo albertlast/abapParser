@@ -81,11 +81,15 @@ class FollowOptions(TypedDict, total=False):
     ``include`` matches; ``limit``: at most this many objects are looked for,
     after the patterns, those no source has included (like a structure name
     tried as a class), level by level from the roots; the note ``limit: ...``
-    says how many were found and how many more were not loaded."""
+    says how many were found and how many more were not loaded;
+    ``dictionary``: at most this many dictionary lookups while typing, each
+    name asked once, 0 for none; types not looked up stay names, the note
+    ``dictionary: ...`` says how many were not made."""
 
     include: List[str]
     exclude: List[str]
     limit: int
+    dictionary: int
 
 
 CancelToken = _native.CancelToken
@@ -115,9 +119,10 @@ class SourceOptions(TypedDict, total=False):
     (``S``, ``E``, ``L``, ``R``) or ``DATATYPE``, ``LENG`` and ``DECIMALS``,
     like ``<DD40V><ROWTYPE>LVC_S_FCAT</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>``,
     empty values left out. The dictionary kinds are asked while typing,
-    whatever ``follow`` says. BAdI implementations, classic BAdIs,
-    enhancements and where-used lists come only from ``adt``. ``cache`` holds
-    what ``adt`` fetched, not what ``fetch`` returns.
+    whatever the patterns of ``follow`` say; ``follow["dictionary"]`` bounds
+    them. BAdI implementations, classic BAdIs, enhancements and where-used
+    lists come only from ``adt``. ``cache`` holds what ``adt`` fetched, and
+    which objects it does not have, not what ``fetch`` returns.
 
     ``follow`` limits which objects calls are followed into, see
     ``FollowOptions``. ``progress`` is called with ``{"loaded": n, "object":

@@ -117,34 +117,9 @@ fn resolve_dynamic(a: &mut m::DbAccess, constants: &HashMap<String, String>) {
     for t in a.tables.iter_mut().filter(|t| t.dynamic) {
         // me->c_tab, zcl_x=>c_tab
         let name = t.name.rsplit(['>', '~']).next().unwrap_or(&t.name);
-        t.resolved = constants.get(&name.to_ascii_lowercase()).cloned();
-        let Some(value) = t
-            .resolved
-            .clone()
-            .filter(|v| v.contains(char::is_whitespace))
-        else {
-            continue;
-        };
-        let mut tables = from_clause(&value).into_iter();
-        let Some(first) = tables.next() else {
-            t.resolved = None;
-            continue;
-        };
-        t.resolved = Some(first.name);
-        t.alias = t.alias.take().or(first.alias);
-        for other in tables {
-            joined.push(m::DbTable {
-                name: t.name.clone(),
-                alias: other.alias,
-                path: None,
-                dynamic: true,
-                resolved: Some(other.name),
-                role: if t.role == m::DbTableRole::Main {
-                    other.role
-                } else {
-                    t.role
-                },
-            });
+        match constants.get(&name.to_ascii_lowercase()).cloned() {
+            Some(value) => joined.extend(resolve_table(t, value)),
+            None => t.resolved = None,
         }
     }
     a.tables.extend(joined);
@@ -171,6 +146,37 @@ fn resolve_dynamic(a: &mut m::DbAccess, constants: &HashMap<String, String>) {
             c.table = Some(only.clone());
         }
     }
+}
+
+/// Fills `resolved` of the dynamic table `t` with `value`, a table name or a
+/// whole FROM clause; returns the tables joined to the first one, each with
+/// the same operand. A FROM clause that cannot be read leaves it unresolved.
+pub(crate) fn resolve_table(t: &mut m::DbTable, value: String) -> Vec<m::DbTable> {
+    if !value.contains(char::is_whitespace) {
+        t.resolved = Some(value);
+        return Vec::new();
+    }
+    let mut tables = from_clause(&value).into_iter();
+    let Some(first) = tables.next() else {
+        t.resolved = None;
+        return Vec::new();
+    };
+    t.resolved = Some(first.name);
+    t.alias = t.alias.take().or(first.alias);
+    tables
+        .map(|other| m::DbTable {
+            name: t.name.clone(),
+            alias: other.alias,
+            path: None,
+            dynamic: true,
+            resolved: Some(other.name),
+            role: if t.role == m::DbTableRole::Main {
+                other.role
+            } else {
+                t.role
+            },
+        })
+        .collect()
 }
 
 /// The database tables of a FROM clause given as text.
