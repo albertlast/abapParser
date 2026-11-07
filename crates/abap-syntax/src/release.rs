@@ -511,7 +511,11 @@ impl<'a> Scan<'a> {
                     // only bring struc-(comp) with a literal; the name of an
                     // attribute may be any character-like literal
                     let old = match self.kind {
-                        K::Call => true,
+                        // CALL METHOD oref->(name), not a component in a
+                        // functional call like m( itab[ 1 ]-('comp') )
+                        K::Call => {
+                            self.word(0) == "CALL" && self.t[i].kind == TokenKind::InstanceArrow
+                        }
                         K::Assign => {
                             (self.t[i].kind == TokenKind::InstanceArrow
                                 || self.kind_at(i + 2) != Some(TokenKind::String))
@@ -549,7 +553,10 @@ impl<'a> Scan<'a> {
             }
             // VALUE #( ), NEW zcl_x( ), CONV string( )
             if let Some((_, release)) = CONSTRUCTORS.iter().find(|(k, _)| *k == word) {
+                // a component named like one, lo->conv or ls-value; `a -
+                // CONV d( b )` has the minus operator before
                 let after_arrow = i > 0
+                    && !self.t[i].ws_before
                     && matches!(
                         self.t[i - 1].kind,
                         TokenKind::InstanceArrow | TokenKind::StaticArrow | TokenKind::Dash
@@ -964,6 +971,28 @@ impl<'a> Scan<'a> {
                 }
                 "+" | "-" | "*" | "/" if select && clause == "WHERE" && self.is_operator(i) => {
                     self.need(Release::V750, "SQL arithmetic in a condition")
+                }
+                // col = ( ( SELECT ... ) ): an SQL expression on the right
+                "(" if select
+                    && clause == "WHERE"
+                    && self.kind_at(i + 1) == Some(TokenKind::ParenLeft)
+                    && i > 0
+                    && matches!(
+                        self.word(i - 1),
+                        "=" | "<>"
+                            | "<"
+                            | ">"
+                            | "<="
+                            | ">="
+                            | "EQ"
+                            | "NE"
+                            | "LT"
+                            | "GT"
+                            | "LE"
+                            | "GE"
+                    ) =>
+                {
+                    self.need(Release::V750, "SQL expression in a condition")
                 }
                 "+" | "-" | "*" | "/" | "("
                     if select && clause == "ORDER" && self.is_operator_or_call(i) =>
@@ -1474,6 +1503,28 @@ mod tests {
         assert_eq!(
             need("SELECT * FROM t \\_a [ c = 1 ] AS r INTO TABLE lt."),
             Some((Release::V752, "path expression with parameters or filter"))
+        );
+    }
+
+    #[test]
+    fn constructs_after_operators_and_in_calls() {
+        assert_eq!(
+            need("lv_delta = lv_date - CONV d( '20240101' )."),
+            Some((Release::V740Sp02, "CONV"))
+        );
+        assert_eq!(need("x = ls_line-conv."), None);
+        assert_eq!(
+            need("out->write( itab[ 1 ]-('COMP') )."),
+            Some((Release::V757, "dynamic component"))
+        );
+        assert_eq!(need("CALL METHOD lo_obj->(lv_name)."), None);
+        assert_eq!(
+            need("SELECT * FROM t WHERE a = ( ( SELECT b FROM u ) ) INTO TABLE @lt."),
+            Some((Release::V750, "SQL expression in a condition"))
+        );
+        assert_eq!(
+            need("SELECT * FROM t WHERE a = ( SELECT b FROM u ) INTO TABLE lt."),
+            None
         );
     }
 

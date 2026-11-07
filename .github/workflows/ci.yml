@@ -40,6 +40,7 @@ jobs:
           node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt
           node tools/oracle.mjs --sql-cases tests/corpus/abaplint/statements tests/corpus/golden/sql_cases.json
           node tools/oracle.mjs --releases tests/corpus/golden/releases --list tests/corpus/corpora.txt
+          node tools/oracle.mjs --mutations tests/corpus/golden/mutations.json --list tests/corpus/corpora.txt
 
       - name: Markdown, JavaScript and JSON formatted with prettier
         run: tools/node_modules/.bin/prettier --check .

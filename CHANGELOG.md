@@ -10,6 +10,10 @@
 - **FORM parameters take existing types:** a FORM parameter that builds its type, like `TYPE TABLE OF i`, `TYPE RANGE OF i`, `LIKE TABLE OF itab`, `TYPE STANDARD TABLE WITH DEFAULT KEY` or `TYPE c LENGTH 10`, is a syntax error, as in abaplint 2.120.95 and SAP's documentation of typing.
 - **GET PERMISSIONS:** only the `ONLY` variants of SAP's documentation are valid (`ONLY LOCAL` or `ONLY GLOBAL INSTANCE` are syntax errors), every entity needs `REQUEST`, and `FROM keys` must not follow `ONLY GLOBAL ...` and must follow the other ONLY variants, as SAP's documentation of GET PERMISSIONS says.
 - **FINAL is dated by the release news:** `FINAL( x )` needs 7.57, as SAP's release news say; abaplint dates two GET PERMISSIONS cases with `FINAL` with 7.54. Of abaplint's release-tagged test cases, 1,019 of 1,022 are met; all 96 cases invalid at every release are reported.
+- **Release of constructors after an operator:** `a - CONV d( b )` needs 7.40 SP02; the minus before `CONV` was taken for the dash of a component, as in `ls_x-conv`, so the expression had no release.
+- **Dynamic components in method calls:** `m( itab[ 1 ]-('COMP') )` needs 7.57; only `CALL METHOD oref->(name)` is old.
+- **SQL expression in a condition:** `WHERE col = ( ( SELECT ... ) )` needs 7.50. Of abaplint's release-tagged test cases, 1,020 of 1,022 are met; of 352,374 corpus statements, one gets another release than abaplint gives.
+- **Mutation test:** `node tools/oracle.mjs --mutations` changes up to 25 corpus statements of each kind by one token, dropped, doubled or swapped, and `crates/abap-syntax/tests/mutations.rs` checks which of them the parser rejects where abaplint does: 12.4% of 15,898. It measures how much invalid syntax goes unnoticed, as statement kinds are decided by keywords.
 
 ## 0.6.0
 
