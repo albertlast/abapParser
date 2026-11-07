@@ -124,6 +124,7 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
                 reference: r.clone(),
                 text,
                 origin: path.display().to_string(),
+                cached: true,
             }));
         }
         // the system does not have it: asked once too

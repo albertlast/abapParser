@@ -493,6 +493,7 @@ impl SourceProvider for FsProvider {
             reference: reference.clone(),
             text,
             origin: path.display().to_string(),
+            cached: false,
         }))
     }
 

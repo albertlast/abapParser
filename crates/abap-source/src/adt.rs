@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 
 use base64::Engine;
 
+use crate::tables::{
+    self, first_column, group_program, is_name, HookSource, Query, Relation, Rows,
+};
 use crate::{
     Badi, ClassPart, Hook, ObjectKind, Result, Source, SourceError, SourceProvider, SourceRef,
 };
@@ -216,42 +219,6 @@ fn rejection(xml: &str) -> String {
     cut
 }
 
-#[derive(Clone)]
-struct HookSource {
-    text: String,
-    origin: String,
-    switched_off: bool,
-}
-
-/// The block `ENHANCEMENT <id> ...` to `ENDENHANCEMENT.` of the code of an
-/// enhancement implementation.
-fn hook_block(source: &str, id: &str) -> Option<String> {
-    let mut out: Option<Vec<&str>> = None;
-    for line in source.lines() {
-        let words: Vec<String> = line
-            .split(|c: char| c.is_whitespace() || c == '.')
-            .filter(|w| !w.is_empty())
-            .map(|w| w.to_ascii_uppercase())
-            .collect();
-        match &mut out {
-            None => {
-                if words.first().is_some_and(|w| w == "ENHANCEMENT")
-                    && words.get(1).map(String::as_str) == Some(id)
-                {
-                    out = Some(vec![line]);
-                }
-            }
-            Some(lines) => {
-                lines.push(line);
-                if words.first().is_some_and(|w| w == "ENDENHANCEMENT") {
-                    return Some(lines.join("\n"));
-                }
-            }
-        }
-    }
-    None
-}
-
 /// The newest XML version of data elements the system lists, like
 /// `application/vnd.sap.adt.dataelements.v2+xml`; the system also lists
 /// `text/html`. v2 where the discovery says nothing.
@@ -265,37 +232,6 @@ fn data_element_type(accepts: &[&str]) -> String {
         })
         .max_by_key(|(version, _)| *version)
         .map_or_else(|| format!("{PREFIX}2+xml"), |(_, a)| a.to_string())
-}
-
-/// The hooks in the given programs. FULL_NAME is a long string and not
-/// allowed in a condition on SAP_BASIS 750, so it is only read.
-fn enhancement_query(programs: &[String]) -> String {
-    // the data preview takes lines up to 255 characters
-    let list = programs
-        .iter()
-        .map(|p| format!("'{p}'"))
-        .collect::<Vec<_>>()
-        .join(",\n");
-    format!(
-        "SELECT enhname, id, enhmode, full_name, programname FROM enhincinx \
-         WHERE version = 'A' AND programname IN ( {list} )"
-    )
-}
-
-/// The main program of a function group, `SAPL<group>` or `/NS/SAPL<group>`.
-fn group_program(group: &str) -> String {
-    match group.strip_prefix('/').and_then(|g| g.split_once('/')) {
-        Some((ns, name)) => format!("/{ns}/SAPL{name}").to_ascii_uppercase(),
-        None => format!("SAPL{group}").to_ascii_uppercase(),
-    }
-}
-
-/// Whether a name may go into SQL: only what ABAP names consist of.
-fn is_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
 }
 
 /// The rows of a data preview answer, which lists the values per column.
@@ -327,23 +263,6 @@ fn preview_rows(xml: &str) -> Vec<Vec<String>> {
                 .collect()
         })
         .collect()
-}
-
-/// The values of the first column, upper case, sorted, without empty ones.
-fn first_column(rows: Vec<Vec<String>>) -> Vec<String> {
-    let mut out: Vec<String> = rows
-        .into_iter()
-        .filter_map(|r| non_empty(r.first()))
-        .collect();
-    out.sort();
-    out.dedup();
-    out
-}
-
-fn non_empty(value: Option<&String>) -> Option<String> {
-    value
-        .map(|v| v.trim().to_ascii_uppercase())
-        .filter(|v| !v.is_empty())
 }
 
 /// Lower case, '/' of namespaces percent encoded, as ADT URIs expect.
@@ -721,18 +640,20 @@ impl AdtProvider {
     /// read through the data preview; `None` when the system has no data
     /// preview.
     fn related_classes(&self, name: &str, relation: Relation) -> Result<Option<Vec<String>>> {
-        let key = name.to_ascii_uppercase();
-        if !is_name(&key) {
-            return Ok(Some(Vec::new()));
-        }
-        let query = format!(
-            "SELECT clsname FROM seometarel WHERE refclsname = '{key}' AND reltype = '{}' AND version = '1'",
-            relation as u8
-        );
-        let rows = self.select("class relations", &query, || {
-            self.table_select("SEOMETAREL", &query)
-        })?;
-        Ok(rows.map(first_column))
+        tables::related_classes(&|l, q| self.query(l, q), name, relation)
+    }
+
+    /// Rows of a query on one table through the data preview, free-form
+    /// SQL first, else the table preview; `None` and a note when neither
+    /// works.
+    fn query(&self, lookup: &str, query: &Query) -> Result<Option<Rows>> {
+        let sql = query.sql();
+        self.select(lookup, &sql, || self.table_select(&query.table, &sql))
+    }
+
+    /// Rows of a query on one table through the table preview only.
+    fn table_query(&self, _lookup: &str, query: &Query) -> Result<Option<Rows>> {
+        self.table_select(&query.table, &query.sql())
     }
 
     /// Rows of an ABAP SQL query through the data preview. When the system
@@ -826,132 +747,47 @@ impl AdtProvider {
             reference: r.clone(),
             text,
             origin: format!("{}{FREESTYLE} (DD40L {name})", self.config.url),
+            cached: false,
         }))
     }
 
-    /// A BAdI of an enhancement spot: interface and fallback class from its
-    /// definition, the classes of its active implementations.
+    /// A BAdI of an enhancement spot from the BAdI tables.
     fn spot_badi(&self, name: &str) -> Result<Option<Badi>> {
-        let query = format!(
-            "SELECT interface_name, default_class FROM badi_main WHERE badi_name = '{name}'"
-        );
-        let definition = self
-            .select("BAdI definitions", &query, || {
-                self.table_select("BADI_MAIN", &query)
-            })?
-            .unwrap_or_default();
-        let Some(row) = definition.first() else {
-            return Ok(None);
-        };
-        Ok(Some(Badi {
-            name: name.to_string(),
-            interface: non_empty(row.first()),
-            implementations: self.badi_implementations(name)?,
-            fallback: non_empty(row.get(1)),
-            classic: false,
-        }))
+        tables::spot_badi(&|l, q| self.query(l, q), name)
     }
 
-    /// Classes of the active implementations of a BAdI of an enhancement
-    /// spot: the runtime table only has those.
     fn badi_implementations(&self, name: &str) -> Result<Vec<String>> {
-        let query = format!("SELECT class_name FROM badi_impl WHERE badi_name = '{name}'");
-        Ok(self
-            .select("BAdI implementations", &query, || {
-                self.table_select("BADI_IMPL", &query)
-            })?
-            .map(first_column)
-            .unwrap_or_default())
+        tables::badi_implementations(&|l, q| self.query(l, q), name)
     }
 
     /// A classic BAdI by its interface with its active implementations;
-    /// those of the BAdI it was migrated to count too.
+    /// those of the BAdI it was migrated to count too. Joins in free-form
+    /// SQL, else single-table queries through the table preview.
     fn exit_badi(&self, interface: &str) -> Result<Option<Badi>> {
+        let by_table = |l: &str, q: &Query| self.table_query(l, q);
         let joined = format!(
-            "SELECT x~exit_name, a~def_clname, a~mig_badi_name FROM sxs_inter AS x \
-             INNER JOIN sxs_attr AS a ON a~exit_name = x~exit_name \
-             WHERE x~inter_name = '{interface}'"
+            "SELECT x~exit_name, a~def_clname, a~mig_badi_name FROM sxs_inter AS x              INNER JOIN sxs_attr AS a ON a~exit_name = x~exit_name              WHERE x~inter_name = '{interface}'"
         );
         let definition = self
             .select("classic BAdI definitions", &joined, || {
-                self.exit_definition_by_tables(interface)
+                tables::exit_definition(&by_table, interface)
             })?
             .unwrap_or_default();
-        let Some(row) = definition.first() else {
+        if definition.is_empty() {
             return Ok(None);
-        };
+        }
         let joined = format!(
-            "SELECT c~imp_class FROM sxc_class AS c INNER JOIN sxc_attr AS a \
-             ON a~imp_name = c~imp_name WHERE c~inter_name = '{interface}' AND a~active = 'X'"
+            "SELECT c~imp_class FROM sxc_class AS c INNER JOIN sxc_attr AS a              ON a~imp_name = c~imp_name WHERE c~inter_name = '{interface}' AND a~active = 'X'"
         );
-        let mut implementations = self
+        let implementations = self
             .select("classic BAdI implementations", &joined, || {
-                self.exit_implementations_by_tables(interface)
+                tables::exit_implementations(&by_table, interface)
             })?
             .map(first_column)
             .unwrap_or_default();
-        if let Some(migrated) = non_empty(row.get(2)).filter(|m| is_name(m)) {
-            implementations.extend(self.badi_implementations(&migrated)?);
-            implementations.sort();
-            implementations.dedup();
-        }
-        Ok(Some(Badi {
-            name: non_empty(row.first()).unwrap_or_default(),
-            interface: Some(interface.to_string()),
-            implementations,
-            fallback: non_empty(row.get(1)),
-            classic: true,
-        }))
-    }
-
-    /// The join of the classic BAdI definition as two single-table queries
-    /// through the table preview.
-    fn exit_definition_by_tables(&self, interface: &str) -> Result<Option<Vec<Vec<String>>>> {
-        let Some(exits) = self.table_select(
-            "SXS_INTER",
-            &format!("SELECT exit_name FROM sxs_inter WHERE inter_name = '{interface}'"),
-        )?
-        else {
-            return Ok(None);
-        };
-        let Some(exit) = first_column(exits).into_iter().find(|e| is_name(e)) else {
-            return Ok(Some(Vec::new()));
-        };
-        self.table_select(
-            "SXS_ATTR",
-            &format!(
-                "SELECT exit_name, def_clname, mig_badi_name FROM sxs_attr WHERE exit_name = '{exit}'"
-            ),
-        )
-    }
-
-    /// The join of the active classic BAdI implementations as single-table
-    /// queries through the table preview.
-    fn exit_implementations_by_tables(&self, interface: &str) -> Result<Option<Vec<Vec<String>>>> {
-        let Some(classes) = self.table_select(
-            "SXC_CLASS",
-            &format!("SELECT imp_name, imp_class FROM sxc_class WHERE inter_name = '{interface}'"),
-        )?
-        else {
-            return Ok(None);
-        };
-        let mut out = Vec::new();
-        for row in classes {
-            let (Some(imp), Some(class)) = (non_empty(row.first()), non_empty(row.get(1))) else {
-                continue;
-            };
-            if !is_name(&imp) {
-                continue;
-            }
-            let active = self.table_select(
-                "SXC_ATTR",
-                &format!("SELECT imp_name FROM sxc_attr WHERE imp_name = '{imp}' AND active = 'X'"),
-            )?;
-            if active.is_some_and(|rows| !rows.is_empty()) {
-                out.push(vec![class]);
-            }
-        }
-        Ok(Some(out))
+        tables::exit_badi(interface, definition, implementations, |m| {
+            self.badi_implementations(m)
+        })
     }
 
     /// The code of an enhancement implementation with its URL and whether
@@ -1018,6 +854,7 @@ impl AdtProvider {
             reference: reference.clone(),
             text,
             origin: format!("{}{}", self.config.url, path),
+            cached: false,
         }))
     }
 
@@ -1054,13 +891,6 @@ impl AdtProvider {
 }
 
 const USAGE_REQUEST: &str = r#"<?xml version="1.0" encoding="UTF-8"?><usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences"><usagereferences:affectedObjects/></usagereferences:usageReferenceRequest>"#;
-
-/// Relation types of the class relations, SEOMETAREL-RELTYPE.
-#[derive(Clone, Copy)]
-enum Relation {
-    Implements = 1,
-    Inherits = 2,
-}
 
 /// Percent encoding of a query parameter value.
 fn query_encode(value: &str) -> String {
@@ -1189,6 +1019,7 @@ impl SourceProvider for AdtProvider {
                     reference: r.clone(),
                     text,
                     origin: format!("{}{}", self.config.url, path),
+                    cached: false,
                 }))
             }
             (ObjectKind::Type, _) => {
@@ -1196,6 +1027,15 @@ impl SourceProvider for AdtProvider {
                     return Ok(None);
                 }
                 self.source(r, &format!("{TYPE_GROUPS}/{name}/source/main"))
+            }
+            (ObjectKind::Enho, _) => {
+                if !self.capabilities().offers(ENHANCEMENT_IMPLEMENTATIONS) {
+                    return Ok(None);
+                }
+                self.source(
+                    r,
+                    &format!("{ENHANCEMENT_IMPLEMENTATIONS}/{name}/source/main"),
+                )
             }
             // a data element brings the type of its domain along
             (ObjectKind::Doma, _) => Ok(None),
@@ -1206,6 +1046,7 @@ impl SourceProvider for AdtProvider {
                     reference: r.clone(),
                     text,
                     origin: format!("{}{}", self.config.url, path),
+                    cached: false,
                 }))
             }
         }
@@ -1261,14 +1102,9 @@ impl SourceProvider for AdtProvider {
             return Ok(Vec::new());
         }
         // names go into SQL: ABAP names, class pools and their includes
-        let valid = |n: &&String| {
-            !n.is_empty()
-                && n.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '/' | '='))
-        };
         let mut wanted: Vec<String> = programs
             .iter()
-            .filter(valid)
+            .filter(|p| tables::is_program(p))
             .map(|p| p.to_ascii_uppercase())
             .collect();
         let named = wanted.clone();
@@ -1276,7 +1112,7 @@ impl SourceProvider for AdtProvider {
         // function group. FULL_NAME is a long string, which ABAP SQL does
         // not allow in WHERE on SAP_BASIS 750, so the module is matched here.
         let mut prefixes: Vec<String> = Vec::new();
-        for module in function_modules.iter().filter(valid) {
+        for module in function_modules.iter().filter(|m| tables::is_program(m)) {
             let module = module.to_ascii_uppercase();
             match self.function_group(&module) {
                 Ok(Some(group)) => {
@@ -1292,10 +1128,7 @@ impl SourceProvider for AdtProvider {
         wanted.dedup();
         let mut rows = Vec::new();
         for chunk in wanted.chunks(50) {
-            let query = enhancement_query(chunk);
-            match self.select("enhancements", &query, || {
-                self.table_select("ENHINCINX", &query)
-            }) {
+            match self.query("enhancements", &tables::enhancement_query(chunk)) {
                 Ok(r) => rows.extend(r.unwrap_or_default()),
                 // other answers mean the system has no data preview for us
                 Err(SourceError::Http { .. }) | Err(SourceError::Auth { .. }) => {
@@ -1304,49 +1137,7 @@ impl SourceProvider for AdtProvider {
                 Err(e) => return Err(e),
             }
         }
-        rows.retain(|row| {
-            let (Some(position), Some(program)) = (row.get(3), row.get(4)) else {
-                return false;
-            };
-            let position = position.trim().to_ascii_uppercase();
-            named.iter().any(|n| n.eq_ignore_ascii_case(program.trim()))
-                || prefixes.iter().any(|p| position.starts_with(p.as_str()))
-        });
-        let mut out: Vec<Hook> = Vec::new();
-        for row in rows {
-            let [name, id, mode, position, _program] = &row[..] else {
-                continue;
-            };
-            let name = name.trim().to_ascii_uppercase();
-            // enhancements of a function module's parameters are no code
-            if !is_name(&name)
-                || position.matches(r"\SE:").count() > 1
-                || out
-                    .iter()
-                    .any(|h| h.enhancement == name && h.position == *position)
-            {
-                continue;
-            }
-            // one the system does not deliver does not stop the others
-            let source = match self.hook_source(&name) {
-                Ok(Some(source)) => source,
-                Ok(None) | Err(SourceError::Http { .. }) => continue,
-                Err(e) => return Err(e),
-            };
-            // switched off, only the static parts stay, like declarations
-            if source.switched_off && mode.trim() == "D" {
-                continue;
-            }
-            if let Some(code) = hook_block(&source.text, id.trim()) {
-                out.push(Hook {
-                    enhancement: name,
-                    position: position.trim().to_string(),
-                    code,
-                    origin: source.origin,
-                });
-            }
-        }
-        Ok(out)
+        tables::hooks_of(rows, &named, &prefixes, |name| self.hook_source(name))
     }
 
     /// From the BAdI tables through the data preview.
@@ -1637,20 +1428,6 @@ mod tests {
     }
 
     #[test]
-    fn blocks_of_enhancement_code() {
-        let source = "ENHANCEMENT 1  .\r\n  x = 1.\r\nENDENHANCEMENT.\r\nENHANCEMENT 12  .\r\n  y = 2.\r\nENDENHANCEMENT.";
-        assert_eq!(
-            hook_block(source, "12").as_deref(),
-            Some("ENHANCEMENT 12  .\n  y = 2.\nENDENHANCEMENT.")
-        );
-        assert_eq!(
-            hook_block(source, "1").as_deref(),
-            Some("ENHANCEMENT 1  .\n  x = 1.\nENDENHANCEMENT.")
-        );
-        assert_eq!(hook_block(source, "2"), None);
-    }
-
-    #[test]
     fn data_preview_rows() {
         let xml = "<dataPreview:tableData><dataPreview:columns><dataPreview:metadata dataPreview:name=\"A\"/>            <dataPreview:dataSet><dataPreview:data>X1</dataPreview:data><dataPreview:data/></dataPreview:dataSet>            </dataPreview:columns><dataPreview:columns><dataPreview:metadata dataPreview:name=\"B\"/>            <dataPreview:dataSet><dataPreview:data> y1 </dataPreview:data><dataPreview:data>Y2</dataPreview:data>            </dataPreview:dataSet></dataPreview:columns></dataPreview:tableData>";
         assert_eq!(preview_rows(xml), [["X1", "y1"], ["", "Y2"]]);
@@ -1832,17 +1609,6 @@ mod tests {
             !paths.iter().any(|p| p.contains("datapreview")),
             "{paths:?}"
         );
-    }
-
-    #[test]
-    fn enhancement_query_never_filters_on_the_long_string() {
-        let query = enhancement_query(&["SAPLZGRP".to_string(), "ZPROG".to_string()]);
-        let condition = query.split("WHERE").nth(1).unwrap();
-        assert!(!condition.to_ascii_lowercase().contains("full_name"));
-        assert!(!query.contains("LIKE"));
-        assert!(query.lines().all(|l| l.len() < 255));
-        assert_eq!(group_program("ZGRP"), "SAPLZGRP");
-        assert_eq!(group_program("/abc/grp"), "/ABC/SAPLGRP");
     }
 
     #[test]

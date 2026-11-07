@@ -308,3 +308,80 @@ test("fetch is called several at a time, dictionary lookups can be bounded", asy
     none.notes.join(),
   );
 });
+
+test("a query function answers BAdI and enhancement lookups", async () => {
+  const cls = (name, table) =>
+    `CLASS ${name} DEFINITION PUBLIC.\n  PUBLIC SECTION.\n    INTERFACES zif_badi_check.\nENDCLASS.\n` +
+    `CLASS ${name} IMPLEMENTATION.\n  METHOD zif_badi_check~check.\n    DELETE FROM ${table} WHERE id = 1.\n  ENDMETHOD.\nENDCLASS.`;
+  const sources = {
+    "PROG:ZREPORT":
+      "REPORT zreport.\nDATA lo_badi TYPE REF TO zbadi_check.\nSTART-OF-SELECTION.\n  GET BADI lo_badi.\n  CALL BADI lo_badi->check.\n  ENHANCEMENT-POINT zpoint SPOTS zspot.\n  WRITE 'x'.",
+    "INTF:ZIF_BADI_CHECK": "INTERFACE zif_badi_check PUBLIC.\n  METHODS check.\nENDINTERFACE.",
+    "CLAS:ZCL_CHECK_ACTIVE": cls("zcl_check_active", "zactive"),
+    "ENHO:ZENH": "ENHANCEMENT 1  .\n  DELETE FROM zhook WHERE id = 1.\nENDENHANCEMENT.",
+  };
+  const tables = {
+    BADI_MAIN: [["ZIF_BADI_CHECK", ""]],
+    // rows may also be objects by column
+    BADI_IMPL: [{class_name: "ZCL_CHECK_ACTIVE"}],
+    ENHINCINX: [["ZENH", "1", "D", String.raw`\PR:ZREPORT\EX:ZPOINT\EI`, "ZREPORT"]],
+  };
+  const queries = [];
+  const query = async (q) => {
+    queries.push(q);
+    return tables[q.table] ?? null;
+  };
+  const l = await abap.logicObjectAsync("PROG:ZREPORT", {fetch: (r) => sources[r], query}, 1);
+  const effects = l.procedures.flatMap((p) => p.effects.map((e) => e.name)).sort();
+  assert.ok(effects.includes("ZACTIVE"), effects.join());
+  assert.ok(effects.includes("ZHOOK"), effects.join());
+  const badi = queries.find((q) => q.table === "BADI_MAIN");
+  assert.deepEqual(badi.columns, ["INTERFACE_NAME", "DEFAULT_CLASS"]);
+  assert.deepEqual(badi.where, {BADI_NAME: ["ZBADI_CHECK"]});
+  assert.equal(badi.sql, "SELECT interface_name, default_class FROM badi_main WHERE badi_name = 'ZBADI_CHECK'");
+  assert.ok(queries.some((q) => q.table === "ENHINCINX"));
+});
+
+test("errors of the host by status and code, progress detail", async () => {
+  const sources = {
+    "PROG:ZMAIN":
+      "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_ONE'.\n  CALL FUNCTION 'Z_TWO'.\n  CALL FUNCTION 'Z_THREE'.\n  CALL FUNCTION 'Z_GONE'.",
+    "FUNC:Z_ONE": "FUNCTION z_one.\nENDFUNCTION.",
+  };
+  const seen = [];
+  const graph = await abap.callGraphAsync(
+    ["PROG:ZMAIN"],
+    {
+      fetch: async (r) => {
+        if (r === "FUNC:Z_TWO") throw Object.assign(new Error("Service Unavailable"), {status: 503});
+        if (r === "FUNC:Z_THREE") throw Object.assign(new TypeError("fetch failed"), {cause: {code: "ECONNREFUSED"}});
+        if (r === "FUNC:Z_GONE") throw Object.assign(new Error("Not Found"), {response: {status: 404}});
+        // bytes are text too
+        return r in sources ? new TextEncoder().encode(sources[r]) : null;
+      },
+      progress: (p) => seen.push(p),
+    },
+    1,
+  );
+  const codes = Object.fromEntries(graph.errors.map((e) => [e.object, [e.code, e.status ?? null, e.retryable]]));
+  assert.deepEqual(codes, {"FUNC:Z_TWO": ["http", 503, true], "FUNC:Z_THREE": ["network", null, true]});
+  assert.ok(graph.missing.includes("FUNC:Z_GONE"), graph.missing.join());
+  // progress calls arrive before the promise settles
+  const main = seen.find((p) => p.object === "PROG:ZMAIN");
+  assert.deepEqual({kind: main.kind, outcome: main.outcome}, {kind: "PROG", outcome: "loaded"});
+  const outcomes = Object.fromEntries(seen.map((p) => [p.object, p.outcome]));
+  assert.deepEqual(outcomes, {
+    "PROG:ZMAIN": "loaded",
+    "FUNC:Z_ONE": "loaded",
+    "FUNC:Z_TWO": "error",
+    "FUNC:Z_THREE": "error",
+    "FUNC:Z_GONE": "missing",
+  });
+  assert.ok(seen.every((p) => Number.isInteger(p.queued) && p.queued >= 0));
+  // an answer that is no text is not found, with a note
+  const odd = await abap.callGraphAsync(["PROG:ZMAIN"], {fetch: (r) => (r === "PROG:ZMAIN" ? sources[r] : {})}, 1);
+  assert.ok(
+    odd.notes.some((n) => n.startsWith("fetch: 4 answers were no text")),
+    odd.notes.join("; "),
+  );
+});

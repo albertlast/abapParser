@@ -57,7 +57,8 @@ following calls into other objects (graph, logic, mcp):
   --limit <n>          load at most n objects
   --dictionary <n>     at most n dictionary lookups while typing (data
                        elements, structures, table types); 0 for none
-  --progress           write each object loaded to stderr
+  --progress           write each object loaded to stderr: count, outcome
+                       (loaded, cached, missing, error), object, queued
   ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,
   duration, the SQL of data preview queries; never credentials
 
@@ -430,8 +431,15 @@ fn object_command(command: &str, args: &Args) -> ExitCode {
     }
     let mut workspace = abap_analysis::Workspace::new(provider).with_follow(args.follow.clone());
     if args.progress {
-        workspace =
-            workspace.with_progress(Box::new(|p| eprintln!("{:>5} {}", p.loaded, p.object)));
+        workspace = workspace.with_progress(Box::new(|p| {
+            eprintln!(
+                "{:>5} {:<7} {} ({} queued)",
+                p.loaded,
+                p.outcome.as_str(),
+                p.object,
+                p.queued
+            )
+        }));
     }
     let errors = if command == "logic" {
         let logic = workspace.logic(&refs[0], args.depth);

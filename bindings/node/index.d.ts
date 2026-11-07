@@ -29,11 +29,19 @@ export interface SourceOptions {
   /**
    * Sources of the host, e.g. from its own ADT client or cache. Called with
    * a reference `KIND:NAME`, it returns the text, or null or undefined when
-   * it has none. Each reference is asked once, up to 8 at a time: the
-   * objects of a level, and the dictionary types their declarations name,
-   * load several at once. A thrown error or rejected promise is listed in
-   * `errors`. Only the async functions take it; the blocking ones throw a
-   * TypeError. What to return, by kind:
+   * it has none; a Buffer or Uint8Array is decoded as UTF-8. Each reference
+   * is asked once, up to 8 at a time: the objects of a level, and the
+   * dictionary types their declarations name, load several at once. Only
+   * the async functions take it; the blocking ones throw a TypeError.
+   *
+   * A thrown error or rejected promise with the HTTP status 404 or 410
+   * counts as not found; others are listed in `errors`, with the code
+   * `auth` or `http` for an HTTP status (`status`, `statusCode`,
+   * `response.status`), `network` for a code like `ECONNREFUSED`,
+   * `ETIMEDOUT`, `ENOTFOUND` or `UND_ERR_...` (`code`, `cause.code`) and
+   * the name `TimeoutError`, `io` for other `E...` codes like `ENOENT`, or
+   * as the code `"network"` or `"io"` says. An answer that is no text
+   * counts as not found, and a note says so. What to return, by kind:
    *
    * - `PROG:ZREPORT` (also includes, like `PROG:ZREPORT_TOP`), `INTF:ZIF_X`,
    *   `CLAS:ZCL_X`, `CLAS:ZCL_X/definitions` (`/implementations`, `/macros`,
@@ -54,13 +62,30 @@ export interface SourceOptions {
    *   `<DD40V><ROWTYPE>LVC_S_FCAT</ROWTYPE><ROWKIND>S</ROWKIND></DD40V>` or
    *   `<DD40V><DATATYPE>STRG</DATATYPE></DD40V>`; leave out empty values.
    *   DD40L gives these columns.
+   * - `ENHO:ZENH`: the code of an enhancement implementation as ADT's
+   *   `enhancements/enhoxhh/zenh/source/main` gives it, asked for the hooks
+   *   `query` finds
    *
    * The dictionary kinds are asked while typing, whatever the patterns of
    * `follow` say; `follow.dictionary` bounds them. A text that cannot be
-   * read leaves the type a name. BAdI implementations,
-   * classic BAdIs, enhancements and where-used lists come only from `adt`.
+   * read leaves the type a name, and a note counts them.
    */
-  fetch?: (reference: string) => string | null | undefined | Promise<string | null | undefined>;
+  fetch?: (
+    reference: string,
+  ) => string | Uint8Array | null | undefined | Promise<string | Uint8Array | null | undefined>;
+  /**
+   * Answers the lookups an SAP system answers from its tables: BAdIs,
+   * classic BAdIs, enhancements (their code through `fetch` as `ENHO:`),
+   * implementations of interfaces and subclasses. Called with a query on
+   * one table, it returns the rows, each an array of values in the order
+   * of `columns` or an object by column, or null or undefined when it
+   * cannot answer, which a note says. The tables: BADI_MAIN, BADI_IMPL,
+   * SXS_INTER, SXS_ATTR, SXC_CLASS, SXC_ATTR, SEOMETAREL, TFDIR and
+   * ENHINCINX; `sql` suits ADT's data preview. Errors are reported as for
+   * `fetch`. Without it, these lookups come only from `src` and `adt`. Only
+   * the async functions take it.
+   */
+  query?: (query: TableQuery) => TableRows | null | undefined | Promise<TableRows | null | undefined>;
   /**
    * Which objects calls are followed into; the objects given are always
    * loaded. Those not loaded are listed in `skipped` with the reason, calls
@@ -93,7 +118,7 @@ export interface SourceOptions {
    * Called after each object loaded or looked for, without waiting for it.
    * Only the async functions take it.
    */
-  progress?: (progress: {loaded: number; object: string}) => void;
+  progress?: (progress: Progress) => void;
   /**
    * Once aborted, nothing more is loaded and the analysis finishes with what
    * it has; calls into objects not loaded are unresolved with the reason
@@ -102,7 +127,7 @@ export interface SourceOptions {
   signal?: AbortSignal;
   /**
    * cache folder for sources fetched through `adt`, and which objects it
-   * does not have; what `fetch` returns is not cached
+   * does not have; what `fetch` and `query` return is not cached
    */
   cache?: string;
   adt?: {
@@ -123,6 +148,41 @@ export interface SourceOptions {
      */
     proxy?: string | boolean;
   };
+}
+
+/** A query on one table, for the `query` function of the host. */
+export interface TableQuery {
+  /** like "BADI_IMPL" */
+  table: string;
+  /** like ["CLASS_NAME"] */
+  columns: string[];
+  /** each column has one of its values, like {"BADI_NAME": ["ZBADI"]} */
+  where: Record<string, string[]>;
+  /** the same in ABAP SQL, like "SELECT class_name FROM badi_impl WHERE badi_name = 'ZBADI'" */
+  sql: string;
+}
+
+/** Rows of a table query: values in the order of the columns, or by column name. */
+export type TableRows = Array<
+  Array<string | number | boolean | null> | Record<string, string | number | boolean | null>
+>;
+
+/** How far loading is, after each object loaded or looked for. */
+export interface Progress {
+  /** objects loaded or looked for so far */
+  loaded: number;
+  /**
+   * work known to come: objects of the current level, or calls whose
+   * targets are looked for, not started yet, and objects loading; what is
+   * found may add more
+   */
+  queued: number;
+  /** like "CLAS:ZCL_X" */
+  object: string;
+  /** like "CLAS" */
+  kind: string;
+  /** "cached" when read from `cache`, "missing" when no source has it, "error" when fetching failed */
+  outcome: "loaded" | "cached" | "missing" | "error";
 }
 
 /** Calls of one ABAP source file; types resolved within the file. */

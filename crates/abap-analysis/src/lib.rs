@@ -27,7 +27,9 @@ pub fn cds(source: &str) -> m::CdsDefinition {
     abap_sql::cds::parse(source)
 }
 pub mod text;
-pub use workspace::{merge_symbols, Follow, Object, Progress, ProgressFn, Unit, Workspace};
+pub use workspace::{
+    merge_symbols, Follow, Object, Outcome, Progress, ProgressFn, Unit, Workspace,
+};
 
 use abap_model as m;
 

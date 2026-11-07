@@ -185,6 +185,90 @@ class SymbolsTest(unittest.TestCase):
         self.assertNotEqual(typed(none), ["c"])
         self.assertTrue(any(n.startswith("dictionary: limit of 0 lookups") for n in none["notes"]))
 
+    def test_query_function_answers_badi_and_enhancement_lookups(self):
+        sources = {
+            "PROG:ZREPORT": "REPORT zreport.\nDATA lo_badi TYPE REF TO zbadi_check.\nSTART-OF-SELECTION.\n"
+            "  GET BADI lo_badi.\n  CALL BADI lo_badi->check.\n  ENHANCEMENT-POINT zpoint SPOTS zspot.\n  WRITE 'x'.",
+            "INTF:ZIF_BADI_CHECK": "INTERFACE zif_badi_check PUBLIC.\n  METHODS check.\nENDINTERFACE.",
+            "CLAS:ZCL_CHECK_ACTIVE": "CLASS zcl_check_active DEFINITION PUBLIC.\n  PUBLIC SECTION.\n"
+            "    INTERFACES zif_badi_check.\nENDCLASS.\nCLASS zcl_check_active IMPLEMENTATION.\n"
+            "  METHOD zif_badi_check~check.\n    DELETE FROM zactive WHERE id = 1.\n  ENDMETHOD.\nENDCLASS.",
+            # bytes are text too
+            "ENHO:ZENH": b"ENHANCEMENT 1  .\n  DELETE FROM zhook WHERE id = 1.\nENDENHANCEMENT.",
+        }
+        tables = {
+            "BADI_MAIN": [["ZIF_BADI_CHECK", None]],
+            # rows may also be dicts by column
+            "BADI_IMPL": [{"class_name": "ZCL_CHECK_ACTIVE"}],
+            "ENHINCINX": [["ZENH", "1", "D", r"\PR:ZREPORT\EX:ZPOINT\EI", "ZREPORT"]],
+        }
+        queries = []
+
+        def query(q):
+            queries.append(q)
+            return tables.get(q["table"])
+
+        lg = abap_parser.logic_object("PROG:ZREPORT", {"fetch": sources.get, "query": query})
+        effects = {e["name"] for p in lg["procedures"] for e in p["effects"]}
+        self.assertTrue({"ZACTIVE", "ZHOOK"} <= effects, effects)
+        badi = next(q for q in queries if q["table"] == "BADI_MAIN")
+        self.assertEqual(badi["where"], {"BADI_NAME": ["ZBADI_CHECK"]})
+        self.assertEqual(badi["sql"], "SELECT interface_name, default_class FROM badi_main WHERE badi_name = 'ZBADI_CHECK'")
+        # a table the function does not answer is a note
+        self.assertIn("class relations: not available (the query function does not answer SEOMETAREL)", lg["notes"])
+
+    def test_errors_of_the_host_and_progress_detail(self):
+        sources = {
+            "PROG:ZMAIN": "REPORT zmain.\nSTART-OF-SELECTION.\n  CALL FUNCTION 'Z_ONE'.\n  CALL FUNCTION 'Z_TWO'.\n"
+            "  CALL FUNCTION 'Z_THREE'.\n  CALL FUNCTION 'Z_GONE'.\n  CALL FUNCTION 'Z_FILE'.",
+            "FUNC:Z_ONE": "FUNCTION z_one.\nENDFUNCTION.",
+        }
+
+        class HttpError(Exception):
+            def __init__(self, status):
+                super().__init__(f"HTTP {status}")
+                self.status = status
+
+        def fetch(reference):
+            if reference == "FUNC:Z_TWO":
+                raise HttpError(503)
+            if reference == "FUNC:Z_THREE":
+                raise TimeoutError("timed out")
+            if reference == "FUNC:Z_GONE":
+                raise HttpError(404)
+            if reference == "FUNC:Z_FILE":
+                raise FileNotFoundError(2, "No such file", "z_file.abap")
+            return sources.get(reference)
+
+        seen = []
+        graph = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": fetch, "progress": seen.append}, 1)
+        codes = {e["object"]: (e["code"], e.get("status"), e["retryable"]) for e in graph["errors"]}
+        self.assertEqual(
+            codes,
+            {
+                "FUNC:Z_TWO": ("http", 503, True),
+                "FUNC:Z_THREE": ("network", None, True),
+                "FUNC:Z_FILE": ("io", None, False),
+            },
+        )
+        self.assertIn("FUNC:Z_GONE", graph["missing"])
+        outcomes = {p["object"]: (p["kind"], p["outcome"]) for p in seen}
+        self.assertEqual(
+            outcomes,
+            {
+                "PROG:ZMAIN": ("PROG", "loaded"),
+                "FUNC:Z_ONE": ("FUNC", "loaded"),
+                "FUNC:Z_TWO": ("FUNC", "error"),
+                "FUNC:Z_THREE": ("FUNC", "error"),
+                "FUNC:Z_GONE": ("FUNC", "missing"),
+                "FUNC:Z_FILE": ("FUNC", "error"),
+            },
+        )
+        self.assertTrue(all(isinstance(p["queued"], int) and p["queued"] >= 0 for p in seen))
+        # an answer that is no text is not found, with a note
+        odd = abap_parser.call_graph(["PROG:ZMAIN"], {"fetch": lambda r: sources[r] if r == "PROG:ZMAIN" else 42}, 1)
+        self.assertTrue(any(n.startswith("fetch: 5 answers were no text") for n in odd["notes"]), odd["notes"])
+
     @unittest.skipUnless((CORPUS / "abapgit" / "src").exists(), "corpus submodule missing")
     def test_real_class(self):
         path = CORPUS / "abapgit" / "src" / "apack" / "zcl_abapgit_apack_migration.clas.abap"
