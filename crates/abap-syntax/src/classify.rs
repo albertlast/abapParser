@@ -123,9 +123,9 @@ fn is_move(body: &[&Token]) -> bool {
 }
 
 /// Functional method call statement: `meth( )`, `lo->a( )->b( x )`,
-/// `zcl=>m( )`, `NEW zcl( )->run( )`.
+/// `zcl=>m( )`, `NEW zcl( )->run( )`, `CAST zcl( ref )->run( )`.
 fn is_call_chain(body: &[&Token]) -> bool {
-    let start = if body[0].is("NEW") && body.len() > 1 {
+    let start = if (body[0].is("NEW") || body[0].is("CAST")) && body.len() > 1 {
         1
     } else {
         0

@@ -664,6 +664,20 @@ mod tests {
     }
 
     #[test]
+    fn call_statements_on_constructor_expressions() {
+        assert_eq!(
+            kinds(
+                "NEW zcl( )->run( ).
+CAST zcl( lo_any )->m( CHANGING ct = lt ).
+CAST zcl( lo_any )->a->m( ).
+lo = CAST zcl( lo_any ).
+CAST zcl( lo_any )->a = 1."
+            ),
+            ["Call", "Call", "Call", "Move", "Move"]
+        );
+    }
+
+    #[test]
     fn unterminated_statement_is_unknown() {
         assert_eq!(kinds("DATA a TYPE i"), ["Unknown"]);
     }
