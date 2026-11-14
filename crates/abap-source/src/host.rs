@@ -205,6 +205,10 @@ impl SourceProvider for FnProvider {
         )
     }
 
+    fn data_definition(&self, entity: &str) -> Result<Option<String>> {
+        tables::data_definition(&|l, q| self.select(l, q), entity)
+    }
+
     fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
         if self.query.is_none() {
             return Ok(Vec::new());

@@ -75,7 +75,8 @@ class FollowOptions(TypedDict, total=False):
     The patterns match object names, not kinds, and apply to the objects of
     calls and types (programs, classes, interfaces, function modules, type
     groups), not to dictionary lookups (``TABL:``, ``DTEL:``, ``DOMA:``,
-    ``TTYP:``).
+    ``TTYP:``); they apply to the CDS data definitions (``DDLS:``) of data
+    sources too.
 
     ``include``: name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace,
     all when empty; ``exclude``: name patterns not to load, also when
@@ -83,8 +84,8 @@ class FollowOptions(TypedDict, total=False):
     after the patterns, those no source has included (like a structure name
     tried as a class), level by level from the roots; the note ``limit: ...``
     says how many were found and how many more were not loaded;
-    ``dictionary``: at most this many dictionary lookups while typing, each
-    name asked once, 0 for none; types not looked up stay names, the note
+    ``dictionary``: at most this many dictionary lookups while typing and of
+    the CDS data definitions of data sources, each name asked once, 0 for none; types not looked up stay names, the note
     ``dictionary: ...`` says how many were not made."""
 
     include: List[str]

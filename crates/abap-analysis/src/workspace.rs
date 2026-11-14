@@ -156,6 +156,8 @@ pub struct Workspace {
     implementations: Mutex<HashMap<String, Vec<String>>>,
     subclasses: Mutex<HashMap<String, Vec<String>>>,
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
+    /// CDS data definitions by entity name, upper case
+    cds: Mutex<HashMap<String, Option<Arc<m::CdsDefinition>>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     table_types: Mutex<HashMap<String, Option<m::DataType>>>,
     dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
@@ -313,10 +315,13 @@ fn named_types(object: &Object) -> Vec<String> {
     };
     let mut out = Vec::new();
     for u in &object.units {
+        // not native SQL: in AMDP bodies `clnt => :clnt` names an argument
         let t: Vec<&abap_syntax::Token> = u
             .file
-            .tokens()
+            .statements
             .iter()
+            .filter(|s| s.kind != abap_syntax::StatementKind::NativeSQL)
+            .flat_map(|s| u.file.statement_tokens(s))
             .filter(|t| t.kind != T::Comment)
             .collect();
         for i in 0..t.len() {
@@ -334,7 +339,11 @@ fn named_types(object: &Object) -> Vec<String> {
                 || after(i, &["CAST"]))
                 || t.get(i + 1).is_some_and(|n| n.kind == T::StaticArrow);
             let x = t[i];
-            if named && x.kind == T::Identifier && x.text != "#" && !own(&x.text) {
+            let name = x
+                .text
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/');
+            if named && x.kind == T::Identifier && name && !own(&x.text) {
                 out.push(x.text.to_ascii_uppercase());
             }
         }
@@ -545,6 +554,7 @@ impl Workspace {
             implementations: Mutex::new(HashMap::new()),
             subclasses: Mutex::new(HashMap::new()),
             structures: Mutex::new(HashMap::new()),
+            cds: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
             table_types: Mutex::new(HashMap::new()),
             dictionary_types: Mutex::new(HashMap::new()),
@@ -818,6 +828,114 @@ impl Workspace {
                 r.kind,
                 format!("{r} from {}", source.origin),
             );
+        }
+        out
+    }
+
+    /// The CDS data definition of an entity, `None` when no provider has a
+    /// data definition of that name or the follow patterns do not allow it;
+    /// each name is asked once, counted as a dictionary lookup.
+    pub fn cds(&self, name: &str) -> Option<Arc<m::CdsDefinition>> {
+        let key = name.to_ascii_uppercase();
+        if let Some(d) = self.cds.lock().unwrap().get(&key) {
+            return d.clone();
+        }
+        let d = if self.follow.allows(&key) {
+            // DDIC-based views and table functions may be named otherwise
+            // than their data definition
+            let r = SourceRef::data_definition(&key);
+            self.fetch_dictionary(&r)
+                .or_else(|| match self.provider.data_definition(&key) {
+                    Ok(Some(ddls)) if ddls != key => {
+                        self.fetch_dictionary(&SourceRef::data_definition(&ddls))
+                    }
+                    Ok(_) => None,
+                    Err(e) => {
+                        self.record_of(&r, &e);
+                        None
+                    }
+                })
+                .map(|s| Arc::new(abap_sql::cds::parse(&s.text)))
+        } else {
+            None
+        };
+        self.cds.lock().unwrap().insert(key, d.clone());
+        d
+    }
+
+    /// The CDS table functions a database statement reads, directly or
+    /// through CDS views: each with its AMDP method, `class=>method`, and
+    /// the entities on the way, the named data source first.
+    fn table_functions(&self, source: &str) -> Vec<(String, Vec<String>)> {
+        let mut out = Vec::new();
+        let mut path = Vec::new();
+        self.reach_table_functions(source, &mut path, &mut out);
+        out
+    }
+
+    fn reach_table_functions(
+        &self,
+        name: &str,
+        path: &mut Vec<String>,
+        out: &mut Vec<(String, Vec<String>)>,
+    ) {
+        let key = name.to_ascii_uppercase();
+        // views on views stop somewhere; a cycle would be an error of the system
+        if path.len() >= 10 || path.contains(&key) {
+            return;
+        }
+        let Some(d) = self.cds(&key) else { return };
+        path.push(key);
+        if d.kind.contains("table function") {
+            if let Some(method) = d.implemented_by.as_ref().filter(|m| m.contains("=>")) {
+                out.push((method.clone(), path.clone()));
+            }
+        } else {
+            for s in &d.sources {
+                self.reach_table_functions(&s.name, path, out);
+            }
+        }
+        path.pop();
+    }
+
+    /// Calls of the AMDP methods of the CDS table functions that the ABAP
+    /// SQL statements of a source read, directly or through CDS views.
+    fn table_function_calls(&self, file: &abap_syntax::File, unit: &str) -> Vec<m::Call> {
+        let blocks = crate::context::statement_blocks(file);
+        let mut out = Vec::new();
+        for (i, s) in file.statements.iter().enumerate() {
+            let Some(access) = abap_sql::parse_statement(file, s) else {
+                continue;
+            };
+            let mut seen = BTreeSet::new();
+            for t in &access.tables {
+                if t.dynamic
+                    || matches!(t.role, m::DbTableRole::Cte | m::DbTableRole::InternalTable)
+                    || !seen.insert(t.name.to_ascii_uppercase())
+                {
+                    continue;
+                }
+                for (method, through) in self.table_functions(&t.name) {
+                    let Some((class, name)) = method.split_once("=>") else {
+                        continue;
+                    };
+                    let mut c = crate::calls::new_call(
+                        m::CallKind::Method,
+                        name.to_ascii_lowercase(),
+                        false,
+                        vec!["TABLE FUNCTION".to_string()],
+                    );
+                    c.class = Some(class.to_ascii_uppercase());
+                    c.receiver = Some(class.to_ascii_uppercase());
+                    c.is_static = true;
+                    c.through = through;
+                    c.from = blocks[i].clone();
+                    c.unit = Some(unit.to_string());
+                    c.text = file.statement_text(s);
+                    c.span = crate::calls::span_of(file, s);
+                    out.push(c);
+                }
+            }
         }
         out
     }
@@ -1376,6 +1494,7 @@ impl Workspace {
                 self.badi_call(&mut c);
                 out.push(c);
             }
+            out.extend(self.table_function_calls(&u.file, &u.reference.to_string()));
         }
         if let Some(program) =
             program.filter(|_| matches!(object.reference.kind, ObjectKind::Prog | ObjectKind::Fugr))
@@ -2842,6 +2961,163 @@ ENDCLASS.",
             .find(|c| c.name == "lcl_helper")
             .unwrap();
         assert!(helper.implementation.is_some());
+    }
+
+    #[test]
+    fn cds_table_functions_call_their_amdp_method() {
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZSALES_REPORT"),
+            "REPORT zsales_report.\n\
+             SELECT * FROM zi_sales INTO TABLE @DATA(lt_view).\n\
+             SELECT * FROM ztf_sales( p_year = '2026' ) INTO TABLE @DATA(lt_func).\n\
+             SELECT * FROM t100 INTO TABLE @DATA(lt_t100).",
+        );
+        p.insert(
+            SourceRef::data_definition("ZI_SALES"),
+            "define view entity ZI_SALES as select from ZTF_SALES( p_year: '2026' ) { key id }",
+        );
+        p.insert(
+            SourceRef::data_definition("ZTF_SALES"),
+            "define table function ZTF_SALES with parameters p_year : abap.numc(4)\n\
+             returns { key client : abap.clnt; key id : abap.char(10); }\n\
+             implemented by method zcl_sales_amdp=>get_sales;",
+        );
+        p.insert(
+            SourceRef::class("ZCL_SALES_AMDP"),
+            "CLASS zcl_sales_amdp DEFINITION PUBLIC.\n\
+               PUBLIC SECTION.\n\
+                 INTERFACES if_amdp_marker_hdb.\n\
+                 CLASS-METHODS get_sales FOR TABLE FUNCTION ztf_sales.\n\
+             ENDCLASS.\n\
+             CLASS zcl_sales_amdp IMPLEMENTATION.\n\
+               METHOD get_sales BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT\n\
+                 OPTIONS READ-ONLY USING zsales.\n\
+                 RETURN SELECT client, id FROM zsales WHERE year = :p_year;\n\
+               ENDMETHOD.\n\
+             ENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let g = ws.call_graph(&[SourceRef::program("ZSALES_REPORT")], 2);
+        let calls: Vec<String> = g
+            .calls
+            .iter()
+            .map(|c| {
+                format!(
+                    "{} {}=>{} {:?} {:?}{}",
+                    c.span.start.row,
+                    c.class.as_deref().unwrap_or(""),
+                    c.name,
+                    c.options,
+                    c.through,
+                    if c.resolved { " resolved" } else { "" }
+                )
+            })
+            .collect();
+        assert_eq!(
+            calls,
+            [
+                r#"2 ZCL_SALES_AMDP=>get_sales ["TABLE FUNCTION"] ["ZI_SALES", "ZTF_SALES"] resolved"#,
+                r#"3 ZCL_SALES_AMDP=>get_sales ["TABLE FUNCTION"] ["ZTF_SALES"] resolved"#,
+            ]
+        );
+        assert!(g.units.iter().any(|u| u.reference == "CLAS:ZCL_SALES_AMDP"));
+        // in logic, the step reads the tables of the AMDP method too
+        let logic = ws.logic(&SourceRef::program("ZSALES_REPORT"), 2);
+        let tables: Vec<String> = logic.procedures[0]
+            .body
+            .iter()
+            .flat_map(|s| {
+                s.tables.iter().map(move |t| {
+                    let via = t
+                        .via
+                        .as_ref()
+                        .map(|v| format!(" via {}=>{}", v.class.as_deref().unwrap_or(""), v.name));
+                    format!("{} {}{}", s.span.start.row, t.name, via.unwrap_or_default())
+                })
+            })
+            .collect();
+        assert_eq!(
+            tables,
+            [
+                "2 ZI_SALES",
+                "2 ZSALES via zcl_sales_amdp=>get_sales",
+                "3 ZTF_SALES",
+                "3 ZSALES via zcl_sales_amdp=>get_sales",
+                "4 T100",
+            ]
+        );
+        // no data definition T100: no call, no missing object
+        assert!(g.missing.is_empty(), "{:?}", g.missing);
+        // a table function whose data definition has another name, as SAP's
+        // CDSFRWK_TF_FLIGHT_DETAILS of CDS_TF_FLIGHT_DETAILS
+        struct Named(MemoryProvider);
+        impl SourceProvider for Named {
+            fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+                self.0.fetch(r)
+            }
+            fn data_definition(&self, entity: &str) -> abap_source::Result<Option<String>> {
+                Ok((entity == "ZTF_OTHER_NAME").then(|| "ZDDL_TF".to_string()))
+            }
+            fn describe(&self) -> String {
+                "named".into()
+            }
+        }
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZSALES_REPORT"),
+            "REPORT zsales_report.\nSELECT * FROM ztf_other_name INTO TABLE @DATA(lt).",
+        );
+        p.insert(
+            SourceRef::data_definition("ZDDL_TF"),
+            "define table function ZTF_OTHER_NAME returns { key id : abap.char(10); }\n\
+             implemented by method zcl_sales_amdp=>get_other;",
+        );
+        let ws = Workspace::new(Box::new(Named(p)));
+        let calls = ws
+            .call_graph(&[SourceRef::program("ZSALES_REPORT")], 1)
+            .calls;
+        assert_eq!(
+            calls
+                .iter()
+                .map(|c| format!("{:?}=>{} {:?}", c.class, c.name, c.through))
+                .collect::<Vec<_>>(),
+            [r#"Some("ZCL_SALES_AMDP")=>get_other ["ZTF_OTHER_NAME"]"#]
+        );
+        // only names the follow patterns allow are looked up
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZSALES_REPORT"),
+            "REPORT zsales_report.\nSELECT * FROM ztf_sales( p_year = '2026' ) INTO TABLE @DATA(lt).",
+        );
+        let ws = Workspace::new(Box::new(p)).with_follow(Follow {
+            exclude: vec!["ZTF*".to_string()],
+            ..Follow::default()
+        });
+        assert!(ws.cds("ZTF_SALES").is_none());
+    }
+
+    #[test]
+    fn amdp_arguments_are_no_types() {
+        // CL_DEMO_AMDP_FUNCTIONS of the SAP trial: `clnt => :clnt` loaded
+        // the classes CLNT and ":"
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::class("ZCL_AMDP"),
+            "CLASS zcl_amdp DEFINITION PUBLIC.\n\
+               PUBLIC SECTION.\n\
+                 INTERFACES if_amdp_marker_hdb.\n\
+                 CLASS-METHODS get FOR TABLE FUNCTION ztf.\n\
+             ENDCLASS.\n\
+             CLASS zcl_amdp IMPLEMENTATION.\n\
+               METHOD get BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY.\n\
+                 RETURN SELECT * FROM \"ZCL_OTHER=>GET\"( clnt => :clnt, carrid => :carrid );\n\
+               ENDMETHOD.\n\
+             ENDCLASS.",
+        );
+        let ws = Workspace::new(Box::new(p));
+        let object = ws.object(&SourceRef::class("ZCL_AMDP")).unwrap();
+        assert_eq!(named_types(&object), ["IF_AMDP_MARKER_HDB"]);
     }
 
     #[test]

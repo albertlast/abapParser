@@ -52,7 +52,7 @@ export interface Call {
   kind: CallKind;
   /** method, form, function module, program, transaction or include name; for dynamic calls the operand as written */
   name: string;
-  /** additions like `DESTINATION 'NONE'`, `IN UPDATE TASK`, `AND RETURN`, `IF FOUND` */
+  /** additions like `DESTINATION 'NONE'`, `IN UPDATE TASK`, `AND RETURN`, `IF FOUND`; `TABLE FUNCTION` for the AMDP method that a database statement runs by reading a CDS table function */
   options: string[];
   /** program of `PERFORM ... IN PROGRAM` */
   program?: string;
@@ -62,6 +62,8 @@ export interface Call {
   resolved: boolean;
   span: Span;
   text: string;
+  /** for `TABLE FUNCTION`: the CDS entities from the data source the statement names to the table function, like `["ZI_SALES", "ZTF_SALES"]` for a view that reads the table function; upper case */
+  through?: string[];
   /** object the call is in, like `CLAS:ZCL_X`; set by the call graph */
   unit?: string;
   /** why the target was not found, when `resolved` is false; set by the call graph */

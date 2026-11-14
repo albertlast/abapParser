@@ -204,6 +204,21 @@ pub(crate) fn related_classes(
     Ok(select("class relations", &query)?.map(first_column))
 }
 
+/// The data definition of a CDS entity from the dependencies of the data
+/// definitions (DDLDEPENDENCY, object type STOB for the entity); `None` when
+/// the query cannot be answered or no active data definition defines it.
+pub(crate) fn data_definition(select: Select, entity: &str) -> Result<Option<String>> {
+    let key = entity.to_ascii_uppercase();
+    if !is_name(&key) {
+        return Ok(None);
+    }
+    let query = Query::new("DDLDEPENDENCY", &["DDLNAME"])
+        .filter("OBJECTNAME", [key])
+        .filter("OBJECTTYPE", ["STOB"])
+        .filter("STATE", ["A"]);
+    Ok(select("data definitions", &query)?.and_then(|rows| first_column(rows).into_iter().next()))
+}
+
 /// A BAdI of an enhancement spot: interface and fallback class from its
 /// definition, the classes of its active implementations.
 pub(crate) fn spot_badi(select: Select, name: &str) -> Result<Option<Badi>> {

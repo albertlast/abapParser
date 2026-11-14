@@ -1295,6 +1295,7 @@ pub(crate) fn new_call(
         is_static: false,
         dynamic,
         options,
+        through: Vec::new(),
         resolved: false,
         hierarchy_incomplete: false,
         unit: None,

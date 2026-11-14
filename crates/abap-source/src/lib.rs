@@ -468,6 +468,14 @@ pub trait SourceProvider: Send + Sync {
         Ok(None)
     }
 
+    /// The data definition (DDLS) that defines a CDS entity, upper case,
+    /// when the provider knows it: DDIC-based views and table functions may
+    /// have another name than their data definition, like the entity
+    /// `CDSFRWK_TF_FLIGHT_DETAILS` of `CDS_TF_FLIGHT_DETAILS`.
+    fn data_definition(&self, _entity: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
     /// Lookups this provider could not do on its system, like
     /// `enhancements: not available (...)`. Not errors: the analysis goes on
     /// without them.
@@ -574,6 +582,15 @@ impl SourceProvider for ChainProvider {
 
     fn classic_badi(&self, interface: &str) -> Result<Option<Badi>> {
         merged(self.providers.iter().map(|p| p.classic_badi(interface)))
+    }
+
+    fn data_definition(&self, entity: &str) -> Result<Option<String>> {
+        for p in &self.providers {
+            if let Some(d) = p.data_definition(entity)? {
+                return Ok(Some(d));
+            }
+        }
+        Ok(None)
     }
 
     fn notes(&self) -> Vec<String> {
