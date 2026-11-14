@@ -864,8 +864,7 @@ impl<'a> Check<'a> {
         // after the keyword, `SELECT-OPTIONS` is three tokens
         let start = (1..self.t.len()).find(|&k| self.t[k].ws_before)?;
         let mut name = self.t[start].text.trim_start_matches('!').len();
-        for k in start + 1..self.t.len() {
-            let t = self.t[k];
+        for t in &self.t[start + 1..] {
             if t.ws_before || !matches!(t.kind, TokenKind::Dash | TokenKind::Identifier) {
                 break;
             }
