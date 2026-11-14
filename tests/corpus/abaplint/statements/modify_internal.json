@@ -118,5 +118,10 @@
   "abap": "MODIFY TABLE tab USING KEY primary_key FROM foo.",
   "expect": "match",
   "type": "ModifyInternal"
+ },
+ {
+  "abap": "MODIFY lt_rows FROM VALUE #( )\n           TRANSPORTING field1 field2 field3 field4\n           WHERE key1 = ls_row-key1\n             AND key2 = ls_row-key2\n             AND key3 = ls_row-key3.",
+  "expect": "match",
+  "type": "ModifyInternal"
  }
 ]

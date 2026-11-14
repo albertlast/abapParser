@@ -408,7 +408,7 @@ impl Lexer {
             Mode::Normal | Mode::Pragma => {
                 if length > 2 && text.starts_with("##") {
                     TokenKind::Pragma
-                } else if length == 1 {
+                } else if length == 1 && first != '\\' {
                     match first {
                         '.' | ',' => TokenKind::Punctuation,
                         '[' => TokenKind::BracketLeft,
@@ -562,6 +562,26 @@ mod tests {
     #[test]
     fn simple_statement() {
         assert_eq!(texts("DATA foo TYPE i."), ["DATA", "foo", "TYPE", "i", "."]);
+    }
+
+    #[test]
+    fn lone_backslash_after_a_name_is_an_association() {
+        assert_eq!(
+            names(r"x TYPE TABLE FOR UPDATE /foo/bar\\moo \ y."),
+            [
+                "Identifier",
+                "Identifier",
+                "Identifier",
+                "Identifier",
+                "Identifier",
+                "Identifier",
+                "AssociationName",
+                "AssociationName",
+                "Identifier",
+                "Identifier",
+                "Punctuation"
+            ]
+        );
     }
 
     #[test]

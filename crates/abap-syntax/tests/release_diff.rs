@@ -58,7 +58,7 @@ const PREDICATE_FUNCTION: &str = "predicate function";
 
 /// Constructs dated by SAP's ABAP release news where abaplint gives another
 /// release: `INTO @DATA(x)` came with 7.40 SP08, not SP05, for example.
-const RELEASE_NEWS: [&str; 16] = [
+const RELEASE_NEWS: [&str; 27] = [
     "inline declaration in SQL",
     "inline declaration for OPEN CURSOR",
     "path expression",
@@ -75,6 +75,19 @@ const RELEASE_NEWS: [&str; 16] = [
     "SQL regular expression",
     "SUBSTRING_REGEXPR",
     "FINAL",
+    // constructs abaplint does not know, dated by the release news of
+    // their release
+    "AMDP OPTIONS",
+    "AMDP CLIENT INDEPENDENT",
+    "AMDP CDS SESSION CLIENT DEPENDENT",
+    "THROW MESSAGE",
+    "READ TABLE WHERE",
+    "table expression with TABLE KEY",
+    "FOR STEP",
+    "CORRESPONDING APPENDING",
+    "FILTER with the key of the source table",
+    "SQL typed literal",
+    "ELSE UNASSIGN",
 ];
 
 fn by_release_news(needs: &[abap_syntax::release::Need]) -> bool {

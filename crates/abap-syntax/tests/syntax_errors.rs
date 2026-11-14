@@ -1,16 +1,12 @@
-//! The syntax checks: they must report none of the statements abaplint
-//! accepts, on the corpus and in abaplint's test cases, and they should
-//! report the cases abaplint rejects.
-//!
-//! The corpus part needs golden data from the oracle, otherwise it is
-//! skipped: `node tools/oracle.mjs tests/corpus/golden --list tests/corpus/corpora.txt`.
+//! The syntax checks: they must report no statement of the corpus, which is
+//! code that compiles, apart from errors an SAP system confirms, and none of
+//! the cases abaplint accepts, apart from the ones an SAP system rejects;
+//! they should report the cases abaplint rejects.
 //!
 //! Run with `cargo test --release -p abap-syntax --test syntax_errors -- --nocapture`
 //! to see the report.
 
 mod common;
-
-use std::collections::HashMap;
 
 use abap_syntax::check::syntax_error;
 use abap_syntax::StatementKind;
@@ -19,75 +15,73 @@ use serde::Deserialize;
 /// Baseline; raise when improving.
 const MIN_REJECTED: usize = 96;
 
-#[derive(Deserialize)]
-struct Golden {
-    file: String,
-    statements: Vec<GoldenStatement>,
-}
+/// Syntax errors the corpus really has, each confirmed by the syntax check
+/// of an SAP system: the end of the file's path and the start of the
+/// statement's text, tokens joined by blanks.
+const REAL_ERRORS: &[(&str, &str)] = &[];
 
-#[derive(Deserialize)]
-struct GoldenStatement {
-    #[serde(rename = "type")]
-    kind: String,
-    tokens: Vec<(u32, u32)>,
-}
+/// Cases abaplint accepts and the syntax check of an SAP system (8.16)
+/// rejects, with its message.
+const SAP_REJECTS: &[&str] = &[
+    // A component name was expected after "-".
+    "IF foo- = 2.",
+    // no name ends with a dash: Field "CHAR-" is unknown.
+    "SELECT SINGLE foo FROM bar WHERE column IN (sdf, char-).",
+    // The elements in the "SELECT LIST" list must be separated using commas
+    // (strict mode, from the host variables with @).
+    "SELECT f1 SUM( f2 ) AS s1 SUM( f3 ) AS s2 FROM ztab INTO CORRESPONDING FIELDS OF TABLE @lt GROUP BY f1 HAVING SUM( f2 ) <> 0 OR SUM( f3 ) <> 0.",
+    "SELECT f1 SUM( ABS( f2 ) ) AS s1 MAX( f3 ) AS s2 INTO CORRESPONDING FIELDS OF TABLE @lt FROM ztab GROUP BY f1 HAVING SUM( ABS( f2 ) ) <> MAX( f3 ).",
+    "SELECT f1 SUM( f2 ) AS s FROM ztab AS t1 GROUP BY f1 HAVING COUNT( * ) > ( SELECT COUNT( * ) FROM ztab2 WHERE f3 = SUM( t1~f2 ) ) INTO TABLE @lt.",
+];
 
 #[test]
-fn no_error_in_what_abaplint_accepts() {
+fn no_error_in_the_corpus() {
     let root = common::repo_root();
-    let files = common::json_files(&root.join("tests/corpus/golden/tests"));
-    if files.is_empty() {
-        println!("skipped: no golden data, see the comment at the top of this file");
-        return;
-    }
     let mut checked = 0;
+    let mut real = 0;
     let mut wrong = Vec::new();
-    for f in &files {
-        let golden: Golden = serde_json::from_str(&std::fs::read_to_string(f).unwrap()).unwrap();
-        let accepted: HashMap<Vec<(u32, u32)>, String> = golden
-            .statements
-            .into_iter()
-            .filter(|s| s.kind != "Unknown")
-            .map(|s| (s.tokens, s.kind))
-            .collect();
-        let path = root.join(&golden.file);
-        let source = std::fs::read_to_string(&path).unwrap();
+    for path in common::corpus_files() {
+        let source = String::from_utf8_lossy(&std::fs::read(&path).unwrap()).into_owned();
         let parsed = abap_syntax::parse_with_macros(&source, &common::sibling_macros(&path));
-        let tokens = parsed.tokens();
+        let file = path
+            .strip_prefix(&root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
         for s in &parsed.statements {
-            let key: Vec<(u32, u32)> = s
-                .tokens
+            checked += 1;
+            let Some(e) = syntax_error(&parsed, s) else {
+                continue;
+            };
+            let text = abap_syntax::join_tokens(parsed.statement_tokens(s));
+            if REAL_ERRORS
                 .iter()
-                .map(|i| (tokens[*i].start.row, tokens[*i].start.col))
-                .collect();
-            if !accepted.contains_key(&key) {
+                .any(|(f, t)| file.ends_with(f) && text.starts_with(t))
+            {
+                real += 1;
                 continue;
             }
-            checked += 1;
-            if let Some(e) = syntax_error(&parsed, s) {
-                wrong.push(format!(
-                    "{}:{} {}: {}",
-                    golden.file,
-                    key[0].0,
-                    e.message,
-                    abap_syntax::join_tokens(parsed.statement_tokens(s))
-                        .chars()
-                        .take(140)
-                        .collect::<String>()
-                ));
-            }
+            let at = &parsed.tokens()[s.tokens[e.token]];
+            wrong.push(format!(
+                "{file}:{} {} at `{}`: {}",
+                at.start.row,
+                e.message,
+                at.text,
+                text.chars().take(160).collect::<String>()
+            ));
         }
     }
-    for w in wrong.iter().take(40) {
+    for w in &wrong {
         println!("  {w}");
     }
     println!(
-        "\nstatements abaplint accepts: {checked}, reported as errors: {}",
+        "
+corpus statements: {checked}, real errors: {real}, reported otherwise: {}",
         wrong.len()
     );
     assert!(
         wrong.is_empty(),
-        "{} accepted statements reported",
+        "{} corpus statements reported",
         wrong.len()
     );
 }
@@ -128,8 +122,9 @@ fn abaplint_cases() {
             let error = syntax_error(&file, s);
             match case.expect.as_str() {
                 "match" => {
-                    if let Some(e) = error {
-                        wrong.push(format!("{}: {}", e.message, case.abap.replace('\n', " ")));
+                    let abap = case.abap.replace('\n', " ");
+                    if let Some(e) = error.filter(|_| !SAP_REJECTS.contains(&abap.as_str())) {
+                        wrong.push(format!("{}: {abap}", e.message));
                     }
                 }
                 // rejected at every release, not only at an older one

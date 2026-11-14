@@ -1,8 +1,9 @@
-//! Syntax errors in statements whose kind is known: what the kind's grammar
-//! does not allow, like a keyword as a column (`SELECT WHERE FROM t`) or
-//! parameter sections out of order. The checks cover errors seen in
-//! abaplint's test cases (<https://github.com/abaplint/abaplint>, MIT); a
-//! statement without an error found is not necessarily correct.
+//! Syntax errors in statements whose kind is known. Checks for single errors
+//! come first, with a message of their own, like a keyword as a column
+//! (`SELECT WHERE FROM t`) or parameter sections out of order; they cover
+//! errors seen in abaplint's test cases (<https://github.com/abaplint/abaplint>,
+//! MIT), SAP's documentation and the syntax check of an SAP system. Then the
+//! statement is matched against the grammar of its kind, see `src/grammar`.
 //!
 //! Each check is held against the corpus: no statement abaplint accepts may
 //! be reported.
@@ -26,7 +27,7 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         return None;
     }
     let c = Check::new(file, s);
-    let error = match s.kind {
+    let found = match s.kind {
         K::Select | K::SelectLoop | K::With | K::WithLoop | K::OpenCursor => c.select(),
         K::MethodDef => c.method_def(),
         K::Data | K::Static | K::ClassData | K::Type => c.data_type(),
@@ -46,9 +47,16 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         K::Message => c.message(file, s),
         K::Form => c.form_parameters(),
         K::GetPermissions => c.get_permissions(),
+        K::Parameter | K::SelectOption => c.selection_name(),
         _ => None,
     };
-    error.or_else(|| c.dynamic_component())
+    found
+        .or_else(|| c.dynamic_component())
+        .or_else(|| c.builtin_without_argument(file))
+        .or_else(|| {
+            crate::grammar::mismatch(&c.t, s.kind)
+                .and_then(|token| error(token, "does not match the statement grammar"))
+        })
 }
 
 struct Check<'a> {
@@ -113,7 +121,9 @@ impl<'a> Check<'a> {
 
     fn select(&self) -> Option<SyntaxError> {
         for i in 0..self.w.len() {
-            if self.word(i) != "SELECT" {
+            // `SELECT select FROM`: a column, SAP reports it as unknown
+            let column = i > 0 && matches!(self.word(i - 1), "SELECT" | "SINGLE");
+            if self.word(i) != "SELECT" || column {
                 continue;
             }
             // SELECT [SINGLE] <keyword> FROM
@@ -240,8 +250,16 @@ impl<'a> Check<'a> {
             start += 1;
         }
         if self.word(start) == "FROM" {
-            // SELECT FROM ... FIELDS list
-            start = (start..end).find(|&k| self.depth[k] == d && self.word(k) == "FIELDS")? + 1;
+            // SELECT FROM ... FIELDS list; without FIELDS SAP reports the
+            // INTO after FROM as "invalid here (due to grammar)"
+            let fields = (start..end)
+                .filter(|&k| self.depth[k] == d)
+                .take_while(|&k| !matches!(self.word(k), "UNION" | "INTERSECT" | "EXCEPT"))
+                .find(|&k| self.word(k) == "FIELDS");
+            match fields {
+                Some(k) => start = k + 1,
+                None => return error(start, "SELECT FROM without FIELDS"),
+            }
         }
         let stop = (start..end)
             .find(|&k| self.depth[k] == d && (END.contains(&self.word(k)) || self.word(k) == "."))
@@ -255,11 +273,21 @@ impl<'a> Check<'a> {
                 || (text.starts_with('/') && text.len() > 1);
             self.t[k].kind == TokenKind::Identifier && name && !KEYWORDS.contains(&self.word(k))
         };
-        if top.iter().any(|&k| self.word(k) == ",") {
+        // SAP `abenabap_sql_strictmode_740_sp05`: a host variable with `@`
+        // puts the statement in strict mode, where "all lists of operands
+        // must be comma-separated lists"
+        let commas = top.iter().any(|&k| self.word(k) == ",");
+        let strict = self.t.iter().any(|t| t.kind == TokenKind::At);
+        if commas || strict {
             for pair in top.windows(2) {
                 let (a, b) = (pair[0], pair[1]);
                 if b == a + 1 && self.t[b].ws_before && column(a) && column(b) {
-                    return error(b, "blanks and commas mixed in the SELECT list");
+                    let message = if commas {
+                        "blanks and commas mixed in the SELECT list"
+                    } else {
+                        "SELECT list without commas in strict mode"
+                    };
+                    return error(b, message);
                 }
             }
         }
@@ -828,7 +856,92 @@ impl<'a> Check<'a> {
         }
         None
     }
+
+    /// The name of a parameter or selection criterion has up to eight
+    /// characters, dashes included (SAP: "The parameter name ... can be up to
+    /// eight characters long").
+    fn selection_name(&self) -> Option<SyntaxError> {
+        // after the keyword, `SELECT-OPTIONS` is three tokens
+        let start = (1..self.t.len()).find(|&k| self.t[k].ws_before)?;
+        let mut name = self.t[start].text.trim_start_matches('!').len();
+        for t in &self.t[start + 1..] {
+            if t.ws_before || !matches!(t.kind, TokenKind::Dash | TokenKind::Identifier) {
+                break;
+            }
+            name += t.text.len();
+        }
+        if name > 8 {
+            return error(start, "name longer than eight characters");
+        }
+        None
+    }
+
+    /// A built-in function called without an argument, `strlen( )`, unless
+    /// the file declares a method of that name, which hides the function.
+    fn builtin_without_argument(&self, file: &File) -> Option<SyntaxError> {
+        let k = (0..self.t.len().saturating_sub(2)).find(|&k| {
+            let (name, open, close) = (self.t[k], self.t[k + 1], self.t[k + 2]);
+            let component = k > 0
+                && matches!(
+                    self.t[k - 1].kind,
+                    TokenKind::InstanceArrow | TokenKind::StaticArrow | TokenKind::Dash
+                );
+            !component
+                && name.kind == TokenKind::Identifier
+                && open.kind == TokenKind::ParenLeft
+                && !open.ws_before
+                && close.kind == TokenKind::ParenRight
+                && BUILTINS_WITH_ARGUMENT.contains(&self.word(k))
+        })?;
+        let method = file
+            .statements
+            .iter()
+            .filter(|s| matches!(s.kind, K::MethodDef | K::MethodImplementation | K::Aliases))
+            .flat_map(|s| file.statement_tokens(s))
+            .any(|t| t.upper() == self.word(k));
+        if method {
+            return None;
+        }
+        error(k, "built-in function without an argument")
+    }
 }
+
+/// Built-in functions that take at least one argument; SAP rejects
+/// `strlen( )`. Names that are common method names too, like `count` or
+/// `find`, are left out: a method of a superclass would hide the function.
+const BUILTINS_WITH_ARGUMENT: [&str; 31] = [
+    "STRLEN",
+    "XSTRLEN",
+    "NUMOFCHAR",
+    "CHARLEN",
+    "DBMAXLEN",
+    "LINES",
+    "LINE_EXISTS",
+    "LINE_INDEX",
+    "BOOLC",
+    "BOOLX",
+    "XSDBOOL",
+    "TO_UPPER",
+    "TO_LOWER",
+    "TO_MIXED",
+    "FROM_MIXED",
+    "CONDENSE",
+    "CONCAT_LINES_OF",
+    "SUBSTRING",
+    "SUBSTRING_AFTER",
+    "SUBSTRING_BEFORE",
+    "SUBSTRING_FROM",
+    "SUBSTRING_TO",
+    "SHIFT_LEFT",
+    "SHIFT_RIGHT",
+    "CONTAINS",
+    "CONTAINS_ANY_OF",
+    "CONTAINS_ANY_NOT_OF",
+    "IPOW",
+    "NMAX",
+    "NMIN",
+    "UTCLONG_DIFF",
+];
 
 fn is_call(kind: &ExprKind) -> bool {
     let ExprKind::Chain(chain) = kind else {

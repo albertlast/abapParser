@@ -110,6 +110,14 @@ fn main() {
         }),
     );
     report(
+        "statements",
+        best(runs, || {
+            texts.iter().for_each(|t| {
+                black_box(abap_analysis::statements(t));
+            })
+        }),
+    );
+    report(
         "symbols",
         best(runs, || {
             texts.iter().for_each(|t| {
