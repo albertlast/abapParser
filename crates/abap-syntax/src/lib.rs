@@ -7,6 +7,7 @@ pub mod check;
 mod classify;
 pub mod decl;
 pub mod expr;
+mod grammar;
 mod kind;
 pub mod operands;
 pub mod release;

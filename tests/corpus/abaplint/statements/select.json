@@ -1612,6 +1612,36 @@
   "release": "OpenABAP"
  },
  {
+  "abap": "SELECT ( 'F' && b~code ) AS code FROM ztab AS b INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "Select",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "SELECT b~amount * 2 AS amount FROM ztab AS b INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "Select",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "SELECT b~material, ( b~amount + b~fee ) * 2 AS total FROM ztab AS b INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "Select",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "SELECT b~material, SUM( b~amount ) + SUM( b~fee ) AS total FROM ztab AS b GROUP BY b~material INTO TABLE @DATA(result).",
+  "expect": "match",
+  "type": "Select",
+  "release": "OpenABAP"
+ },
+ {
+  "abap": "SELECT DISTINCT @zif_const=>sign_include AS sign,\n      @zif_const=>option_equal AS option,\n      field1 AS low,\n      CAST( @space AS CHAR( 4 ) ) AS high\n    FROM zsource AS src\n    WHERE field1 IN @ir_field1\n      AND EXISTS ( SELECT MAX( datefield ) FROM zevents\n                   WHERE field1 = src~field1\n                   HAVING MAX( datefield ) < @sy-datum )\n    INTO TABLE @rt_range.",
+  "expect": "match",
+  "type": "Select",
+  "release": "OpenABAP"
+ },
+ {
   "abap": "SELECT company, category, item, price, row_number( ) over( ) AS rn FROM @ztable AS t ORDER BY rn INTO TABLE @DATA(result).",
   "expect": "match",
   "type": "Select",

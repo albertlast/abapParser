@@ -219,6 +219,45 @@ struct Scan<'a> {
     needs: Vec<Need>,
 }
 
+/// The dictionary types of typed literals in ABAP SQL, `char`X``.
+const SQL_TYPED_LITERALS: [&str; 35] = [
+    "CHAR",
+    "CLNT",
+    "CUKY",
+    "CURR",
+    "DATN",
+    "DATS",
+    "DEC",
+    "DECFLOAT16",
+    "DECFLOAT34",
+    "D16N",
+    "D34N",
+    "D16D",
+    "D34D",
+    "D16R",
+    "D34R",
+    "DF16_RAW",
+    "DF34_RAW",
+    "DF16_DEC",
+    "DF34_DEC",
+    "FLTP",
+    "INT1",
+    "INT2",
+    "INT4",
+    "INT8",
+    "LANG",
+    "NUMC",
+    "QUAN",
+    "RAW",
+    "RAWSTRING",
+    "SSTRING",
+    "STRING",
+    "TIMN",
+    "TIMS",
+    "UNIT",
+    "UTCLONG",
+];
+
 /// Constructor operators and the release that brought each.
 const CONSTRUCTORS: [(&str, Release); 11] = [
     ("NEW", Release::V740Sp02),
@@ -324,11 +363,38 @@ const KEYWORDS: &[(&[K], &str, Release, &str)] = &[
         "RAISE EXCEPTION USING MESSAGE",
     ),
     (&[K::Find, K::Replace], "PCRE", Release::V755, "PCRE"),
+    // also after ASSIGNING of READ TABLE, LOOP AT, INSERT and MODIFY, as
+    // SAP's release news of 7.57 say
     (
-        &[K::Assign],
+        &[
+            K::Assign,
+            K::ReadTable,
+            K::Loop,
+            K::InsertInternal,
+            K::ModifyInternal,
+        ],
         "ELSE UNASSIGN",
         Release::V757,
         "ELSE UNASSIGN",
+    ),
+    // AMDP options, by SAP's release news of 7.52, 7.58 and 8.16
+    (
+        &[K::MethodDef],
+        "AMDP OPTIONS",
+        Release::V752,
+        "AMDP OPTIONS",
+    ),
+    (
+        &[K::MethodDef],
+        "CLIENT INDEPENDENT",
+        Release::V758,
+        "AMDP CLIENT INDEPENDENT",
+    ),
+    (
+        &[K::MethodDef],
+        "CDS SESSION CLIENT DEPENDENT",
+        Release::V816,
+        "AMDP CDS SESSION CLIENT DEPENDENT",
     ),
     (
         &[K::ClassDefinition],
@@ -494,6 +560,10 @@ impl<'a> Scan<'a> {
                     if t.ws_after && self.kind_at(i + 1) != Some(TokenKind::BracketRight) =>
                 {
                     self.need(Release::V740Sp02, "table expression");
+                    // itab[ TABLE KEY k ... ], by SAP's release news of 8.16
+                    if self.word(i + 1) == "TABLE" && self.word(i + 2) == "KEY" {
+                        self.need(Release::V816, "table expression with TABLE KEY");
+                    }
                 }
                 // get_ref( )->*
                 TokenKind::InstanceArrow
@@ -539,6 +609,20 @@ impl<'a> Scan<'a> {
                     self.need(Release::V740Sp02, "inline declaration")
                 }
                 "FINAL" if self.tight_paren(i + 1) => self.need(Release::V757, "FINAL"),
+                // THROW cx( MESSAGE ... ), by SAP's release news of 7.50
+                "THROW" => {
+                    let class = if matches!(self.word(i + 1), "RESUMABLE" | "SHORTDUMP") {
+                        i + 2
+                    } else {
+                        i + 1
+                    };
+                    if self
+                        .type_then_paren(class)
+                        .is_some_and(|open| self.word(open + 1) == "MESSAGE")
+                    {
+                        self.need(Release::V750, "THROW MESSAGE");
+                    }
+                }
                 "FIELD"
                     if self.kind_at(i + 1) == Some(TokenKind::Dash)
                         && self.word(i + 2) == "SYMBOL"
@@ -629,6 +713,19 @@ impl<'a> Scan<'a> {
         k > 1 && CONSTRUCTORS.iter().any(|(c, _)| *c == self.word(k - 2))
     }
 
+    /// Whether the FOR iteration at `at` has the addition STEP, before its
+    /// WHERE condition or line specification.
+    fn for_step(&self, at: usize, depth: u32) -> bool {
+        (at + 1..self.t.len())
+            .take_while(|&k| {
+                self.depth[k] >= depth
+                    && !(self.depth[k] == depth
+                        && (self.t[k].kind == TokenKind::ParenLeft
+                            || matches!(self.word(k), "FOR" | "NEXT" | "LET")))
+            })
+            .any(|k| self.depth[k] == depth && self.word(k) == "STEP")
+    }
+
     /// Whether the token is inside the `{ }` of a string template.
     fn depth_in_template(&self, i: usize) -> bool {
         self.t[..i]
@@ -657,7 +754,27 @@ impl<'a> Scan<'a> {
                         self.need(Release::V740Sp08, "FOR GROUPS")
                     }
                     "FOR" if matches!(self.word(i + 2), "IN" | "=") => {
-                        self.need(Release::V740Sp05, "FOR iteration")
+                        self.need(Release::V740Sp05, "FOR iteration");
+                        if self.for_step(i, inside) {
+                            self.need(Release::V757, "FOR STEP");
+                        }
+                    }
+                    // CORRESPONDING #( APPENDING ... ), by SAP's release news
+                    // of 7.56
+                    "APPENDING" if keyword == "CORRESPONDING" => {
+                        self.need(Release::V756, "CORRESPONDING APPENDING")
+                    }
+                    // FILTER #( itab USING KEY k IN ftab ... ): the key of the
+                    // source table with a filter table, by SAP's release news
+                    // of 7.52
+                    "USING"
+                        if keyword == "FILTER"
+                            && self.word(i + 1) == "KEY"
+                            && (i..self.t.len())
+                                .take_while(|&k| self.depth[k] >= inside)
+                                .any(|k| self.depth[k] == inside && self.word(k) == "IN") =>
+                    {
+                        self.need(Release::V752, "FILTER with the key of the source table")
                     }
                     "OPTIONAL" | "DEFAULT"
                         if keyword == "VALUE"
@@ -739,6 +856,13 @@ impl<'a> Scan<'a> {
         if self.kind == K::Loop && self.loop_step() {
             self.need(Release::V757, "LOOP STEP");
         }
+        // READ TABLE itab ... WHERE, by SAP's release news of 8.16; not a
+        // WHERE inside an operand like FILTER #( ... WHERE ... )
+        if self.kind == K::ReadTable
+            && (0..self.w.len()).any(|i| self.depth[i] == 0 && self.word(i) == "WHERE")
+        {
+            self.need(Release::V816, "READ TABLE WHERE");
+        }
         if self.kind == K::Return && words > 1 {
             self.need(Release::V758, "RETURN with a value");
         }
@@ -793,6 +917,16 @@ impl<'a> Scan<'a> {
         let mut clause = String::new();
         for i in 0..self.t.len() {
             let t = self.t[i];
+            // typed literals like char`X`, by SAP's release news of 7.55
+            if t.kind == TokenKind::String
+                && t.text.starts_with('`')
+                && !t.ws_before
+                && i > 0
+                && self.t[i - 1].kind == TokenKind::Identifier
+                && SQL_TYPED_LITERALS.contains(&self.word(i - 1))
+            {
+                self.need(Release::V755, "SQL typed literal");
+            }
             if t.kind == TokenKind::At {
                 self.need(Release::V740Sp05, "host variable with @");
                 if self.word(i + 1) == "DATA" && self.tight_paren(i + 2) {
@@ -1360,6 +1494,81 @@ mod tests {
             .find(|s| s.kind != K::Comment)
             .unwrap();
         statement_release(&file, s).map(|n| (n.release, n.construct))
+    }
+
+    /// Constructs abaplint does not know, dated by SAP's release news.
+    #[test]
+    fn constructs_from_the_release_news() {
+        let cases = [
+            (
+                "READ TABLE itab INTO wa WHERE a > 1.",
+                Release::V816,
+                "READ TABLE WHERE",
+            ),
+            (
+                "READ TABLE itab INTO wa WHERE (cond).",
+                Release::V816,
+                "READ TABLE WHERE",
+            ),
+            (
+                "READ TABLE itab ASSIGNING <fs> ELSE UNASSIGN INDEX 1.",
+                Release::V757,
+                "ELSE UNASSIGN",
+            ),
+            (
+                "wa = itab[ TABLE KEY sk a = 1 ].",
+                Release::V816,
+                "table expression with TABLE KEY",
+            ),
+            (
+                "t = VALUE #( FOR w IN itab STEP -1 ( w ) ).",
+                Release::V757,
+                "FOR STEP",
+            ),
+            (
+                "wa = CORRESPONDING #( APPENDING ( wa ) wa2 ).",
+                Release::V756,
+                "CORRESPONDING APPENDING",
+            ),
+            (
+                "f = FILTER #( itab USING KEY sk EXCEPT IN ftab WHERE a = table_line ).",
+                Release::V752,
+                "FILTER with the key of the source table",
+            ),
+            (
+                "x = COND #( WHEN a = 1 THEN 1 ELSE THROW cx( MESSAGE e005(zd) ) ).",
+                Release::V750,
+                "THROW MESSAGE",
+            ),
+            (
+                "SELECT SINGLE char`X` AS c FROM t INTO @x.",
+                Release::V755,
+                "SQL typed literal",
+            ),
+            (
+                "METHODS m AMDP OPTIONS READ-ONLY CDS SESSION CLIENT DEPENDENT.",
+                Release::V816,
+                "AMDP CDS SESSION CLIENT DEPENDENT",
+            ),
+            (
+                "METHODS m AMDP OPTIONS CLIENT INDEPENDENT.",
+                Release::V758,
+                "AMDP CLIENT INDEPENDENT",
+            ),
+            (
+                "METHODS m AMDP OPTIONS READ-ONLY CDS SESSION CLIENT CURRENT.",
+                Release::V752,
+                "AMDP OPTIONS",
+            ),
+        ];
+        for (abap, release, construct) in cases {
+            assert_eq!(need(abap), Some((release, construct)), "{abap}");
+        }
+        // a WHERE inside an operand is not READ TABLE ... WHERE
+        assert_ne!(
+            need("READ TABLE FILTER #( itab WHERE a = 1 ) INTO wa INDEX 1.").map(|n| n.1),
+            Some("READ TABLE WHERE")
+        );
     }
 
     #[test]

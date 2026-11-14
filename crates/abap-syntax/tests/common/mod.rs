@@ -58,3 +58,35 @@ pub fn sibling_macros(path: &std::path::Path) -> Vec<abap_syntax::MacroDef> {
     }
     out
 }
+
+/// The ABAP files of the corpora of tests/corpus/corpora.txt that are
+/// checked out, sorted.
+pub fn corpus_files() -> Vec<PathBuf> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, out);
+            } else if p.extension().is_some_and(|x| x == "abap") {
+                out.push(p);
+            }
+        }
+    }
+    let root = repo_root();
+    let list = std::fs::read_to_string(root.join("tests/corpus/corpora.txt")).unwrap();
+    let mut out = Vec::new();
+    for line in list
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+    {
+        for dir in line.split_whitespace() {
+            walk(&root.join(dir), &mut out);
+        }
+    }
+    out.sort();
+    out
+}
