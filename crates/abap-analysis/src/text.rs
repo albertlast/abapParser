@@ -419,6 +419,16 @@ pub fn cds(d: &m::CdsDefinition) -> String {
         head.push_str(&format!(" '{l}'"));
     }
     line(&mut out, 0, &head, Some(&d.span));
+    if let Some(r) = &d.release {
+        let _ = writeln!(out, "  needs {} ({})", r.release, r.construct);
+    }
+    if let Some(e) = &d.error {
+        let _ = writeln!(
+            out,
+            "  syntax error at {}:{} `{}`: {}",
+            e.start.row, e.start.col, e.text, e.message
+        );
+    }
     if !d.parameters.is_empty() {
         let p: Vec<String> = d
             .parameters

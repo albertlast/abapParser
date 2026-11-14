@@ -1,0 +1,1358 @@
+[
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust {\n  key foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust {\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n    define view zhvamfoocust as select from zhvam_cust {\n        key foo as sdfdsf,\n        client\n    };",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZAG_UNIT_TEST_V'\n@AbapCatalog.compiler.compareFilter: true\n@AccessControl.authorizationCheck: #CHECK\n@EndUserText.label: 'Hello'\ndefine view ZAG_UNIT_TEST\n  as select from tadir\n{\n  pgmid,\n  object,\n  obj_name\n} ",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZAG_UNIT_TEST_V'\n@AbapCatalog.compiler.compareFilter: true\n@AccessControl.authorizationCheck: #CHECK\n@EndUserText.label: 'Hel''lo'\ndefine view ZAG_UNIT_TEST\n  as select from tadir\n{\n  pgmid,\n  object,\n  obj_name\n} ",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n    define view zhvamfoocust as select from zhvam_cust {\n        key foo as sdfdsf,\n        @Semantics.language\n        client\n    };",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n    define view zhvamf3oocust as select from zhv3am_cust {\n        key fo3o as sdf3dsf,\n        cli3ent\n    };",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n@EndUserText.label: 'foo bar hello world'\ndefine view zhvamfoocust as select from zhvam_cust {\n  key foo as sdfdsf,\n  sdfds\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n@AccessControl.authorizationCheck: #NOT_ALLOWED\ndefine view zhvamfoocust as select from zhvam_cust {\n  key foo as sdfdsf,\n  sdfds\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust {\n  // sdfdsfjsl jfsdlkfds lkjfds fdslkfds lkjfds lkfs\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust\nassociation [1..1] to I_CalendarQuarter as _CalendarQuarter on $projection.CalendarQuarter = _CalendarQuarter.CalendarQuarter\n{\n  // sdfdsfjsl jfsdlkfds lkjfds fdslkfds lkjfds lkfs\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.buffering.numberOfKeyFields: 2\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "define view zhvamfoocust as select from zhvam_cust\n{\n  @Search.fuzzinessThreshold: 0.8\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "@Analytics: {dataExtraction.enabled: true}\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key foo as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "define view zhvamfoocust as select from zhvam_cust\n{\n  key cast(foo as bar) as sdfdsf\n};",
+  "valid": true
+ },
+ {
+  "cds": "define view zhvamfoocust as select from zhvam_cust\n{\n  key foo as sdfdsf\n} WHERE foo.bar = 'A'",
+  "valid": true
+ },
+ {
+  "cds": "define view zhvamfoocust as select from zhvam_cust\n{\n  key zhvam_cust.foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "@Analytics : {dataCategory: #DIMENSION, dataExtraction.enabled : true}\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key zhvam_cust.foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "@Analytics:{ dataExtraction: { enabled: true } }\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key zhvam_cust.foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key zhvam_cust.foo as sdfdsf,\n  cast ( substring( cast( foo.from_timestamp as abap.char( 17 ) ), 1, 8 ) as abap.dats ) as ValidityStartDate\n}",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'Status - Text'\ndefine view zhvamfoocust as select from zhvam_cust\n{\n  key zhvam_cust.foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n    define abstract entity sdfdsfds\n    {\n      key TransportRequestID : trkorr;\n    }",
+  "valid": true
+ },
+ {
+  "cds": "\n    define root abstract entity I_PARAM_SHARE_DRAFT\n    {\n      key DummyKey : abap.char(1);\n      Users  : association [1..*] to I_PARAM_SHARE_DRAFT_Content on 1 = 1;\n    }",
+  "valid": true
+ },
+ {
+  "cds": "\n    /*+[hideWarning] { \"IDS\" : [ \"CARDINALITY_CHECK\" ]  }       UserID is not key of sdfds*/\n    define abstract entity sdfdsfds\n    {\n      key TransportRequestID : trkorr;\n    }",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n     case substring('sdf', 1, 2)\n       when 'YY' then 'X'\n       else  ''\n       end as sdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n     case substring('sdf', -1, 2)\n       when 'YY' then 'X'\n       else  ''\n       end as sdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n     (case substring('sdf', 1, 2)\n       when 'YY' then 'X'\n       else  ''\n       end ) as sdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n     case substring('sdf', 1, 2)\n       when 'YY' then 1\n       else  2\n       end as sdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n  case\n    when I_asdfsd.Name='' then 2\n    when I_asdfsd.Name<'' then 2\n    when I_asdfsd.Name>'' then 2\n    else 1\n  end as sdf\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n  case\n    when I_asdfsd.Name <> '' then 2\n    else 1\n  end as sdf\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n  case\n    when I_asdfsd.Name >= '' then 2\n    else 1\n  end as sdf\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from I_asdfsd {\n  case\n    when I_asdfsd.Name <= '' then 2\n    else 1\n  end as sdf\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity name1\n  provider contract transactional_interface\n  as projection on name3\n{\n  key field1,\n      field2\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine abstract entity name1\n{\n  name2 : type2;\n  name3 : type3;\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine abstract entity footbar2\n{\n  key context : abap.string;\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view zsdfsd as select from Blah as foo {\n  foo.Name\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view zsdfsd as select from Blah as foo {\n  max(foo.Name) as sdfsdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@EndUserText.label: 'View blah'\n@AccessControl.authorizationCheck: #CHECK\ndefine root view entity /foo/b_ar001 as projection on /foo/b_ar001 {\n    key blah,\n    field1,\n    field2\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity /foo/basr as select from zsdfsdf {\n  key variant as var,\n      comment as comment\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity /foo/basr as select from /foo/sdf {\n  key variant as var,\n      comment as comment\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root custom entity /foo/bar\n{\n  key ReportGuid : abap.char( 22 );\n  S_Tab    : tabname;\n  @Consumption.filter:{ hidden:true }\n  A_Del      : abap.char( 1 );\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view /bar/fsdfsd as select from /foo/sdf as header composition [0..*] of /foo/bar as _item\n{\n  key guid,\n  key cprog,\n      message,\n\n      /*Association*/\n      _item\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity namename\n  as select from entityname\n                 ( parm1:1, parm2:2, parm3:'foo' )\n                                           as source1\n    inner join   blah                     as _source2\n      on foo.sdfsdf = _source2.sdfsdf3\n  {\n    key source1.foo1,\n    key source1.foo2,\n        source1.foo3,\n        _source2.foo4\n  }\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root custom entity /foo/bar\n{\n  key Werks     : /moo/de_werks;\n  @Consumption.filter: { selectionType: #SINGLE, defaultValue: '100', hidden }\n  Group         : /moo/de_group;\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine abstract entity footbar2\n{\n  key context : abap.dec(13,3);\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view zc_myview\n  as select from zmytable as ztab\n\n{\n  key ztab.f1,\n      ztab.f2,\n\n      case\n      when ztab.Category = '1'\n      then concat('Name',\n           concat_with_space(',',concat('Street',concat_with_space(',',\n           concat('City',concat_with_space(',',concat('Country',concat_with_space(',',\n           'PostalCode',1)),1)),1)),1))\n\n      when ztab.Category = '2'\n      then concat('Name',\n           concat_with_space(',',concat('Street',concat_with_space(',',\n           concat('City',concat_with_space(',',concat('Country',concat_with_space(',',\n           'PostalCode',1)),1)),1)),1))\n      end  as Address1,\n\n      case\n      when ztab.Category = '1'\n      then concat('Name',\n           concat_with_space(',',concat('Street',concat_with_space(',',\n           concat('City',concat_with_space(',',concat('Country',concat_with_space(',',\n           'PostalCode',1)),1)),1)),1))\n\n      when ztab.Category = '2'\n      then concat('Name',\n           concat_with_space(',',concat('Street',concat_with_space(',',\n           concat('City',concat_with_space(',',concat('Country',concat_with_space(',',\n           'PostalCode',1)),1)),1)),1))\n      end  as Address2,\n\n      ztab.f3\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view foo as select distinct from bar {\n  key field1,\n  cast( field2 as abap.int4 ) + 1 as blah,\n  _Text\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity sdf as select from fasdfs\n{\n  key uuid         as UUID,\n      requested_by as RequestedBy\n}\nwhere TSTMP_SECONDS_BETWEEN( foo, TSTMP_CURRENT_UTCTIMESTAMP(), 'FAIL' ) <= 31622400\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine custom entity /foo/sdf\n{\n  key statu : /foo/sdfff;\n      txt   : char40;\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity I_FOO\n  provider contract transactional_interface\n  as projection on R_sdf as FooBar\n{\n  key Field1,\n      Field2\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity I_foo1 as projection on I_foo2\n{\n  key     Field1,\n          _Foo : redirected to I_sdfsd,\n          _Bar : redirected to parent I_sdfsds\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view zsdfsd as select from Blah as foo {\n  mod(foo.Name, 10) as sdfsdf\n}",
+  "valid": true
+ },
+ {
+  "cds": "\n@Metadata.ignorePropagatedAnnotations: true\ndefine view entity ZCDS_union as select from ztopfoo {\n    field1 as something\n} union select from ztopfoo {\n    field1 as something\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view YFOOBAR as\n  select distinct key kunnr\n  from knvk\n  where yyview <> ''\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view YINVOICES\n    as select\n    key invoicenumber,\n    key invoiceline,\n        cast ( invoicedate as abap.char(8) ) as invoiceDate,\n        ordername,\n        ordernumber,\n        pdfoutput\n  from ysdfsdfsdf\n",
+  "valid": true
+ },
+ {
+  "cds": "\nextend view entity zfoobar with\n{\n  employ.zztitle_zem,\n  employ.zzcountry_zem\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewAppendName: 'ZESLSDCITM'\n@EndUserText.label: 'Sales document item addit. fields'\nextend view I_SalesDocumentItem with ZE_SalesDocItem\n  {\n    vbkd.bstdk as PurchaseOrderByCustomerDate,\n    vbak.bstnk as PurchaseOrderByCustomer2\n  }",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\n@EndUserText.label: 'Äsdfsdf0123'\ndefine view zhvamfoocust as select from zhvam_cust {\n  key foo as sdfdsf\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view zI_CDS\n  as select from a\n    left outer join b\n      on a.f1 = b.f1\n        and not b.f2 = 'X'\n{\n  key a.foo\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZADCOSET_ITRSCO'\n@AbapCatalog.preserveKey: true\n@AccessControl.authorizationCheck: #NOT_REQUIRED\n@EndUserText.label: 'Rep. obj. of Tr. Request for Code Search'\n\ndefine view ZADCOSET_I_TransportSrcCodObj\n  as select from e071  as TransportObject\n    inner join   tadir as Object on  TransportObject.pgmid    = Object.pgmid\n                                 and TransportObject.object   = Object.object\n                                 and TransportObject.obj_name = Object.obj_name\n{\n  key TransportObject.trkorr   as Request,\n  key TransportObject.pgmid    as ProgramId,\n  key TransportObject.object   as ObjectType,\n  key TransportObject.obj_name as ObjectName,\n      Object.devclass          as DevelopmentPackage,\n      Object.author            as Owner,\n      Object.created_on        as CreatedDate\n}\nwhere\n       TransportObject.obj_name not like '______________________________VC'\n  and  Object.pgmid             = 'R3TR'\n  and  Object.delflag           = ''\n  and(\n       Object.object            = 'CLAS'\n    or Object.object            = 'INTF'\n    or Object.object            = 'PROG'\n    or Object.object            = 'FUGR'\n    or Object.object            = 'TYPE'\n    or Object.object            = 'DDLS'\n    or Object.object            = 'DCLS'\n    or Object.object            = 'DDLX'\n    or Object.object            = 'BDEF'\n    or Object.object            = 'XSLT'\n  )\n\nunion\n\nselect from  e071                       as TransportObject\n  inner join tadir                      as Object on  TransportObject.pgmid    = Object.pgmid\n                                                  and TransportObject.object   = Object.object\n                                                  and TransportObject.obj_name = Object.obj_name\n  inner join ZADCOSET_I_SearchableTable as Tabl   on Object.obj_name = Tabl.ObjectName\n{\n  key TransportObject.trkorr   as Request,\n  key TransportObject.pgmid    as ProgramId,\n  key Tabl.ObjectType,\n  key TransportObject.obj_name as ObjectName,\n      Object.devclass          as DevelopmentPackage,\n      Object.author            as Owner,\n      Object.created_on        as CreatedDate\n\n}\nwhere\n      Object.pgmid   = 'R3TR'\n  and Object.delflag = ''\n  and Object.object  = 'TABL'\n\nunion all\n\nselect from e071 as TransportObject\n{\n  key TransportObject.trkorr   as Request,\n  key TransportObject.pgmid    as ProgramId,\n  key TransportObject.object   as ObjectType,\n  key TransportObject.obj_name as ObjectName,\n      ''                       as DevelopmentPackage,\n      ''                       as Owner,\n      cast( '' as abap.dats )  as CreatedDate\n}\nwhere\n  (\n         TransportObject.pgmid    = 'LIMU'\n    and(\n         TransportObject.object   = 'FUNC'\n      or TransportObject.object   = 'METH'\n      or TransportObject.object   = 'REPS'\n      or TransportObject.object   = 'CLSD'\n      or TransportObject.object   = 'CPUB'\n      or TransportObject.object   = 'CPRO'\n      or TransportObject.object   = 'CPRI'\n      or TransportObject.object   = 'CINC'\n    )\n  )\n  and    TransportObject.obj_name not like '______________________________VC'\n",
+  "valid": true
+ },
+ {
+  "cds": "define view entity Test as select from SrcA\n  association [1..1] to I_X as _X on SrcA.ID = _X.ID\n{ key _X.UUID, key Material, key StorageLocation }\nexcept select from SrcB\n  association [1..1] to I_X as _X on SrcB.ID = _X.ID\n{ key _X.UUID, key _Y.Material, key _Y.StorageLocation }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from SrcA { key A }\nintersect select from SrcB { key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from zaaaa {\n  key mandt,\n  key hello,\n      division((value * amount), 1000, 2) as total\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from tab {\n  tab.field1,\n  tab.field2,\n  count(*) as counter\n} group by tab.field1, mseg.field2\n",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from tab {\n  tab.field1,\n  unit_conversion(\n    quantity => tab.brgew,\n    source_unit => tab.gewei,\n    target_unit => cast('KG' as abap.unit) ) as weight_kg\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from tab {\n  tab.field1,\n  (1 - division(head_pos.net_sales, head_pos.kzwi1, 4)) * 100\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from tab {\n  tab.field1,\n  division(p_terms.payterm1_value, 100, 4) * head_pos.bill_amount as payterm1_amount\n}\n  ",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view /FOO/BAR\n as select from zfoo as c1\n inner join zfoo as c2\n on c1.atnam = 'ASDF'\n and c2.atnam =  'ASDF'\n inner join zfoo as c3\n on c3.atnam = 'ES1'\n inner join zfoo as c4\n on c4.atnam = 'ES2'\n inner join zfoo as c5\n on c5.atnam = 'ASDF'\n inner join zfoo as c6\n on c6.atnam = 'ASDF'\n inner join zfoo as c7\n on c7.atnam = 'ASDF'\n inner join zfoo as c8\n on c8.atnam = 'ASDF'\n inner join zfoo as c9\n on c9.atnam = 'ASDF'\n inner join zfoo as c10\n on c10.atnam = 'ASDF'\n inner join zfoo as c11\n on c11.atnam = 'ASDF'\n inner join zfoo as c12\n on c12.atnam = 'ASDF'\n inner join zfoo as c13\n on c13.atnam = 'ASDF'\n inner join zfoo as c14\n on c14.atnam = 'ASDF'\n inner join zfoo as c15\n on c15.atnam = 'ASDF'\n inner join zfoo as c16\n on c16.atnam = 'ASDF'\n  inner join zfoo as c17\n on c17.atnam = 'ASDF'\n  inner join zfoo as c18\n on c18.atnam = 'ASDF'\n  inner join zfoo as c19\n on c19.atnam = 'ASDF'\n   inner join zfoo as c20\n on c20.atnam = 'ASDF'\n   inner join zfoo as c21\n on c21.atnam = 'ASDF'\n   inner join zfoo as c22\n on c22.atnam = 'ASDF'\n inner join zfoo as c23\n on c23.atnam = 'ASDF'\n inner join zfoo as c24\n on c24.atnam = 'ASDF'\n{\n  c1.a1 as a1,\n  c1.a2 as a2,\n  c2.a3 as a3\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@EndUserText.label: 'Foobar'\ndefine table function ymoofunc with parameters p_anp : zanp, p_prevanp : zprevanp\nreturns {\n  mandt : abap.clnt;\n  foods : zmmooo;\n  moods : abap.char( 50 );\n}\nimplemented by method zcl_bar=>dsffdsfd;\n",
+  "valid": true
+ },
+ {
+  "cds": "define view zsdfds as select from tab {\n*\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root custom entity /foo/bar\n{\n  key Werks     : /moo/de_werks;\n  @Semantics.businessDate.from/to\n  Group         : /moo/de_group;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view moo as select * from bar;",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view moo with parameters\n@Environment.systemField: #SYSTEM_DATE\np_system_date : syst_datum\n\nas select from ztab as a\n{\nkey a.objid as Obj,\n    a.mc_stext as Text\n};\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root custom entity ZCE_PRODUCT_READ\n{\n  key ProductId : abap.char(10);\n  _ProductReviews        : composition [0..*] of ZCE_PRODUCT_REVIEWS;\n}\n\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity ZI_TaxItem\n  as select from I_TaxItem\n  {\n    key CompanyCode,\n    key AccountingDocument,\n    key FiscalYear,\n    key TaxItem,\n        TaxCode,\n        @Semantics.amount.currencyCode: 'CompanyCodeCurrency'\n        cast( cast( cast( TaxRate as abap.dec( 11, 2 ) ) / 10  as abap.dec(11,2) ) as abap.curr( 23, 2 ) ) as TaxRate,\n        GLAccount,\n        CountryCurrency\n  }\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity /foo/c_bar\n  as projection on /foo/i_moo\n{\n\n  key Type,\n      Description\n\n}\nwhere\n  SomeThing is initial\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity /foo/c_bar\n  provider contract transactional_query\n  as projection on /foo/i_bar\n{\n  key ObjectType,\n  _Texts.Description : localized\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine custom entity /foo/i_bar\n{\n  key state       : abap.char(1);\n      foobar      : abap.string(1000);\n      _ObjectBase : association to parent /foo/i_base on  $projection.id    = _ObjectBase.id\n                                                          and $projection.state = _ObjectBase.state;\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity /foo/bar\n  as select from DDCDS_CUSTOMER_DOMAIN_VALUE\n                 ( p_domain_name : '/FOO/MOO' )\n  association [1] to DDCDS_CUSTOMER_DOMAIN_VALUE_T as _ValueText on  $projection.DomainName    = _ValueText.domain_name\n                                                                 and $projection.ValuePosition = _ValueText.value_position\n                                                                 and $projection.Value         = _ValueText.value_low\n                                                                 and _ValueText.language       = $session.system_language\n{\n  key domain_name                                                   as DomainName,\n  key value_position                                                as ValuePosition,\n      value_low                                                     as Value,\n      _ValueText( p_domain_name : '/FOO/MOO' ).text as Text\n}\n\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity /foo/bar as select from /moo/sdf\n{\n  key keyfield,\n      case something when '0000000000' then ''\n                       else /moo/sdf._something.more end,\n      another\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine root view entity /foo/bar as projection on /foo/moo\n{\n  key     LogID,\n  virtual sometext : abap.string\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity ZACB_C_Label as projection on ZACB_I_Label\n{\n  key LabelId,\n  LabelColor,\n  _ConfignDeprecationCodeText.ConfignDeprecationCodeName as ConfigurationDeprecation_Text : localized,\n  _LabelText : redirected to composition child ZACB_C_LabelText\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity /foo/moo\n  as select from /foo/foo1 as foo1\n    cross join   /foo/foo2 as foo2\n{\n  key foo1.field1,\n      foo2.field2\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  abap.int4'1' as CountField,\n  abap.char'X' as FlagField,\n  abap.char(10)'hello' as TextLiteral,\n  abap.sstring'[A-Za-z0-9]' as PatternLiteral,\n  replace_regexpr( pcre => abap.sstring'X', value => A, with => abap.char'Z', result_length => abap.int1'15' ) as F\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view entity moo\n  as select distinct from bar\n{\n  key foo1,\n      bar as Short\n}\nwhere\n  Valid = abap.char'X'\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'zhvam2'\ndefine view zhvam as select from t100 sdf\n{\n    sprsl as Sprsl,\n    sdf.arbgb as Arbgb,\n    msgnr as Msgnr,\n    text as Text\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "\n@AbapCatalog.sqlViewName: 'zhvam2'\ndefine view zhvam as select from t100\n{\n    sprsl as Sprsl,\n    text as Text--bar\n}\n",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust {\n  @Semantics.businessDate.from:true\n  key valid_from as ValidityStartDate,\n  @Semantics.businessDate.to:false\n  valid_to as ValidityEndDate\n};",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZSDF'\ndefine view zhvamfoocust as select from zhvam_cust {\n  @Consumption.filter.mandatory:true\n  @Consumption.filter.selectionType:#SINGLE\n  key mandt\n};",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'Business Partner Default Address'\n@AbapCatalog.sqlViewName: 'IBPDEFADDR'\ndefine view I_BusinessPartnerDefaultAddr\n  as select from but020\n    inner join   but021_fs on  but020.partner       = but021_fs.partner\n                           and but020.addrnumber    = but021_fs.addrnumber\n{\n  key but020.partner as BusinessPartner,\n      @Semantics.businessDate.from:true\n      but020.addr_valid_from as ValidityStartDate,\n      @Semantics.businessDate.to:true\n      but020.addr_valid_to as ValidityEndDate\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  cast( case when flag = 'X' then - amount else 0 end as mytype ) as result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when flag = 'X' then + amount else 0 end as result\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'ZTEST'\ndefine view Test as select from tab1 as T1\n  inner join tab2 as T2 on T2.id = T1.id\n{\n  @Semantics.currencyCode: true\n  T1.currency,\n  @Semantics: { amount : { currencyCode: 'currency'} }\n  cast( case when T2.flag = 'X' and T1.run is not initial and T1.run is not null\n    then - T1.amount\n    else 0\n  end as mytype preserving type ) as CutbackAmount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when 1 = 1 then - tab.field1 else tab.field2 end as result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when flag = 'X' then - amount1 else 0 end as result1,\n  case when flag = 'Y' then + amount2 else 0 end as result2,\n  case when flag = 'Z' then - amount3 else + amount4 end as result3\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy I_MyHierarchy\n  as parent child hierarchy (\n    source I_OrgUnit\n    child to parent association _Parent\n    start where IsRoot = 'X'\n    siblings order by OrgUnitName ascending\n    multiple parents allowed\n  )\n{\n  key NodeID,\n  ParentNodeID,\n  HierarchyLevel\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.preserveKey:true@AbapCatalog.compiler.compareFilter:true\ndefine view ZTestView as select from ztable {\n  key field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  cast( 0.00 as abap.dec(15,2) ) as Amount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when flag = 'X'\n    then division(A,B,3) + (C - ((division(D,E,3)) * F))\n    else 0\n  end as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  (((((((( A + B )))))))) as DeepNested\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from T1\n    left outer to many join T2 as t2 on t2.id = T1.id\n{\n  key T1.field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  key f1,\n      @ObjectModel.foreignKey.association: null\n  key f2\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  cast((\n    case when A = 0 then B else C end\n  ) as my_type) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  cast((concat(concat(a, b), c)) as my_type) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab\n  association [0..*] to I_Text as _Text on $projection.ID = _Text.ID\n{\n  cast(_Text[1: Language = $session.system_language].TextDesc as my_type) as TextDesc\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  WBSElement._ProfitCenter[1: ValidityEndDate >= $session.system_date\n    and ValidityStartDate <= $session.system_date ]._Text[1: Language = $session.system_language].ProfitCenterName as ProfitCenterName\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when Status = 'X' then (-1)*Amount\n       else Amount\n  end as SignedAmount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case when A = '00' and B = '00' and C = '00' and D = 0 then '00' else\n  ( case when A <> '00' then A else\n  ( case when B <> '00' then B else\n  ( case when C <> '00' then C else\n  ( case when D < 7 then '05' else\n  ( case when D >= 7 and D < 14 then '10' else\n  ( case when D >= 14 and D < 21 then '11' else\n  ( case when D >= 21 and D < 28 then '12' else\n  ( case when D >= 28 then '13' else '00' end )\n  end )\n  end )\n  end )\n  end )\n  end )\n  end )\n  end )\n  end as Status\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  fltp_to_dec( Quantity as abap.dec(13,3) ) as Quantity\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AccessControl.personalData.blocking: #('TRANSACTIONAL_DATA')\ndefine view Test as select from tab { key Field }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  _SetHeader._SetHeaderText[ Language = $session.system_language ].SetDescription as ActivityTypeGroupName\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  _PTRSmallBusiness[inner].Supplier\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case\n    when _Assoc( P_Currency:$parameters.P_Currency ).Amount = 0\n    then 0\n    else 1\n  end as Val\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  sum(Amount)*(-1) as NegAmount,\n  cast(sum(TaxAmount)*(-1) as mytype) as NegTaxAmount\n}",
+  "valid": true
+ },
+ {
+  "cds": "@Consumption.defaultValue: -30\ndefine view Test as select from tab { Field }",
+  "valid": true
+ },
+ {
+  "cds": "@Semantics.valueRange.minimum: -100.000000\ndefine view Test as select from tab { Field }",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'Billing Item – Cube'\ndefine view Test as select from tab { Field }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  case Field\n    when 'L' then sum(Amount)\n    when 'S' then sum(Amount) * -1\n    else sum(Amount)\n  end as SignedAmount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  cast(dd07t[1:left outer].ddtext as mytype) as TextName\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from P_Source as virtual\n{\n  key virtual.UUID,\n  virtual.Material,\n  virtual.Plant\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src { key src.Field }\nwhere active = #icl_active.'A'",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  case when src.Dir = 'SELL'\n       then cast( case when src.D < src.D2 then 1 else 0 end as mytype ) * -1\n       else cast( case when src.D < src.D2 then 1 else 0 end as mytype )\n  end as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast( src.A * src.B as mytype ) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast(division(src.A, src.B, 3) * 100 as mytype) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  max('') as EmptyStr,\n  max('X') as FlagField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  avg(Field as abap.dec(21, 6)) as AvgField,\n  sum(OtherField as abap.dec(21, 6)) as SumField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from(\n    (\n      T1 as t1 inner join T2 as t2 on t2.id = t1.id\n    )\n    inner join T3 on T3.id = t1.id\n  )\n{ key Field }",
+  "valid": true
+ },
+ {
+  "cds": "define table function P_Test\n  with parameters\n    @Environment.systemField: #CLIENT\n    P_Client : abap.clnt\nreturns {\n  SAPClient : abap.clnt;\n  @Semantics.quantity.unitOfMeasure: 'Unit'\n  @DefaultAggregation: #SUM\n  Reading   : abap.dec( 28, 5 );\n  @Semantics.unitOfMeasure: true\n  Unit      : myunit;\n}\nimplemented by method CL_TEST=>METHOD;",
+  "valid": true
+ },
+ {
+  "cds": "define table function V_TabFunc returns\n{\n  col: abap.int4;\n}\nimplemented by method CL_IMPL=>METHOD",
+  "valid": true
+ },
+ {
+  "cds": "extend view Base with Ext\n  { c as c3, d as c4 }\nunion\n  { f as c3, g as c4 }\nunion all\n  { k as c3, l as c4 };",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity BaseView with\n{\n  src.connid,\n  sum(src.distance) as sum_dist\n}\ngroup by src.connid;",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity V with\n    ( { a.f1 } union all { b.f1 } )\n    union\n    ( { c.f1 } )",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity V with\n  bind aspect Asp(f => src.field) as al\n{\n  include al.f as g\n}",
+  "valid": true
+ },
+ {
+  "cds": "define transient root view entity V\n  provider contract transactional_query\n  as projection on Base\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define root abstract entity V\n{\n  key k : abap.char(20);\n  _child : composition of exact one to exact one Child;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V as projection on Base\n  redefine association _a[ exact one to one : k = 'F'] as _b redirected to Target\n{ key k }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy H with parameters p : dats\nas parent child hierarchy(\n  source S child to parent association _Parent\n  period from vf to vt valid from $parameters.p to $parameters.p\n  directory _Dir filter by OrgId = $parameters.p\n  siblings order by Name\n)\n{ key NodeId }",
+  "valid": true
+ },
+ {
+  "cds": "define table entity T { key f : abap.char(3); include Asp.* signature only excluding { f2, f3 }; }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  association of many to many T2 as _a on _a.f = T.f\n    with default filter _a.s = 'A'\n{ key f }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { count( distinct ( t.id ) ) as cnt }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T as /ns/alias\n  association to T2 as /ns/Other on /ns/Other.id = /ns/alias.id\n{ key /ns/alias.f as g }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { x as /abc/association }",
+  "valid": true
+ },
+ {
+  "cds": "define view /1BS/SADL_QE_TEST_VIEW as select from /1bs/test_table { key /1bs/key }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from A { key a }\nunion all select from B { key b } where x = 'Y'\nunion all select from C { key c }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as\n  ( ( select from A { key id } ) except ( select from B { key id } ) )\n  union\n  ( select from C { key id } )",
+  "valid": true
+ },
+ {
+  "cds": "@A.b: { toleranceRangeLowValue: #(max(TotalPrice)) }\ndefine view entity V as select from T { key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T { key id } where x >= 1.00e+00",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T { include as include, fullname as fullname }",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V as projection on B\n  bind aspect A(f => x) as asp\n{ key k }",
+  "valid": true
+ },
+ {
+  "cds": "define external entity V external name \"NAME_WITH_\"\"_ESCAPED\" { key f : t; }",
+  "valid": true
+ },
+ {
+  "cds": "define view V /*//->NOTE: ignore\nT as T */ as select from T { key id }",
+  "valid": true
+ },
+ {
+  "cds": "define external entity V external name X\nwith parameters P_A : abap.char(10), P_B : mytype external name \"P_EXT\"\n{ key f : t; }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { key a } where x = 'A'\nunion all\n( select from T2 { key b } where y = 'B' )",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { cast(0.0E+00 as abap.fltp) as f }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { cast(case 'GC' when 'X' then 'Y' else 'Z' end as abap.char(5)) as f }",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V as projection on Base { key A, _dep : redirected to Target(p : 'val') }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from t {\n  cast(A + + B as mytype) as F1,\n  cast(A + -B as mytype) as F2\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity Test as select from tab\n  composition of exact one to many I_Text as _Text\n{ key Field }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab\n  composition of one to many I_Text as _Text\n{ key Field }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab\n  composition of [0..*] I_Text as _Text\n{ key Field }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from t { key Field }\nwhere Field like 'ACDOC@_%' escape '@'",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from a {\n  max(a._Item[FinancialAccountType = 'D'].Customer) as Customer,\n  max(a._Item[1: FinancialAccountType = 'D'].PaymentTerms) as PaymentTerms\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from a {\n  key cast(sum( all ErrorCounter ) as abap.int8) as ErrorCount,\n  cast(count( distinct A ) as abap.int8) as ACount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  key Field,\n  utcl_current() as UtclTimestamp\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  case when src.Qty >= (division(src.A, 100, 3))\n       then 1 else 0 end as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view I_Test(\n    SourceDocument,\n    SourceDocumentItem,\n    ConditionType\n  )\n  as select from SomeTable\n{\n  key cast(PurchasingDocument as awref) as SourceDocument,\n  key field2 as SourceDocumentItem,\n      field3 as ConditionType\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy I_Test\n  with parameters P_Key: kokrs, P_Group: setnamenew\n  as parent child hierarchy(\n    source I_Source(P_Key: $parameters.P_Key, P_Group: $parameters.P_Group)\n    child to parent association _Child\n    start where SetClass = '0101' and SetSubClass = $parameters.P_Key\n    siblings order by SetClass, SetSubClass\n    multiple parents allowed\n    orphans ignore\n    cycles breakup\n  )\n{\n  key SetClass,\n  key SetSubClass,\n      ChildSetClass\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy I_Test\n  as parent child hierarchy(\n    source I_Source\n    child to parent association _Parent\n  )\n{\n  key ID,\n  $node.node_id         as NodeID,\n  $node.parent_id       as ParentID,\n  $node.hierarchy_level as Level\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab { key Field }\nwhere Status = 'C'\n     or not(\n        (\n          Date >= $session.system_date\n        )\n        or(\n          Date = '00000000'\n        )\n      )",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab as _T\nassociation [0..1] to I_Text as _Text on $projection.ID = _Text.ID\n                                     with default filter _Text.Language = $session.system_language\n{ key _T.field, _Text }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test\n  with parameters P_Key: sydate, P_Type: mytype\n  as select from src( P_Key: :P_Key )\n{\n  key Field1,\n  sum(Amount) as Amount\n}\ngroup by\n  Field1,\n  _Assoc( P_Key: :P_Key, P_Type: :P_Type ).ReportingPeriod,\n  _Assoc( P_Key: :P_Key, P_Type: :P_Type ).ReportingYear",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  _Descriptions[ 1: left outer where ( Language = $session.system_language ) ].Name as Name\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  concat(( concat_with_space(A, B, 2) ), 'suffix') as Combined\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  case\n    when DocType = 'G'\n    then -(TaxAmount)\n  end as NegatedField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  Field2,\n  $extension.*\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy Test\n  with parameters P_Usage : mytype, P_Header : mytype\n  as parent child hierarchy(\n    source Src\n    child to parent association _Tree\n    start where\n          Src.UsageField = :P_Usage\n      and Src.HeaderField = :P_Header\n    siblings order by\n      Src.SortField\n    multiple parents allowed\n  )\n{\n  key $node.hierarchy_rank as HierarchyRank\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  case when Field1 is not null then\n    case when Field2 > 0 then 'X' else'' end\n  else ''\n  end as MyField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test\n  as select from(\n    SrcA as a\n    cross join SrcB as b\n  )\n  left outer to one join SrcC as c on c.id = a.id\n{\n  key a.Field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from SrcA\n  inner one to many join SrcB on SrcA.id = SrcB.id\n{\n  key SrcA.Field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity Test as select from SrcA\n  inner one to one join SrcB as Alias on SrcA.id = SrcB.id\n{\n  key SrcA.Field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity Test as select from SrcA\n  left outer many to one join SrcB as _B on SrcA.id = SrcB.id\n  left outer one to one join SrcC as _C on SrcA.id = SrcC.id\n  left outer many to many join SrcD as _D on SrcA.id = SrcD.id\n{ key SrcA.Field1 }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test\n  as select from Src left outer join (SubA as s join SubB b on s.id = b.id and s.type = b.type)\n    on Src.id = s.id\n{\n  key Src.Field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  cast(FieldA as abap.fltp) * 100.00 / cast(FieldB as abap.fltp) as Percentage\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  case (AllocationSetType)\n    when '3' then ''\n    when '4' then ''\n    else SomeField\n  end as MyField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src\n    left outer many to exact one join Other on Src.ID = Other.ID\n{\n  key Src.Field1\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src {\n  key Field1,\n  case length(FieldA) * 10 + length(FieldB)\n    when 44 then concat(FieldA, FieldB)\n    when 43 then concat_with_space(FieldA, FieldB, 1)\n  end as ComputedField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy TestHier\n  with parameters P_UUID : some_uuid\n  as parent child hierarchy(\n    source SrcView\n    child to parent association _Parent\n    directory _Assoc filter by\n      UUID = $parameters.P_UUID\n    siblings order by\n      OrgID\n    orphans root\n  )\n{\n  key UUID,\n  OrgID,\n  $node.node_id as HierarchyNode\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity I_TabTest\n\tprovider contract transactional_interface\n\tas projection on I_Src as Doc\n{\t\n\tkey UUID,\n\tField1,\n\t_Child: redirected to composition child I_ChildTP\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view I_PlndView\n  as select from I_PlndSource( P_StartDate: -11, P_EndDate: 6 ) as src\n{\n  key src.Field\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine hierarchy I_TestHierarchy\n  with parameters P_Root : j_objnr\n  as parent child hierarchy(\n    source I_HierarchySrc\n    child to parent association _Parent\n    start where\n      NodeID = $parameters.P_Root\n    siblings order by\n      NodeID\n    nodetype HierarchyNodeType\n    multiple parents allowed\n    cache force\n  )\n{\n  key NodeID,\n  ParentID,\n  NodeType\n}",
+  "valid": true
+ },
+ {
+  "cds": "\ndefine view I_Test\n  with parameters P_Key : sydate\n  as select from I_Src as formula\n{\n  key formula.UUID,\n      formula._Assoc( P_KeyDate : $parameters.P_Key ).SpecID as SpecID,\n      formula._Stream( P_KeyDate : $parameters.P_Key )[ Scope = $parameters.P_Key ].StreamQty\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  _A._B._C._D._E._F._G._H._I._J._K._L._M._N._O._P as LongPath\n}",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'Days\\' Supply'\ndefine view Test as select from src { key A }",
+  "valid": true
+ },
+ {
+  "cds": "/*! comment */\ndefine view Test as select from src { key A }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy Test as parent child hierarchy (\n  source src\n  child to parent association _Parent\n  start where Id = '1'\n  siblings order by Id\n  multiple parents not allowed\n) { key Id }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src\n  association to exact one Target as _Assoc on _Assoc.Id = src.Id\n{ key A, _Assoc }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src\n  composition of many Child as _Child\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from (((t1 join t2 on t1.id = t2.id) join t3 on t3.id = t1.id) join t4 on t4.id = t1.id) {\n  key t1.Id\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from tab {\n  key Id\n} where Name like '%foo%' escape '#'",
+  "valid": true
+ },
+ {
+  "cds": "define transient view entity TestProj\n  with parameters P1: type1\n  as projection on Base\n  association [0..1] to Target as _Assoc on _Assoc.Id = Base.Id\n{\n  key A,\n  _Assoc\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from t1\n  inner to many join t2 on t1.Id = t2.Id {\n  key t1.Id\n}",
+  "valid": true
+ },
+ {
+  "cds": "@ObjectModel.query.implementedBy: 'ABAP:CL_MY_QUERY'\ndefine custom entity TestCustom {\n  key KeyField: /ns/my_type;\n  ValueField: /ns/other_type;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  @UI: { lineItem: [{ hidden: #(_Header.PartnerCnsldtnUnitIsHidden) }] }\n  key A\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy Test as parent child hierarchy (\n  source src\n  child to parent association _Parent\n  start where Id = '1'\n  siblings order by Id\n  cache off\n) { key Id }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  key A,\n  B,\n  C,\n}",
+  "valid": true
+ },
+ {
+  "cds": "@AbapCatalog.sqlViewName: 'CEFDITMAAAPPRVL'\nview C_EarmarkedFundsItemA_Apprvl\n  as select from C_EarmarkedFundsDocItemApprvl\n{\n  key EarmarkedFundsDocument,\n  key EarmarkedFundsDocumentItem,\n      CompanyCode\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy I_FMEASuprordStrucHier\n  with parameters\n    P_HeaderUUID : plmt_fmea_node_guid\n  as parent child hierarchy (\n    source I_FMEASuprordStrucHierNode\n    child to parent association _Parent\n    start where FMEANodeReferenceUUID = $parameters.P_HeaderUUID\n    siblings order by FMEANode\n    depth 11\n    multiple parents allowed\n  )\n{\n  key FMEAHeaderUUID,\n  key FMEANodeUUID,\n  FMEANode\n}",
+  "valid": true
+ },
+ {
+  "cds": "define transient view entity C_Foo\n  provider contract analytical_query\n  with parameters\n    P_A : sometype,\n    P_B : sometype\n  as projection on I_Bar(P_A: $parameters.P_A,\n                         P_B: $parameters.P_B)\n{\n  key FieldA,\n  FieldB\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity C_Foo as projection on I_Bar {\n  cast (Field as sometype preserving type) as AliasName : localized\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view C_Foo as select from Bar {\n  cast( ratio_of(portion => NmbrInProcess, total => NmbrTotal) * HundredInPercent as sometype) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from t100 {\n  replace_regexpr( pcre => '&1|&2|&3|&4|:|=',\n                   value => text,\n                   with => '',\n                   result_length => 100\n                 ) as ErrorMessageText\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view C_Foo as select from Bar {\n  cast(curr_to_decfloat_amount(Amount) / Count as sometype preserving type) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view C_Foo as select from Bar {\n  cast(\n    case tims_is_valid(CreationTime)\n      when 1 then dats_tims_to_tstmp(Date, CreationTime, abap_system_timezone($session.client,'NULL'), $session.client, 'NULL')\n      else dats_tims_to_tstmp(Date, FallbackTime, abap_system_timezone($session.client,'NULL'), $session.client, 'NULL')\n    end as sometype) as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src { key A }\nwhere Path like 'C:\\\\temp'",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src\n  association of [0..1] to Target as _Assoc on _Assoc.Id = src.Id\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast(Amount as abap.dec(21,6)) as MyAmount : abap.dec(21,6)\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src\n  composition [0..*] of Child as _Child\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  key _Text as _Text : redirected to composition child I_SomeTextTP\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  key _Assoc as _Alias : redirected to parent I_ParentView\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  @Semantics.valueRange.minimum: -100.000000\n  key Amount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  ltrim ( rtrim( Field, '\\\\' ), '\\\\' ) as Alias\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  @Consumption.semanticObject: #(SOME + 'WEIRD_EXPRESSION')\n  key Field\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity Test as projection on Src\n  association of one to many Target as _T on $projection.ID = _T.ID\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity Test as select from Src\n  association of many to exact one I_CurrencyRole as _Role on $projection.CurrencyRole = _Role.CurrencyRole\n  association of one to exact one I_Other as _Other on $projection.ID = _Other.ID\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  key _Equipment._TimeSeg[left outer where ValidityEnd = '99991231']._Account.SalesOrg\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  case\n    when Field = '99991231' then 'E'\n    when Flag = 'I' and Field not between $parameters.P_From and $parameters.P_To then 'E'\n    else coalesce(Flag, '')\n  end as Result\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  case\n    when ReorderThreshold - SafetyStock > MaxStock - ReorderThreshold\n    then MaxStock - ReorderThreshold\n    else ReorderThreshold - SafetyStock\n  end as CurrentGreenZone,\n  case\n    when A - B > C - D or (X = 0 or Y = 0)\n    then (2 * A) - B - C\n    else cast(0 as mabst)\n  end as OtherField\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src\n  association [1..2] to Target as _T on _T.ID = src.ID\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity Test\n  as select from src\n  composition [0..3] of ChildView as _Child\n  composition [0..*] of OtherView as _Other\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast( case\n        when ( CtrlObjForCostCenter <> case when CostCenter = AddrCostCenter\n                                            then ltrim( CostCenter, '0' )\n                                           else CostCenter\n                                       end )\n          then 'I'\n        else 'V'\n        end as mytype preserving type ) as Status\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  key case min(ValidityStartDate)\n        when '99991231' then '99991231'\n        else dats_add_days( min(ValidityStartDate), -1, 'UNCHANGED')\n      end as ValidityEndDate\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  case when cast(NetBookValue as abap.dec(23,2)) - cast(AssetNetValue as abap.dec(23,2)) > 0\n       then cast(GainOrLoss as abap.dec(23,2))\n       else cast(0 as abap.curr(23,2))\n       end as AssetGain\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from Src as ILot\n  inner join X as UD\n     left outer to one join Y as CanceledILot\n       on UD.InspectionLot = CanceledILot.InspectionLot\n  on ILot.InspectionLot = UD.InspectionLot\n{ key A }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test\n  as select from I_SomeTable [SomeField = 'VAL']\n{ key Field1 }",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast (\n    case MaintCallCntrRdng\n        when 0.0000000000000000E+00 then cast ( '' as dzeieh)\n        else MaintenanceTaskPerformanceUnit\n    end\n  as dzeieh) as F\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast( abap.dec'000' as farp_dzbd3t preserving type ) as RefInvcNetPaymentDays\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  _Order._Status[ to one: StatusIsActive = 'X' and StatusCode = 'I0045' ].StatusCode as F\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  _Assoc[ 0..1: Language = $session.system_language ].Name as F\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  _Network[*:inner].NetworkID,\n  _Network[*:inner].NetworkName\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view Test as select from src {\n  cast(GET_NUMERIC_VALUE(_Assoc.Amount) as abap.dec(23,6)) as ConvertedAmount\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  depth 5\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V with parameters p_depth : abap.int4\nas parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id ascending\n  depth :p_depth\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V with parameters p_id : abap.raw(16)\nas parent child hierarchy(\n  source T child to parent association _a\n  start where id = :p_id\n  siblings order by id\n  load bulk\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  load incremental\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V with parameters\n  p_from : dats,\n  p_to   : dats\nas parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define abstract entity V\n  with parameters p_id : abap.int4\n{\n  key id : abap.int4;\n  name   : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define external entity V external name DATATYPES\n{\n  key id : abap.int4;\n  name   : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define writable external entity V external name FOO\n{\n  key id : abap.int4;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define static entity V\n{\n  key code : abap.char(2);\n  description : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define table entity V\n{\n  key id : abap.int4;\n  name   : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root table entity V\nas select from base_table {\n  key id,\n  name\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V\n  provider contract transactional_query\n  as projection on BaseView\n    redefine association _child\n      redirected to composition child ChildEntity\n{\n  key Id,\n  _child.Field as field_exposure\n}",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V as projection on Base\n  redefine association _assoc\n    redirected to OtherEntity\n{\n  key Id\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from Base._SomeAssoc {\n  key carrid,\n  connid\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from series_generate_date(\n    step: 30,\n    from_value: abap.datn'20200101',\n    to_value: abap.datn'20220102'\n  ) {\n    key generated_period_start,\n    generated_period_end,\n    element_number\n  }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from series_generate_time(\n    step: 2,\n    from_value: abap.timn'131002',\n    to_value: abap.timn'230102'\n  ) {\n    key generated_period_start\n  }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from series_generate_timestamp(\n    step: 2,\n    from_value: abap.utcl'2020-07-20 12:23:01.1234567',\n    to_value: abap.utcl'2020-07-20 12:23:11.1234567'\n  ) {\n    key generated_period_start\n  }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V\n  with parameters p_from : abap.dats, p_to : abap.dats\n  as select from series_generate_date(\n    date_start => :p_from,\n    date_end   => :p_to,\n    increment  => interval 1 day\n  ) as s {\n    key s.element as date_val\n  }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from demo_expressions {\n  avg( abs(num1) as abap.dec(12,2) ) as average_abs\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { key id, val }\nunion all\n(\n  select from T { key id, val } where id = 3\n  union\n  select from T { key id, val } where id = 6\n)",
+  "valid": true
+ },
+ {
+  "cds": "define writable view entity V as select from T {\n  key id as Id,\n  name as Name\n}",
+  "valid": true
+ },
+ {
+  "cds": "define external entity V\n  external name \"MY_DDIC_TABLE\"\n{\n  key id : abap.char(10) external name \"K_ID\";\n  name   : abap.char(40);\n}\nwith federated data provided at runtime",
+  "valid": true
+ },
+ {
+  "cds": "define external entity V external name DATATYPES {\n  key id : abap.int4;\n}\nwith federated data\nprovided by MY_SCHEMA",
+  "valid": true
+ },
+ {
+  "cds": "define writable external entity V\n  external name \"WRITABLE_TABLE\"\n{\n  key SYSID : abap.char(3) external name \"K_SYSID\";\n  NAME      : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  bind aspect MY_ASPECT ( id => $projection.IdVE )\n{\n  key id         as IdVE,\n      include MY_ASPECT.d34n,\n      include MY_ASPECT.utcl\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  association [1] to U as _U on T.id = _U.id\n{\n  key T.id,\n  _U[to exact one].name as name\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  association [*] to U as _U on T.id = _U.id\n{\n  key T.id,\n  _U[to exact one: inner where language = 'D'].name as name\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  start where id = 'A'\n  siblings order by id\n  multiple parents leaves\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  start where id = 'A' or id = 'B'\n  siblings order by id\n  generate spantree\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V with parameters p_from : dats, p_to : dats\nas parent child hierarchy(\n  source T child to parent association _a\n  period from valid_from to valid_to\n    valid from $parameters.p_from to $parameters.p_to\n  siblings order by id\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V with parameters p_load : abap.char(11)\nas parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  load $parameters.p_load\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  abap.datn'20200101' as date_start,\n  abap.timn'120000'   as time_val,\n  abap.utcl'2020-01-01 12:00:00.0000000' as ts_val\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  DEMO_CDS_SCALAR_HELLOWORLD() as MyFunc\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  orphans error\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  cycles error\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  cache on\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy V as parent child hierarchy(\n  source T child to parent association _a\n  siblings order by id\n  multiple parents leaves only\n) { id, parent }",
+  "valid": true
+ },
+ {
+  "cds": "define root view entity V\n  provider contract sql_query\n  as projection on T { key id }",
+  "valid": true
+ },
+ {
+  "cds": "extend abstract entity MyAbstractEntity with {\n  newField : abap.char(40);\n}",
+  "valid": true
+ },
+ {
+  "cds": "extend custom entity MyCustomEntity with {\n  key newKey : abap.int4;\n  extraField : abap.char(20);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  key id,\n  virtual computedField : abap.char(40)\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  key id,\n  parent_id\n}\nwith hierarchy MY_HIERARCHY",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'My Label'\ndefine view V as select from T { key id }",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: '.'\ndefine hierarchy H as parent child hierarchy (\n  source T\n  child to parent association p\n  start where sum(x) = 42\n  depth 5\n  nodetype z\n  generate spantree\n  cache off\n)\n{ key z }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T {\n  assoc[many to exact one: x = 1].field\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T {\n  assoc[many to one: x = 'A'].field\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  include ASPECT.*\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T {\n  include ASPECT.* excluding { field1, field2 }\n}",
+  "valid": true
+ },
+ {
+  "cds": "define abstract entity E {\n  key id : abap.char(20);\n  _parent : association to parent ROOT_ENTITY;\n}",
+  "valid": true
+ },
+ {
+  "cds": "extend view BASE with EXT\nassociation to TARGET as _t on _t.id = BASE.id\n{ field1 }",
+  "valid": true
+ },
+ {
+  "cds": "extend view BASE with\nassociation to TARGET as _t on _t.id = BASE.id\n{ field1 }",
+  "valid": true
+ },
+ {
+  "cds": "extend view BASE with EXT {\n  'constant' as alias\n}",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy H with parameters p1 : abap.int1\n  as parent child hierarchy (\n    source T\n    child to parent association p\n    start where sum(x) = 42\n    siblings order by name_field\n    depth $parameters.p1\n    nodetype type_field\n    generate spantree\n    cache off\n  )\n{\n  key type_field\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T { key id } where name = abap.sstr'ABC'",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T { abap.sstr'ABCD' as label }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  association to B( p1: 'E' default ) as _b on 1 = 1\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { func( x => 'A' ).field as f }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  association to B( p1: 'E' ) as _b on 1 = 1\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from T.assoc1.assoc2 { key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  join T.a.b[x = T.z] as c on 1 = 1\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  bind aspect A( x => T.y )\n  bind aspect B( z => T.w )\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  bind aspect A( x => T.y ) as asp1\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T\n  bind aspect A( x => abap.char'test' )\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { include ASPECT.field signature only }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { my_func( p: 'A' ).field as f }",
+  "valid": true
+ },
+ {
+  "cds": "define hierarchy H as parent child hierarchy (\n  source T\n  child to parent association p\n  depth abap.int4'5'\n)\n{ key id }",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as ( select from T { key id } )",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as\n  ( select from A { key id } union select from B { key id } )\n  union\n  ( select from C { key id } )",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as\n  ( select from A { key id } )\n  except\n  ( select from B { key id } )",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as\n  ( select from A { key id } )\n  intersect\n  ( select from B { key id } )",
+  "valid": true
+ },
+ {
+  "cds": "define view entity V as select from T { x as _/mynamespace/alias }",
+  "valid": true
+ },
+ {
+  "cds": "@EndUserText.label: 'head'\ndefine table entity T {\n  key id : abap.int4 not null;\n  @EndUserText.label: 'field1 label'\n  @Semantics.text: true\n  field1 : abap.char(30);\n  @EndUserText.label: 'field2 label'\n  field2 : abap.char(5);\n}",
+  "valid": true
+ },
+ {
+  "cds": "define table entity E { key id : abap.int4; }",
+  "valid": true
+ },
+ {
+  "cds": "define table entity E { _rel : association to O on _rel.id = x; }",
+  "valid": true
+ },
+ {
+  "cds": "define table entity E { key id : abap.int4; _rel : association to O on _rel.id = x; }",
+  "valid": true
+ },
+ {
+  "cds": "define table entity E {\n  key id : abap.int4;\n  _rel : association to O on _rel.id = id;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define table entity T {\n  key id : abap.int4;\n  _rel : association to O on _rel.id = T.id;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define table entity T {\n  key id : abap.int4 not null;\n  @Semantics.text: true\n  _rel : association to O on _rel.id = T.id;\n}",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t as \"MyAlias\" { key t.id }",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t as \"=A0\" { key t.id }",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t inner join u as \"=A1\" on t.id = u.id { key t.id }",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t { key t.id as \"=MYKEY\" }",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t as \"my-alias\" { key t.id }",
+  "valid": true
+ },
+ {
+  "cds": "define view \"MyView\" as select from t { key t.id }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from t { key t.id as x @<ObjectModel.text.association: '_A' }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from t { key t.id as x @<Anno: '_A', y as y }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from t { key t.id as x @<A.x: '1' @<B.y: '2' }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from t { @Semantics.text: true key t.id as x @<A: '_A' }",
+  "valid": true
+ },
+ {
+  "cds": "define view V as select from t { sum(t.qty) as total @<Semantics.amount.currencyCode: 'CURR' }",
+  "valid": true
+ },
+ {
+  "cds": "root view entity v as projection on foo as myfoo {\n         key mykey,\n         _myassoc[ carrid = 'LH' and connid = '4000' ] as _a : redirected to BAR\n       }",
+  "valid": true
+ },
+ {
+  "cds": "abstract entity e { key id : abap.int4; }",
+  "valid": true
+ },
+ {
+  "cds": "custom entity e { key id : abap.int4; }",
+  "valid": true
+ },
+ {
+  "cds": "table entity t { key id : abap.int4; }",
+  "valid": true
+ },
+ {
+  "cds": "external entity e { key id : abap.int4; }",
+  "valid": true
+ },
+ {
+  "cds": "hierarchy h as parent child hierarchy (\n  source I_OrgUnit\n  child to parent association _Parent\n) { key NodeID }",
+  "valid": true
+ },
+ {
+  "cds": "define view v as select from t {\n  carrid\n} where         carrid = 'AA'\n  and not       carrid = 'BB'\n  and not ( not carrid = 'CC' )\n  and     seatsocc     between 10 and 20\n  and     seatsocc not between 30 and 40\n  and     planetype     like 'A%' escape '$'\n  and not planetype not like 'D%' escape '*'\n  and     connid is     initial",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity ztab1 with composition [0..*] of ztab2 as _assoc1 { ztab1.field1 as f1, _assoc1 }",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity ztab1 with composition of ztab2 as _assoc1 { _assoc1 }",
+  "valid": true
+ },
+ {
+  "cds": "extend view entity ztab1 with composition of exact one to many ztab2 as _assoc1 { _assoc1 }",
+  "valid": true
+ }
+]

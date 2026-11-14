@@ -4,7 +4,9 @@
 // those files are maintained by hand since. Run it again into another folder
 // to see what changed in abaplint's grammar after an update:
 //
-// usage: node tools/gen-grammar.mjs <out-dir>
+// usage: node tools/gen-grammar.mjs <out-dir> [--cds]
+//   --cds  the grammar of CDS data definitions instead, from abaplint's CDS
+//          parser, into cds.rs
 //
 // abaplint (https://github.com/abaplint/abaplint) is MIT licensed,
 // Copyright (c) 2015 Lars Hvam. Its matchers are walked as objects: words,
@@ -25,8 +27,9 @@ const combi = require(path.join(corePath, "build/src/abap/2_statements/combi"));
 const {ArtifactsABAP} = require(path.join(corePath, "build/src/abap/artifacts"));
 
 const out = process.argv[2];
+const cds = process.argv.includes("--cds");
 if (!out) {
-  console.error("usage: node tools/gen-grammar.mjs <out-dir>");
+  console.error("usage: node tools/gen-grammar.mjs <out-dir> [--cds]");
   process.exit(1);
 }
 
@@ -56,6 +59,8 @@ const raw = (s) => {
 // regexes without a Rust equivalent, rewritten by hand
 const REWRITE = {
   "^(\\/\\w+\\/)?(?!\\*)[\\w\\d_\\*\\~%]+$": "^(\\/\\w+\\/)?[\\w\\d_\\~%][\\w\\d_\\*\\~%]*$",
+  // a CDS string: a backslash not before a quote takes the next character
+  "^'(?:[^'\\\\]|''|\\\\'|\\\\\\\\|\\\\(?!'))*'$": "^'(?:[^'\\\\]|''|\\\\'|\\\\\\\\|\\\\[^'])*'$",
 };
 
 /** A regex as a word when it is one, else as a pattern. */
@@ -79,7 +84,7 @@ function regex(r) {
     not = look[1].split("|").filter((x, i, a) => a.indexOf(x) === i);
     source = "^" + look[2];
   }
-  if (source.includes("(?")) {
+  if (/\(\?[=!<]/.test(source)) {
     throw new Error("regex without Rust equivalent: " + r);
   }
   if (flags !== "" && flags !== "i") {
@@ -203,6 +208,59 @@ const header = (name) => `//! ${name} of the statement grammars.
 //! (<https://github.com/abaplint/abaplint>, MIT, Copyright (c) 2015 Lars Hvam)
 //! by tools/gen-grammar.mjs, maintained by hand since.
 `;
+
+if (cds) {
+  // the kinds of data definition, in the order abaplint's CDSParser tries them
+  const CDS = require(path.join(corePath, "build/src/cds/expressions"));
+  const defines = [
+    "CDSDefineView",
+    "CDSDefineAbstract",
+    "CDSDefineProjection",
+    "CDSAnnotate",
+    "CDSDefineCustom",
+    "CDSDefineTableFunction",
+    "CDSExtendView",
+    "CDSDefineHierarchy",
+    "CDSDefineExternalEntity",
+    "CDSDefineTableEntity",
+  ];
+  const top = defines.map((d) => emit(new CDS[d]()));
+  const names = [...expressions.keys()].sort((a, b) => a.localeCompare(b));
+  let src = `//! The grammar of CDS data definitions.
+//!
+//! Generated from the CDS parser of abaplint ${version}
+//! (<https://github.com/abaplint/abaplint>, MIT, Copyright (c) 2015 Lars Hvam)
+//! by tools/gen-grammar.mjs --cds, maintained by hand since.
+
+use super::dsl::*;
+use super::E;
+
+/// A whole data definition: one of the kinds of definition.
+pub(super) fn definition() -> Rule {
+    alt!(${top.join(", ")})
+}
+
+/// The expressions of CDS, in [\`E\`] after those of statements.
+pub(super) const EXPRESSIONS: [E; ${names.length}] = [${names.map((n) => `E::${n}`).join(", ")}];
+
+/// The grammar of a CDS expression.
+pub(super) fn expression(e: E) -> Option<Rule> {
+    Some(match e {
+${names.map((n) => `        E::${n} => ${fnName(n)}(),`).join("\n")}
+        _ => return None,
+    })
+}
+`;
+  for (const n of names) {
+    src += `\nfn ${fnName(n)}() -> Rule {\n    ${body(expressions.get(n))}\n}\n`;
+  }
+  fs.mkdirSync(out, {recursive: true});
+  const file = path.join(out, "cds.rs");
+  fs.writeFileSync(file, src);
+  execFileSync("rustfmt", ["--edition", "2021", file], {stdio: "inherit"});
+  console.log(`gen-grammar --cds: ${defines.length} kinds of definition, ${names.length} expressions`);
+  process.exit(0);
+}
 
 const statements = ArtifactsABAP.getStatements()
   .map((s) => [s.constructor.name, emit(s.getMatcher())])

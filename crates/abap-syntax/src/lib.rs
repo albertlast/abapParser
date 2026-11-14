@@ -3,6 +3,7 @@
 //!
 //! Splitting follows abaplint (<https://github.com/abaplint/abaplint>, MIT).
 
+pub mod cds;
 pub mod check;
 mod classify;
 pub mod decl;
