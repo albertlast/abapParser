@@ -159,10 +159,11 @@ pub struct Workspace {
     data_elements: Mutex<HashMap<String, Option<String>>>,
     table_types: Mutex<HashMap<String, Option<m::DataType>>>,
     dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
-    /// failed lookups that only add types, per kind: how many, the first
+    /// failed lookups that only add types, per kind: how many, the first by
+    /// name
     lookups_failed: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
     /// dictionary texts that could not be read, per kind: how many, the
-    /// first with its origin
+    /// first by name with its origin
     unreadable: Mutex<BTreeMap<ObjectKind, (usize, String)>>,
     /// dictionary lookups made, and those not made because of
     /// `follow.dictionary`
@@ -633,10 +634,7 @@ impl Workspace {
             ObjectKind::Ttyp | ObjectKind::Type | ObjectKind::Dtel | ObjectKind::Doma
         ) {
             let mut failed = self.lookups_failed.lock().unwrap();
-            let entry = failed
-                .entry(r.kind)
-                .or_insert_with(|| (0, format!("{r}: {e}")));
-            entry.0 += 1;
+            count_first(&mut failed, r.kind, format!("{r}: {e}"));
             return;
         }
         self.record(r.to_string(), e);
@@ -815,10 +813,11 @@ impl Workspace {
         if out.is_none() {
             let r = &source.reference;
             let mut unreadable = self.unreadable.lock().unwrap();
-            let entry = unreadable
-                .entry(r.kind)
-                .or_insert_with(|| (0, format!("{r} from {}", source.origin)));
-            entry.0 += 1;
+            count_first(
+                &mut unreadable,
+                r.kind,
+                format!("{r} from {}", source.origin),
+            );
         }
         out
     }
@@ -1887,6 +1886,16 @@ fn interface_name(name: &str) -> bool {
         None => &lower,
     };
     ["if_", "zif_", "yif_"].iter().any(|p| local.starts_with(p))
+}
+
+/// Counts one more of the kind and keeps the first by name, as lookups run
+/// in an order that differs between runs.
+fn count_first(map: &mut BTreeMap<ObjectKind, (usize, String)>, kind: ObjectKind, text: String) {
+    let entry = map.entry(kind).or_insert_with(|| (0, text.clone()));
+    entry.0 += 1;
+    if text < entry.1 {
+        entry.1 = text;
+    }
 }
 
 #[cfg(test)]
@@ -3013,7 +3022,8 @@ CLASS zcl_dd IMPLEMENTATION.\n  METHOD run.\n    DATA lt_names TYPE string_table
         assert_eq!(notes.len(), 2, "{:?}", l.notes);
         // abap_compdescr_tab is asked as a table type too, its type group failed
         assert!(notes[0].starts_with("table types: 2 lookups failed, their types stay names"));
-        assert!(notes[0].contains("(first: TTYP:STRING_TABLE: HTTP 500"));
+        // the first by name
+        assert!(notes[0].contains("(first: TTYP:ABAP_COMPDESCR_TAB: HTTP 500"));
         assert!(notes[1].starts_with(
             "type groups: 1 lookups failed, their types stay names (first: TYPE:ABAP: HTTP 500"
         ));
