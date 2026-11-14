@@ -179,6 +179,25 @@ pub fn statement_needs(file: &File, s: &Statement) -> Vec<Need> {
     scan.needs
 }
 
+/// The strict mode of ABAP SQL that the syntax check applies to a database
+/// statement, or `None` for the classic syntax. SAP
+/// (`abenabap_sql_strict_modes`): a statement that uses a feature of 7.40
+/// SP05 or later, like `@`, comma-separated lists, `FIELDS` or SQL
+/// expressions, is checked in the strict mode of the newest such release,
+/// which holds the rules of all earlier strict modes. The [`Need`] names
+/// that feature.
+pub fn sql_strict_mode(file: &File, s: &Statement) -> Option<Need> {
+    if !is_sql(s.kind) {
+        return None;
+    }
+    let mut scan = Scan::new(file, s);
+    scan.sql();
+    scan.needs
+        .into_iter()
+        .filter(|n| n.release >= Release::V740Sp05)
+        .reduce(|a, b| if b.release > a.release { b } else { a })
+}
+
 /// The release a file needs: the highest of its statements, with the index
 /// of the first statement that needs it.
 pub fn file_release(file: &File) -> Option<(usize, Need)> {
@@ -929,6 +948,9 @@ impl<'a> Scan<'a> {
             }
             if t.kind == TokenKind::At {
                 self.need(Release::V740Sp05, "host variable with @");
+                if self.tight_paren(i + 1) {
+                    self.need(Release::V750, "host expression");
+                }
                 if self.word(i + 1) == "DATA" && self.tight_paren(i + 2) {
                     if self.kind == K::OpenCursor {
                         self.need(Release::V751, "inline declaration for OPEN CURSOR");
@@ -1004,6 +1026,22 @@ impl<'a> Scan<'a> {
                     self.need(Release::V756, "INTERSECT or EXCEPT")
                 }
                 "CROSS" if self.word(i + 1) == "JOIN" => self.need(Release::V751, "CROSS JOIN"),
+                // SAP `abenabap_sql_strictmode_740_sp05`
+                "RIGHT" if self.word(i + 1) == "OUTER" && self.word(i + 2) == "JOIN" => {
+                    self.need(Release::V740Sp05, "RIGHT OUTER JOIN")
+                }
+                // SAP `abenabap_sql_strictmode_740_sp08`: the INTO clause
+                // after WHERE, GROUP BY, HAVING or ORDER BY
+                "INTO" | "APPENDING"
+                    if select
+                        && self.depth[i] == 0
+                        && (0..i).any(|k| {
+                            self.depth[k] == 0
+                                && matches!(self.word(k), "WHERE" | "GROUP" | "HAVING" | "ORDER")
+                        }) =>
+                {
+                    self.need(Release::V740Sp08, "INTO as the last clause")
+                }
                 "CAST" if self.tight_paren(i + 1) || self.word(i + 1) == "(" => {
                     self.need(Release::V750, "SQL CAST")
                 }
@@ -1732,8 +1770,13 @@ mod tests {
             Some((Release::V750, "SQL expression in a condition"))
         );
         assert_eq!(
-            need("SELECT * FROM t WHERE a = ( SELECT b FROM u ) INTO TABLE lt."),
+            need("SELECT * FROM t INTO TABLE lt WHERE a = ( SELECT b FROM u )."),
             None
+        );
+        // SAP `abenabap_sql_strictmode_740_sp08`
+        assert_eq!(
+            need("SELECT * FROM t WHERE a = ( SELECT b FROM u ) INTO TABLE @lt."),
+            Some((Release::V740Sp08, "INTO as the last clause"))
         );
     }
 

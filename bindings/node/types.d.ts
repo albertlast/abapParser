@@ -288,6 +288,8 @@ export interface DbAccess {
   span: Span;
   /** statement kind, e.g. `Select`, `SelectLoop`, `ModifyDatabase`, `OpenCursor` */
   statement: string;
+  /** the strict mode of ABAP SQL the statement is checked in, named by its release like `7.40 SP05` or `7.50`: the release of the newest ABAP SQL feature the statement uses, from 7.40 SP05 on (`@`, comma-separated lists, `FIELDS`, SQL expressions, ...); absent for the classic syntax, native SQL and data clusters */
+  strict_mode?: string;
   /** every table taking part, joins and subqueries included */
   tables: DbTable[];
   target?: DbTarget;

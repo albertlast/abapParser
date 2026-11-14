@@ -58,7 +58,7 @@ const PREDICATE_FUNCTION: &str = "predicate function";
 
 /// Constructs dated by SAP's ABAP release news where abaplint gives another
 /// release: `INTO @DATA(x)` came with 7.40 SP08, not SP05, for example.
-const RELEASE_NEWS: [&str; 27] = [
+const RELEASE_NEWS: [&str; 30] = [
     "inline declaration in SQL",
     "inline declaration for OPEN CURSOR",
     "path expression",
@@ -75,6 +75,12 @@ const RELEASE_NEWS: [&str; 27] = [
     "SQL regular expression",
     "SUBSTRING_REGEXPR",
     "FINAL",
+    // `abennews-750-abap_sql` "Host Expressions"
+    "host expression",
+    // `abennews-740_sp08-abap_sql` "Position of the INTO Clause"
+    "INTO as the last clause",
+    // `abennews-740_sp05-abap_sql` "Rule Changes for Joins"
+    "RIGHT OUTER JOIN",
     // constructs abaplint does not know, dated by the release news of
     // their release
     "AMDP OPTIONS",

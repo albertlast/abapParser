@@ -47,6 +47,45 @@ fn classic_select_single() {
     );
     // the right side of classic syntax is a host variable, not a column
     assert_eq!(a.conditions[0].columns.len(), 1);
+    assert_eq!(a.strict_mode, None);
+}
+
+#[test]
+fn strict_mode_by_the_newest_feature() {
+    let mode = |src: &str| db(src).strict_mode;
+    assert_eq!(mode("SELECT * FROM t INTO TABLE lt WHERE a = lv."), None);
+    assert_eq!(
+        mode("SELECT * FROM t INTO TABLE @lt WHERE a = @lv."),
+        Some("7.40 SP05".into())
+    );
+    assert_eq!(
+        mode("SELECT a, b FROM t INTO TABLE @lt."),
+        Some("7.40 SP05".into())
+    );
+    assert_eq!(
+        mode("SELECT * FROM t WHERE a = @lv INTO TABLE @lt."),
+        Some("7.40 SP08".into())
+    );
+    assert_eq!(
+        mode("SELECT FROM t FIELDS a WHERE b = @lv INTO TABLE @lt."),
+        Some("7.50".into())
+    );
+    assert_eq!(
+        mode("SELECT * FROM t WHERE a = @( lv + 1 ) INTO TABLE @lt."),
+        Some("7.50".into())
+    );
+    assert_eq!(mode("UPDATE t SET a = lv WHERE b = lv."), None);
+    assert_eq!(
+        mode("UPDATE t SET a = @lv, b = @lv."),
+        Some("7.40 SP05".into())
+    );
+    // without @, strict from USING CLIENT: the right side is a column
+    let a = db("DELETE FROM t USING CLIENT '001' WHERE a = b.");
+    assert_eq!(a.strict_mode.as_deref(), Some("7.40 SP05"));
+    let columns: Vec<_> = a.conditions[0].columns.iter().map(col).collect();
+    assert_eq!(columns, ["t.a", "t.b"]);
+    let classic = db("DELETE FROM t WHERE a = b.");
+    assert_eq!(classic.conditions[0].columns.len(), 1);
 }
 
 #[test]

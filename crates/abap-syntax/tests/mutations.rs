@@ -26,8 +26,10 @@ const MIN_REJECTED_PERCENT: f64 = 100.0;
 /// two SELECTs with FROM dropped. Checked on the SAP trial (8.16) on
 /// 2026-11-14: SAP accepted none of them; it reported a syntax error for
 /// 211, an unknown name first for the rest, and the same constructs with
-/// declared names as syntax errors.
-const MAX_REPORTED: usize = 368;
+/// declared names as syntax errors. One more of the strict mode of ABAP SQL,
+/// `INTO TABLE DATA(x)` without `@` in a SELECT with commas: a syntax error
+/// on the SAP trial too ("Inline declarations must be escaped").
+const MAX_REPORTED: usize = 369;
 
 #[derive(Deserialize)]
 struct Mutant {

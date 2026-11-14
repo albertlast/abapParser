@@ -332,6 +332,8 @@ class DbAccess(_DbAccessRequired, total=False):
     native_sql: str
     """native SQL (HANA SQL or SQLScript): the statement as written"""
     source: DbSource
+    strict_mode: str
+    """the strict mode of ABAP SQL the statement is checked in, named by its release like `7.40 SP05` or `7.50`: the release of the newest ABAP SQL feature the statement uses, from 7.40 SP05 on (`@`, comma-separated lists, `FIELDS`, SQL expressions, ...); absent for the classic syntax, native SQL and data clusters"""
     target: DbTarget
     up_to: str
     where_text: str
