@@ -300,6 +300,9 @@ fn file_command(command: &str, args: &Args) -> ExitCode {
                     format!("{} ({})", r.release, r.construct)
                 });
                 println!("needs {needs}");
+                if let Some(h) = &report.hana {
+                    println!("needs {} ({})", h.release, h.construct);
+                }
                 if !report.statements.is_empty() {
                     let target = report.target.as_deref().unwrap_or("7.00");
                     println!("\nnewer than {target}:");
@@ -335,6 +338,9 @@ fn statement_notes(s: &abap_model::StatementInfo) -> String {
     let mut out = String::new();
     if let Some(r) = &s.release {
         out.push_str(&format!("  [{}: {}]", r.release, r.construct));
+    }
+    if let Some(h) = &s.hana {
+        out.push_str(&format!("  [{}: {}]", h.release, h.construct));
     }
     if let Some(e) = &s.error {
         out.push_str(&format!("  [error: {e}]"));

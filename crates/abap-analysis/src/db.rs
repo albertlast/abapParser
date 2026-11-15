@@ -23,6 +23,8 @@ pub fn db_access_of(file: &File) -> Vec<m::DbAccess> {
 pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::DbAccess> {
     let blocks = statement_blocks(file);
     let constants = literal_constants(symbols);
+    let signatures = procedure_signatures(symbols);
+    let signature = |name: &str| signatures.get(&name.to_ascii_uppercase()).cloned();
     let mut out = Vec::new();
     let mut i = 0;
     while i < file.statements.len() {
@@ -48,8 +50,15 @@ pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::Db
             } else {
                 Dialect::SqlScript
             };
-            for n in abap_sql::hana::parse(&file.source()[from..to], dialect).accesses {
+            let text = &file.source()[from..to];
+            for n in abap_sql::hana::parse_with(text, dialect, &signature).accesses {
                 let mut a = n.access;
+                for (t, starts) in n.filled_by {
+                    a.tables[t].filled_by = starts
+                        .into_iter()
+                        .map(|at| position_at(file.source(), from + at))
+                        .collect();
+                }
                 a.statement = s.kind.as_str().to_string();
                 a.block = blocks[i].clone();
                 a.span = m::Span {
@@ -62,6 +71,34 @@ pub(crate) fn db_access_with(file: &File, symbols: &m::FileSymbols) -> Vec<m::Db
             continue;
         }
         i += 1;
+    }
+    out
+}
+
+/// The parameters of the methods of the classes, by `CLASS=>METHOD` in
+/// upper case: what a CALL of an AMDP method of SQLScript fills.
+fn procedure_signatures(
+    symbols: &m::FileSymbols,
+) -> HashMap<String, Vec<(String, abap_sql::hana::Pass)>> {
+    use abap_sql::hana::Pass;
+    let mut out = HashMap::new();
+    for c in &symbols.classes {
+        for method in &c.methods {
+            let parameters = method
+                .parameters
+                .iter()
+                .map(|p| {
+                    let pass = match p.direction {
+                        m::Direction::Importing => Pass::In,
+                        m::Direction::Changing => Pass::InOut,
+                        _ => Pass::Out,
+                    };
+                    (p.name.clone(), pass)
+                })
+                .collect();
+            let key = format!("{}=>{}", c.name, method.name).to_ascii_uppercase();
+            out.insert(key, parameters);
+        }
     }
     out
 }
@@ -170,6 +207,7 @@ pub(crate) fn resolve_table(t: &mut m::DbTable, value: String) -> Vec<m::DbTable
             path: None,
             dynamic: true,
             resolved: Some(other.name),
+            filled_by: Vec::new(),
             role: if t.role == m::DbTableRole::Main {
                 other.role
             } else {
@@ -361,5 +399,40 @@ SELECT * FROM (c_from) INTO TABLE lt.";
                 ("c_from", Some("marc"), Some("c"), m::DbTableRole::Join),
             ]
         );
+    }
+
+    #[test]
+    fn table_variables_of_amdp_methods_link_to_what_filled_them() {
+        // `||` of SQLScript is no string template of ABAP: the body ends
+        // at its ENDMETHOD
+        let src = "CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES if_amdp_marker_hdb.
+    CLASS-METHODS split IMPORTING VALUE(iv) TYPE string EXPORTING VALUE(et_a) TYPE tt VALUE(et_b) TYPE tt.
+    CLASS-METHODS run EXPORTING VALUE(et) TYPE tt.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD split BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT USING ztab.
+    et_a = SELECT a || '.' || b AS c FROM ztab;
+    et_b = SELECT a, 'x|' AS c FROM ztab;
+  ENDMETHOD.
+  METHOD run BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT USING zcl_x=>split.
+    CALL \"ZCL_X=>SPLIT\"(:iv, :lt_a, :lt_b);
+    et = SELECT * FROM :lt_a;
+  ENDMETHOD.
+ENDCLASS.";
+        let acc = db_access(src);
+        let rows: Vec<(u32, &str)> = acc
+            .iter()
+            .map(|a| (a.span.start.row, a.block.as_ref().unwrap().name.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [(9, "split"), (10, "split"), (13, "run"), (14, "run")]
+        );
+        let read = &acc[3].tables[0];
+        assert_eq!(read.name, ":lt_a");
+        // the signature: the second and third argument are outputs
+        assert_eq!(read.filled_by, [m::Position { row: 13, col: 5 }]);
     }
 }

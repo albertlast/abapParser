@@ -441,6 +441,8 @@ class _DbTableRequired(TypedDict):
 
 class DbTable(_DbTableRequired, total=False):
     alias: str
+    filled_by: List[Position]
+    """a table variable of SQLScript (`:lt`): where the statements start that may have filled it before this one in the same method, like `lt = SELECT ...`, `INSERT INTO :lt`, `:lt.INSERT( ... )` or an output of CALL; empty for a parameter of the method"""
     path: str
     """CDS path expression after the name, e.g. `\_items`"""
     resolved: str
@@ -807,6 +809,8 @@ class StatementInfo(_StatementInfoRequired, total=False):
     """One statement, as listed by the statements API."""
     error: str
     """a syntax error found in the statement, like `keyword as a column`; statements without one are not necessarily correct"""
+    hana: ReleaseNeed
+    """for SQLScript of an AMDP method: the oldest SAP HANA version that has all the statement uses, when that is newer than HANA 1.0, like `HANA 2.0 SPS 03` for `BOOLEAN`"""
     release: ReleaseNeed
     """the oldest release that has all the statement uses, when that is newer than 7.00"""
 

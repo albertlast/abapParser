@@ -61,7 +61,29 @@ fn statement_info(file: &abap_syntax::File, s: &abap_syntax::Statement) -> m::St
             },
         },
         release: abap_syntax::release::statement_release(file, s).map(release_need),
-        error: abap_syntax::check::syntax_error(file, s).map(|e| e.message.to_string()),
+        error: statement_error(file, s),
+        hana: abap_syntax::sqlscript::statement_release(file, s).map(hana_need),
+    }
+}
+
+/// The message of the statement's syntax error; in SQLScript with where
+/// in the file, the body of an AMDP method being one statement.
+fn statement_error(file: &abap_syntax::File, s: &abap_syntax::Statement) -> Option<String> {
+    let e = abap_syntax::check::syntax_error(file, s)?;
+    if let Some(sql) = abap_syntax::sqlscript::statement_syntax_error(file, s) {
+        return Some(format!(
+            "{} at {}:{} `{}`",
+            sql.message, sql.start.row, sql.start.col, sql.text
+        ));
+    }
+    Some(e.message.to_string())
+}
+
+fn hana_need(n: abap_syntax::sqlscript::HanaNeed) -> m::ReleaseNeed {
+    m::ReleaseNeed {
+        release: n.version.name().to_string(),
+        id: n.version.id().to_string(),
+        construct: n.construct.to_string(),
     }
 }
 
@@ -81,6 +103,12 @@ pub fn release(source: &str, target: Option<abap_syntax::release::Release>) -> m
     let target_release = target.unwrap_or(Release::V700);
     let mut statements = Vec::new();
     let mut errors = Vec::new();
+    let hana = file
+        .statements
+        .iter()
+        .filter_map(|s| abap_syntax::sqlscript::statement_release(&file, s))
+        .reduce(|a, b| if b.version > a.version { b } else { a })
+        .map(hana_need);
     for s in &file.statements {
         let newer = statement_release(&file, s).is_some_and(|n| n.release > target_release);
         let error = abap_syntax::check::syntax_error(&file, s).is_some();
@@ -97,6 +125,7 @@ pub fn release(source: &str, target: Option<abap_syntax::release::Release>) -> m
     m::ReleaseReport {
         schema_version: m::SCHEMA_VERSION,
         release: file_release(&file).map(|(_, n)| release_need(n)),
+        hana,
         target: target
             .filter(|t| *t != Release::V700)
             .map(|t| t.name().to_string()),

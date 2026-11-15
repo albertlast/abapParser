@@ -72,8 +72,31 @@ fn oracle_diff() {
         // like abaplint, macros of the other files of the same object count
         let parsed = abap_syntax::parse_with_macros(&source, &common::sibling_macros(&path));
         let tokens = parsed.tokens();
+        // the bodies of AMDP methods are lexed in the language of the
+        // database, abaplint lexes them as ABAP: not compared
+        let mut bodies = Vec::new();
+        for (i, s) in parsed.statements.iter().enumerate() {
+            let next = parsed.statements.get(i + 1);
+            if s.kind != abap_syntax::StatementKind::MethodImplementation
+                || next.is_none_or(|n| n.kind != abap_syntax::StatementKind::NativeSQL)
+            {
+                continue;
+            }
+            let end = parsed.statements[i..]
+                .iter()
+                .find(|e| e.kind == abap_syntax::StatementKind::EndMethod);
+            let at = |t: usize| (tokens[t].start.row, tokens[t].start.col);
+            if let (Some(&last), Some(end)) = (s.tokens.last(), end) {
+                bodies.push((at(last), at(end.tokens[0])));
+            }
+        }
+        let outside = |pos: (u32, u32)| !bodies.iter().any(|(a, b)| pos > *a && pos < *b);
+        golden.tokens.retain(|g| outside((g.row, g.col)));
         // tokens of macro expansions are not in abaplint's token list
-        let real: Vec<&abap_syntax::Token> = tokens.iter().filter(|t| !t.expanded).collect();
+        let real: Vec<&abap_syntax::Token> = tokens
+            .iter()
+            .filter(|t| !t.expanded && outside((t.start.row, t.start.col)))
+            .collect();
 
         // tokens; comment positions are excluded, abaplint misplaces comments
         // that have trailing whitespace

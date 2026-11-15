@@ -254,6 +254,19 @@ struct Lexer {
     buf_end: isize,
     buf_empty: bool,
     tokens: Vec<Token>,
+    /// words of the current statement so far, without comments and pragmas
+    words: usize,
+    /// the statement starts with METHOD
+    method: bool,
+    /// the last word was BY
+    after_by: bool,
+    /// the statement is `METHOD ... BY DATABASE ...`
+    amdp: bool,
+    /// the body of an AMDP method starts here, after the period
+    native_at: Option<usize>,
+    /// lexing goes on after an AMDP body: the character before the cursor
+    /// belongs to the body
+    resumed: bool,
 }
 
 impl Lexer {
@@ -280,6 +293,12 @@ impl Lexer {
             buf_end: 0,
             buf_empty: true,
             tokens: Vec::new(),
+            words: 0,
+            method: false,
+            after_by: false,
+            amdp: false,
+            native_at: None,
+            resumed: false,
         }
     }
 
@@ -435,6 +454,23 @@ impl Lexer {
             }
         };
 
+        if !matches!(kind, TokenKind::Comment | TokenKind::Pragma) {
+            if text == "." {
+                if self.amdp {
+                    self.native_at = Some(e);
+                }
+                self.words = 0;
+                self.method = false;
+                self.amdp = false;
+            } else {
+                if self.words == 0 {
+                    self.method = text.eq_ignore_ascii_case("METHOD");
+                }
+                self.amdp |= self.method && self.after_by && text.eq_ignore_ascii_case("DATABASE");
+                self.words += 1;
+            }
+            self.after_by = text.eq_ignore_ascii_case("BY");
+        }
         self.tokens.push(Token {
             kind,
             text,
@@ -447,10 +483,135 @@ impl Lexer {
         self.buf_clear();
     }
 
+    /// A token of the characters `s..e` without blanks around them.
+    fn push_raw(&mut self, kind: TokenKind, s: usize, e: usize) {
+        let (mut s, mut e) = (s, e);
+        while s < e && self.chars[s].is_whitespace() {
+            s += 1;
+        }
+        while e > s && self.chars[e - 1].is_whitespace() {
+            e -= 1;
+        }
+        if s == e {
+            return;
+        }
+        self.tokens.push(Token {
+            kind,
+            text: self.chars[s..e].iter().collect(),
+            start: self.position(s),
+            span: self.byte_of[s]..self.byte_of[e],
+            ws_before: true,
+            ws_after: true,
+            expanded: false,
+        });
+    }
+
+    /// The body of an AMDP method from `start` on, in the language of the
+    /// database: one token per line, comments apart (`*` in the first
+    /// column, `--` and `/* */`), quotes of strings and names followed,
+    /// so that a period, `"` or `|` in it ends nothing. The body ends
+    /// before `ENDMETHOD` and a period outside of them, where this returns.
+    fn native(&mut self, start: usize) -> usize {
+        let n = self.chars.len();
+        let is_word = |c: char| c.is_alphanumeric() || matches!(c, '_' | '$' | '#' | '/');
+        let mut i = start;
+        let mut from = start;
+        let mut string = false;
+        while i < n {
+            let c = self.chars[i];
+            let next = self.chars.get(i + 1).copied();
+            if c == '\n' {
+                self.push_raw(TokenKind::Identifier, from, i);
+                i += 1;
+                from = i;
+                continue;
+            }
+            if string {
+                if c == '\'' && next == Some('\'') {
+                    i += 2;
+                } else {
+                    string = c != '\'';
+                    i += 1;
+                }
+                continue;
+            }
+            let line_start = i == 0 || self.chars[i - 1] == '\n';
+            let comment_end = if (c == '*' && line_start) || (c == '-' && next == Some('-')) {
+                Some((i..n).find(|&k| self.chars[k] == '\n').unwrap_or(n))
+            } else if c == '/' && next == Some('*') {
+                Some(
+                    (i + 2..n)
+                        .find(|&k| self.chars[k] == '*' && self.chars.get(k + 1) == Some(&'/'))
+                        .map_or(n, |k| k + 2),
+                )
+            } else {
+                None
+            };
+            if let Some(end) = comment_end {
+                self.push_raw(TokenKind::Identifier, from, i);
+                // a comment over several lines: a token for each
+                let mut k = i;
+                while k < end {
+                    let eol = (k..end).find(|&j| self.chars[j] == '\n').unwrap_or(end);
+                    self.push_raw(TokenKind::Comment, k, eol);
+                    k = eol + 1;
+                }
+                i = end;
+                from = i;
+                continue;
+            }
+            match c {
+                '\'' => string = true,
+                '"' => {
+                    // a quoted name, up to its quote or the end of the line
+                    i = (i + 1..n)
+                        .find(|&k| self.chars[k] == '"' || self.chars[k] == '\n')
+                        .map_or(n, |k| if self.chars[k] == '"' { k } else { k - 1 });
+                }
+                _ if (c == 'E' || c == 'e') && (i == 0 || !is_word(self.chars[i - 1])) => {
+                    let word: String = self.chars[i..n.min(i + 9)].iter().collect();
+                    let after = (i + 9..n).find(|&k| !self.chars[k].is_whitespace());
+                    if word.eq_ignore_ascii_case("ENDMETHOD")
+                        && !self.chars.get(i + 9).copied().is_some_and(is_word)
+                        && after.is_some_and(|k| self.chars[k] == '.')
+                    {
+                        self.push_raw(TokenKind::Identifier, from, i);
+                        return i;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        self.push_raw(TokenKind::Identifier, from, n);
+        n
+    }
+
     fn run(mut self) -> Vec<Token> {
         loop {
+            self.scan();
+            let Some(start) = self.native_at.take() else {
+                break;
+            };
+            let end = self.native(start);
+            // on with ABAP at ENDMETHOD
+            self.offset = end as isize - 1;
+            self.resumed = true;
+            self.mode = Mode::Normal;
+            self.buf_clear();
+        }
+        self.tokens
+    }
+
+    /// ABAP up to the end or the body of an AMDP method.
+    fn scan(&mut self) {
+        loop {
             let current = self.current();
-            self.buf_add(self.offset);
+            if self.resumed {
+                self.resumed = false;
+            } else {
+                self.buf_add(self.offset);
+            }
             let ahead = self.ch(self.offset + 1);
             let aahead = self.ch(self.offset + 2);
 
@@ -541,9 +702,11 @@ impl Lexer {
             if !self.advance() {
                 break;
             }
+            if self.native_at.is_some() {
+                return;
+            }
         }
         self.add();
-        self.tokens
     }
 }
 
@@ -696,5 +859,38 @@ mod tests {
         let s = &l.tokens[4];
         assert_eq!(&l.source[s.span.clone()], "'ä'");
         assert_eq!(s.start, Position { row: 2, col: 9 });
+    }
+
+    #[test]
+    fn amdp_bodies_are_lexed_as_sql() {
+        let src = "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT.
+* ABAP comment
+    x = SELECT a || '.' ||b AS \"C.D\" -- ENDMETHOD.
+      FROM t /* ENDMETHOD. */ WHERE c = 'ENDMETHOD.';
+  ENDMETHOD.
+METHOD n.";
+        let lexed = lex(src);
+        let t: Vec<(String, &str)> = lexed
+            .tokens
+            .iter()
+            .map(|t| (t.abaplint_name(), t.text.as_str()))
+            .collect();
+        let t: Vec<(&str, &str)> = t.iter().map(|(k, x)| (k.as_str(), *x)).collect();
+        assert_eq!(
+            t[10..],
+            [
+                ("Comment", "* ABAP comment"),
+                ("Identifier", "x = SELECT a || '.' ||b AS \"C.D\""),
+                ("Comment", "-- ENDMETHOD."),
+                ("Identifier", "FROM t"),
+                ("Comment", "/* ENDMETHOD. */"),
+                ("Identifier", "WHERE c = 'ENDMETHOD.';"),
+                ("Identifier", "ENDMETHOD"),
+                ("Punctuation", "."),
+                ("Identifier", "METHOD"),
+                ("Identifier", "n"),
+                ("Punctuation", "."),
+            ]
+        );
     }
 }

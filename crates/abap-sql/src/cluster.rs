@@ -39,6 +39,7 @@ pub fn parse_cluster(file: &File, s: &Statement) -> Option<m::DbAccess> {
         dynamic: false,
         resolved: None,
         role: m::DbTableRole::Main,
+        filled_by: Vec::new(),
     });
     access.client_specified = after("CLIENT").is_some();
     let mut parameters = Vec::new();

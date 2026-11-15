@@ -19,6 +19,7 @@
 mod cds;
 mod expressions;
 mod run;
+mod sqlscript;
 mod statements;
 
 use crate::{StatementKind as K, Token, TokenKind};
@@ -279,6 +280,28 @@ pub(crate) fn mismatch(tokens: &[&Token], kind: K) -> Option<usize> {
         })?
     };
     Some(at.get(far).copied().unwrap_or(tokens.len() - 1))
+}
+
+/// Whether the tokens of a SQLScript body, without comments, do not form
+/// one: the position where its grammar got stuck.
+pub(crate) fn sqlscript_mismatch(tokens: &[&Token]) -> Option<usize> {
+    if tokens.is_empty() {
+        return None;
+    }
+    let g = run::grammar();
+    let far = if tokens.len() <= LONG {
+        g.sqlscript_stuck(tokens)?
+    } else {
+        std::thread::scope(|s| {
+            std::thread::Builder::new()
+                .stack_size((2 << 20) + tokens.len() * STACK_PER_TOKEN)
+                .spawn_scoped(s, || g.sqlscript_stuck(tokens))
+                .ok()?
+                .join()
+                .unwrap_or_else(|e| std::panic::resume_unwind(e))
+        })?
+    };
+    Some(far.min(tokens.len() - 1))
 }
 
 /// The words CDS forbids as names.

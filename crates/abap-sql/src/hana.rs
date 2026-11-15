@@ -9,7 +9,8 @@
 //! Grammar reference: the SAP HANA SQL Reference Guide and the SQLScript
 //! Reference, used as a reference only.
 
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 
 use abap_model as m;
@@ -30,6 +31,10 @@ pub enum Dialect {
 pub struct NativeAccess {
     pub access: m::DbAccess,
     pub range: Range<usize>,
+    /// for each table variable of `access.tables`, by index: where the
+    /// statements start that may have filled it before, as byte offsets in
+    /// the text like `range`; see [`m::DbTable::filled_by`]
+    pub filled_by: Vec<(usize, Vec<usize>)>,
 }
 
 /// A call of a procedure, or of a table function in FROM.
@@ -48,15 +53,36 @@ pub struct Native {
     pub calls: Vec<NativeCall>,
 }
 
+/// How a procedure takes a parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pass {
+    In,
+    Out,
+    InOut,
+}
+
+/// The parameters of a procedure in their order, for its name as written
+/// in CALL without quotes, like `ZCL_X=>GET_ROWS`.
+pub type Signatures<'s> = &'s dyn Fn(&str) -> Option<Vec<(String, Pass)>>;
+
 /// Parses native SQL.
 pub fn parse(text: &str, dialect: Dialect) -> Native {
+    parse_with(text, dialect, &|_| None)
+}
+
+/// Parses native SQL, with the signatures of procedures it may call: which
+/// arguments of a CALL are filled by it.
+pub fn parse_with(text: &str, dialect: Dialect, signatures: Signatures) -> Native {
     let toks = lex(text, dialect);
+    let flow = RefCell::new(Defs::default());
     let mut p = P {
         t: &toks,
         pos: 0,
         end: toks.len(),
         text,
         dialect,
+        flow: &flow,
+        signatures,
     };
     let mut out = Native::default();
     p.block(&mut out, &[]);
@@ -388,6 +414,58 @@ struct P<'a> {
     end: usize,
     text: &'a str,
     dialect: Dialect,
+    /// the table variables filled so far, shared by all parsers of the text
+    flow: &'a RefCell<Defs>,
+    signatures: Signatures<'a>,
+}
+
+/// Reaching definitions of table variables: for each variable, by upper
+/// case name, where the statements start that may have filled it last.
+#[derive(Debug, Default, Clone)]
+struct Defs {
+    filled: HashMap<String, BTreeSet<usize>>,
+    /// variables used or filled as tables so far
+    tables: std::collections::HashSet<String>,
+}
+
+impl Defs {
+    fn get(&self, var: &str) -> Vec<usize> {
+        self.filled
+            .get(&var.to_ascii_uppercase())
+            .map(|s| s.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
+    /// Whether the variable was used or filled as a table before.
+    fn is_table(&self, var: &str) -> bool {
+        self.tables.contains(&var.to_ascii_uppercase())
+    }
+
+    fn table(&mut self, var: &str) {
+        self.tables.insert(var.to_ascii_uppercase());
+    }
+
+    /// Filled anew, by the statement at `at` if it is one with tables.
+    fn replace(&mut self, var: &str, at: Option<usize>) {
+        self.filled
+            .insert(var.to_ascii_uppercase(), at.into_iter().collect());
+    }
+
+    /// Filled further, keeping what was in it.
+    fn add(&mut self, var: &str, at: usize) {
+        self.filled
+            .entry(var.to_ascii_uppercase())
+            .or_default()
+            .insert(at);
+    }
+
+    fn union(mut self, other: &Defs) -> Defs {
+        for (k, v) in &other.filled {
+            self.filled.entry(k.clone()).or_default().extend(v);
+        }
+        self.tables.extend(other.tables.iter().cloned());
+        self
+    }
 }
 
 /// Tables seen in a statement, to resolve the qualifiers of columns.
@@ -405,6 +483,8 @@ impl<'a> P<'a> {
             end: range.end,
             text: self.text,
             dialect: self.dialect,
+            flow: self.flow,
+            signatures: self.signatures,
         }
     }
 
@@ -535,30 +615,44 @@ impl<'a> P<'a> {
         match self.word().as_str() {
             "IF" => {
                 self.pos += 1;
+                // each branch starts from the table variables before IF
+                let before = self.flow.borrow().clone();
                 self.condition_until(out, "THEN");
                 self.block(out, &["ELSEIF", "ELSE", "END IF"]);
+                let mut after = self.flow.replace(before.clone());
+                let mut otherwise = false;
                 loop {
                     if self.eat("ELSEIF") {
                         self.condition_until(out, "THEN");
                         self.block(out, &["ELSEIF", "ELSE", "END IF"]);
                     } else if self.eat("ELSE") {
                         self.block(out, &["END IF"]);
+                        otherwise = true;
                     } else {
                         break;
                     }
+                    after = after.union(&self.flow.replace(before.clone()));
                 }
+                if !otherwise {
+                    after = after.union(&before);
+                }
+                *self.flow.borrow_mut() = after;
                 self.eat_seq("END IF");
             }
             "WHILE" => {
                 self.pos += 1;
-                self.condition_until(out, "DO");
-                self.block(out, &["END WHILE"]);
+                self.looped(out, |p, out| {
+                    p.condition_until(out, "DO");
+                    p.block(out, &["END WHILE"]);
+                });
                 self.eat_seq("END WHILE");
             }
             "FOR" => {
                 self.pos += 1;
-                self.condition_until(out, "DO");
-                self.block(out, &["END FOR"]);
+                self.looped(out, |p, out| {
+                    p.condition_until(out, "DO");
+                    p.block(out, &["END FOR"]);
+                });
                 self.eat_seq("END FOR");
             }
             "BEGIN" => {
@@ -583,10 +677,35 @@ impl<'a> P<'a> {
                 {
                     self.pos += 1;
                 }
+                // the handler ends the block: what it fills reaches no
+                // statement after it
+                let before = self.flow.borrow().clone();
                 self.statement(out);
+                *self.flow.borrow_mut() = before;
             }
             _ => self.simple(out),
         }
+    }
+
+    /// A loop: what its statements fill reaches them again in the next round.
+    fn looped(&mut self, out: &mut Native, body: impl FnOnce(&mut Self, &mut Native)) {
+        let before = self.flow.borrow().clone();
+        let first = out.accesses.len();
+        let start = self.t.get(self.pos).map_or(usize::MAX, |t| t.start);
+        body(self, out);
+        let end = self.flow.borrow().clone();
+        for n in &mut out.accesses[first..] {
+            for (i, links) in &mut n.filled_by {
+                let var = n.access.tables[*i].name.trim_start_matches(':');
+                for at in end.get(var) {
+                    if at >= start && !links.contains(&at) {
+                        links.push(at);
+                    }
+                }
+                links.sort_unstable();
+            }
+        }
+        *self.flow.borrow_mut() = end.union(&before);
     }
 
     /// A statement up to `;`, or up to a keyword ending its block.
@@ -643,9 +762,27 @@ impl<'a> P<'a> {
         let mut seen = std::collections::HashSet::new();
         acc.host_variables
             .retain(|v| seen.insert(v.to_ascii_lowercase()));
+        let mut flow = self.flow.borrow_mut();
+        for t in &acc.tables {
+            if let Some(var) = t
+                .name
+                .strip_prefix(':')
+                .filter(|_| t.role == m::DbTableRole::InternalTable)
+            {
+                flow.table(var);
+            }
+        }
+        let filled_by = acc
+            .tables
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.role == m::DbTableRole::InternalTable)
+            .filter_map(|(i, t)| Some((i, flow.get(t.name.strip_prefix(':')?))))
+            .collect();
         out.accesses.push(NativeAccess {
             access: acc,
             range: self.t[range.start].start..self.t[range.end - 1].end,
+            filled_by,
         });
     }
 
@@ -655,180 +792,401 @@ impl<'a> P<'a> {
         let mut p = self.sub(range.clone());
         let mut acc = super::empty_access(K::NativeSQL);
         let mut scope = Scope::default();
+        // kept only when it names tables
+        let mut needs_tables = false;
+        // table variables filled anew, and filled further
+        let mut replaced: Vec<String> = Vec::new();
+        let mut added: Vec<String> = Vec::new();
+        // of them, the ones filled as tables
+        let mut tables: Vec<String> = Vec::new();
         let first = p.word();
-        match first.as_str() {
-            "SELECT" | "WITH" => {
-                p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
+        let operator = p
+            .peek(0)
+            .filter(|t| t.kind == Kind::Var)
+            .zip(p.peek(1).filter(|t| t.sym(".")))
+            .zip(p.peek(2).filter(|t| t.kind == Kind::Word))
+            .zip(p.peek(3).filter(|t| t.sym("(")))
+            .map(|(((v, _), op), _)| (v.text.clone(), op.upper()));
+        let cell = p
+            .peek(0)
+            .filter(|t| t.kind == Kind::Word)
+            .zip(p.peek(1).filter(|t| t.sym(".")))
+            .zip(p.peek(2).filter(|t| t.is_name()))
+            .zip(p.peek(3).filter(|t| t.sym("[")))
+            .map(|(((v, _), c), _)| (v.text.clone(), c.text.clone()));
+        if let Some((var, op)) =
+            operator.filter(|(_, op)| matches!(op.as_str(), "INSERT" | "DELETE" | "UPDATE"))
+        {
+            // `:lt.INSERT((1, 'a'), 2)`, `:lt.INSERT(:other)`, `:lt.DELETE(3)`
+            acc.operation = match op.as_str() {
+                "INSERT" => m::DbOperation::Insert,
+                "DELETE" => m::DbOperation::Delete,
+                _ => m::DbOperation::Update,
+            };
+            acc.host_variables.push(var.clone());
+            acc.tables
+                .push(table(&format!(":{var}"), m::DbTableRole::InternalTable));
+            p.pos += 3;
+            let close = p.close_of(p.pos);
+            for (k, arg) in p
+                .split(p.pos + 1..close.saturating_sub(1).max(p.pos + 1))
+                .into_iter()
+                .enumerate()
+            {
+                let mut a = p.sub(arg.clone());
+                if k == 0 && arg.len() == 1 && p.t[arg.start].kind == Kind::Var {
+                    a.table_ref(&mut acc, &mut scope, out, m::DbTableRole::Subquery);
+                }
+                a.scan(&mut acc, &mut scope, out);
             }
-            "INSERT" => {
-                acc.operation = m::DbOperation::Insert;
-                p.pos += 1;
-                p.eat("INTO");
-                p.changed_table(&mut acc, &mut scope, out);
-                p.insert_source(&mut acc, &mut scope, out);
-            }
-            "UPSERT" | "REPLACE" => {
-                acc.operation = m::DbOperation::Modify;
-                p.pos += 1;
-                p.changed_table(&mut acc, &mut scope, out);
-                p.insert_source(&mut acc, &mut scope, out);
-                if p.eat("WHERE") {
-                    p.where_clause(&mut acc, &mut scope, out, true);
+            tables.push(var.clone());
+            added.push(var);
+        } else if let Some((var, column)) = cell {
+            // `lt.col[2] = 'x'`: a cell of a table variable
+            let eq = p.find(|t| t.sym("="));
+            acc.operation = m::DbOperation::Update;
+            let name = format!(":{var}");
+            acc.tables.push(table(&name, m::DbTableRole::InternalTable));
+            acc.set.push(m::DbAssignment {
+                column: m::DbColumn {
+                    name: column,
+                    qualifier: Some(var.clone()),
+                    table: Some(name),
+                },
+                value: p.text_of((eq + 1).min(p.end)..p.end),
+            });
+            p.scan(&mut acc, &mut scope, out);
+            tables.push(var.clone());
+            added.push(var);
+        } else {
+            match first.as_str() {
+                "SELECT" | "WITH" => {
+                    p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
                 }
-            }
-            "UPDATE" => {
-                acc.operation = m::DbOperation::Update;
-                p.pos += 1;
-                p.changed_table(&mut acc, &mut scope, out);
-                if p.eat("SET") {
-                    p.set_list(&mut acc, &mut scope, out);
+                "INSERT" => {
+                    acc.operation = m::DbOperation::Insert;
+                    p.pos += 1;
+                    p.eat("INTO");
+                    p.changed_table(&mut acc, &mut scope, out);
+                    p.insert_source(&mut acc, &mut scope, out);
                 }
-                if p.eat("FROM") {
-                    p.from(&mut acc, &mut scope, out, m::DbTableRole::Join);
+                "UPSERT" | "REPLACE" => {
+                    acc.operation = m::DbOperation::Modify;
+                    p.pos += 1;
+                    p.changed_table(&mut acc, &mut scope, out);
+                    p.insert_source(&mut acc, &mut scope, out);
+                    if p.eat("WHERE") {
+                        p.where_clause(&mut acc, &mut scope, out, true);
+                    }
                 }
-                if p.eat("WHERE") {
-                    p.where_clause(&mut acc, &mut scope, out, true);
-                }
-            }
-            "DELETE" => {
-                acc.operation = m::DbOperation::Delete;
-                p.pos += 1;
-                p.eat("HISTORY");
-                p.eat("FROM");
-                p.changed_table(&mut acc, &mut scope, out);
-                if p.eat("WHERE") {
-                    p.where_clause(&mut acc, &mut scope, out, true);
-                }
-            }
-            "TRUNCATE" => {
-                acc.operation = m::DbOperation::Delete;
-                p.pos += 1;
-                p.eat("TABLE");
-                p.changed_table(&mut acc, &mut scope, out);
-            }
-            "MERGE" => {
-                acc.operation = m::DbOperation::Merge;
-                p.pos += 1;
-                p.eat("INTO");
-                p.changed_table(&mut acc, &mut scope, out);
-                if p.eat("USING") {
-                    p.table_ref(&mut acc, &mut scope, out, m::DbTableRole::MergeSource);
-                }
-                if p.eat("ON") {
-                    let end = p.find(|t| t.is("WHEN"));
-                    let conds = p.sub(p.pos..end).conditions(&mut acc, &mut scope, out);
-                    acc.conditions.extend(conds);
-                    p.pos = end;
-                }
-                while !p.done() {
+                "UPDATE" => {
+                    acc.operation = m::DbOperation::Update;
+                    p.pos += 1;
+                    p.changed_table(&mut acc, &mut scope, out);
                     if p.eat("SET") {
                         p.set_list(&mut acc, &mut scope, out);
-                    } else {
-                        let before = p.pos;
-                        p.scan_one(&mut acc, &mut scope, out);
-                        if p.pos == before {
-                            p.pos += 1;
+                    }
+                    if p.eat("FROM") {
+                        p.from(&mut acc, &mut scope, out, m::DbTableRole::Join);
+                    }
+                    if p.eat("WHERE") {
+                        p.where_clause(&mut acc, &mut scope, out, true);
+                    }
+                }
+                "DELETE" => {
+                    acc.operation = m::DbOperation::Delete;
+                    p.pos += 1;
+                    p.eat("HISTORY");
+                    p.eat("FROM");
+                    p.changed_table(&mut acc, &mut scope, out);
+                    if p.eat("WHERE") {
+                        p.where_clause(&mut acc, &mut scope, out, true);
+                    }
+                }
+                "TRUNCATE" => {
+                    acc.operation = m::DbOperation::Delete;
+                    p.pos += 1;
+                    p.eat("TABLE");
+                    p.changed_table(&mut acc, &mut scope, out);
+                }
+                "MERGE" => {
+                    acc.operation = m::DbOperation::Merge;
+                    p.pos += 1;
+                    p.eat("INTO");
+                    p.changed_table(&mut acc, &mut scope, out);
+                    if p.eat("USING") {
+                        p.table_ref(&mut acc, &mut scope, out, m::DbTableRole::MergeSource);
+                    }
+                    if p.eat("ON") {
+                        let end = p.find(|t| t.is("WHEN"));
+                        let conds = p.sub(p.pos..end).conditions(&mut acc, &mut scope, out);
+                        acc.conditions.extend(conds);
+                        p.pos = end;
+                    }
+                    while !p.done() {
+                        if p.eat("SET") {
+                            p.set_list(&mut acc, &mut scope, out);
+                        } else {
+                            let before = p.pos;
+                            p.scan_one(&mut acc, &mut scope, out);
+                            if p.pos == before {
+                                p.pos += 1;
+                            }
                         }
                     }
                 }
-            }
-            "CALL" => {
-                acc.operation = m::DbOperation::Native;
-                p.pos += 1;
-                let name_start = p.pos;
-                let name = p.dotted_name();
-                if let Some(name) = name {
-                    out.calls.push(NativeCall {
-                        name,
-                        function: false,
-                        range: self.t[name_start].start..self.t[p.pos - 1].end,
-                    });
+                "CALL" => {
+                    acc.operation = m::DbOperation::Native;
+                    p.pos += 1;
+                    let name_start = p.pos;
+                    let name = p.dotted_name();
+                    if let Some(name) = name {
+                        out.calls.push(NativeCall {
+                            name,
+                            function: false,
+                            range: self.t[name_start].start..self.t[p.pos - 1].end,
+                        });
+                    }
+                    if p.at_sym("(") {
+                        // the signature tells inputs from outputs; without
+                        // it, outputs are written as names, a `:name` used as
+                        // a table before is an input, another may be filled
+                        let signature = out
+                            .calls
+                            .last()
+                            .and_then(|c| (self.signatures)(&c.name))
+                            .unwrap_or_default();
+                        let close = p.close_of(p.pos);
+                        let flow = self.flow.borrow().clone();
+                        let args = p.split(p.pos + 1..close.saturating_sub(1).max(p.pos + 1));
+                        for (k, arg) in args.into_iter().enumerate() {
+                            let mut a = p.sub(arg.clone());
+                            let mut pass = signature.get(k).map(|s| s.1);
+                            if let Some(arrow) = (arg.clone()).find(|&i| p.t[i].sym("=>")) {
+                                a.pos = arrow + 1;
+                                let name = p.t[arg.start].text.as_str();
+                                pass = signature
+                                    .iter()
+                                    .find(|(n, _)| n.eq_ignore_ascii_case(name))
+                                    .map(|s| s.1);
+                            }
+                            let value = &p.t[a.pos..arg.end];
+                            let [v] = value else {
+                                a.scan(&mut acc, &mut scope, out);
+                                continue;
+                            };
+                            let name = v.kind == Kind::Word || v.kind == Kind::Quoted;
+                            // a database table passed by name, a variable used
+                            // as a table before
+                            let read = match pass {
+                                Some(Pass::Out) => false,
+                                Some(Pass::In) if name => true,
+                                _ => v.kind == Kind::Var && flow.is_table(&v.text),
+                            };
+                            if read {
+                                a.table_ref(&mut acc, &mut scope, out, m::DbTableRole::Main);
+                            }
+                            match pass {
+                                Some(Pass::Out) => replaced.push(v.text.clone()),
+                                Some(Pass::InOut) => added.push(v.text.clone()),
+                                Some(Pass::In) => {}
+                                None if name => replaced.push(v.text.clone()),
+                                None if v.kind == Kind::Var && !read => added.push(v.text.clone()),
+                                None => {}
+                            }
+                        }
+                        p.pos = close;
+                    }
+                    p.scan(&mut acc, &mut scope, out);
                 }
-                p.scan(&mut acc, &mut scope, out);
-            }
-            "OPEN" => {
-                // EXEC SQL: OPEN c FOR SELECT ...
-                p.pos += 1;
-                acc.cursor = p.peek(0).map(|t| t.text.clone());
-                let at = p.find(|t| t.is("FOR"));
-                p.pos = (at + 1).min(p.end);
-                p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
-            }
-            "DECLARE" => {
-                // DECLARE CURSOR c FOR SELECT, DECLARE x ... = (SELECT ...)
-                let cursor = (0..4).any(|k| p.peek(k).is_some_and(|t| t.is("CURSOR")));
-                if cursor {
+                "EXEC" | "EXECUTE" => {
+                    // dynamic SQL: a literal is taken apart like a statement
+                    acc.operation = m::DbOperation::Native;
+                    p.pos += 1;
+                    p.eat("IMMEDIATE");
+                    let end = p.find(|t| t.is("INTO") || t.is("USING") || t.is("READS"));
+                    let literal = p
+                        .peek(0)
+                        .filter(|t| t.kind == Kind::Str && p.pos + 1 == end);
+                    if let Some(literal) = literal {
+                        let inner = parse(&unquote(&literal.text), Dialect::SqlScript);
+                        if let Some(n) = inner.accesses.into_iter().next() {
+                            acc = n.access;
+                        }
+                        for mut c in inner.calls {
+                            c.range = literal.start..literal.end;
+                            out.calls.push(c);
+                        }
+                    } else {
+                        acc.dynamic = true;
+                        p.sub(p.pos..end).scan(&mut acc, &mut scope, out);
+                    }
+                    p.pos = end;
+                    if p.eat("INTO") {
+                        let into_end = p.find(|t| t.is("USING") || t.is("READS"));
+                        let targets: Vec<String> = p
+                            .split(p.pos..into_end)
+                            .into_iter()
+                            .map(|r| p.text_of(r))
+                            .collect();
+                        acc.target = Some(m::DbTarget {
+                            kind: if targets.len() > 1 {
+                                m::DbTargetKind::List
+                            } else {
+                                m::DbTargetKind::Structure
+                            },
+                            targets,
+                            appending: false,
+                            corresponding: false,
+                        });
+                        p.pos = into_end;
+                    }
+                    p.scan(&mut acc, &mut scope, out);
+                }
+                "OPEN" => {
+                    // EXEC SQL: OPEN c FOR SELECT ...
+                    p.pos += 1;
+                    acc.cursor = p.peek(0).map(|t| t.text.clone());
                     let at = p.find(|t| t.is("FOR"));
-                    acc.cursor = (at > p.pos).then(|| p.t[at - 1].text.clone());
                     p.pos = (at + 1).min(p.end);
                     p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
-                } else {
-                    p.scan(&mut acc, &mut scope, out);
-                    self.push_if_tables(out, acc, range);
-                    return;
                 }
-            }
-            "RETURN" => {
-                p.pos += 1;
-                if p.query_ahead() {
-                    p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
-                    acc.target = Some(m::DbTarget {
-                        targets: vec!["RETURN".into()],
-                        kind: m::DbTargetKind::Table,
-                        appending: false,
-                        corresponding: false,
-                    });
-                } else {
-                    p.scan(&mut acc, &mut scope, out);
-                    self.push_if_tables(out, acc, range);
-                    return;
+                "DECLARE" => {
+                    // DECLARE CURSOR c FOR SELECT, DECLARE x ... = (SELECT ...)
+                    let cursor = (0..4).any(|k| p.peek(k).is_some_and(|t| t.is("CURSOR")));
+                    if cursor {
+                        let at = p.find(|t| t.is("FOR"));
+                        acc.cursor = (at > p.pos).then(|| p.t[at - 1].text.clone());
+                        p.pos = (at + 1).min(p.end);
+                        p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
+                    } else {
+                        if let Some(name) = p.peek(1).filter(|t| t.is_name()) {
+                            replaced.push(name.text.clone());
+                        }
+                        p.scan(&mut acc, &mut scope, out);
+                        needs_tables = true;
+                    }
                 }
-            }
-            "FETCH" | "CLOSE" | "COMMIT" | "ROLLBACK" | "BREAK" | "CONTINUE" | "SIGNAL"
-            | "RESIGNAL" | "CONNECT" | "DISCONNECT" | "SET" => return,
-            "CREATE" | "DROP" | "ALTER" | "GRANT" | "REVOKE" | "LOCK" | "EXEC" | "EXECUTE"
-            | "RENAME" | "COMMENT" | "LOAD" | "UNLOAD" | "IMPORT" | "EXPORT" => {
-                acc.operation = m::DbOperation::Native;
-                p.scan(&mut acc, &mut scope, out);
-            }
-            _ => {
-                // `lt_rows = SELECT ...`, `lv_x := ...`, `:lt.INSERT( ... )`
-                let assign = p.find(|t| t.sym("=") || t.sym(":="));
-                let target = p.t[p.pos..assign]
-                    .iter()
-                    .find(|t| t.is_name())
-                    .map(|t| t.text.clone());
-                if assign < p.end && p.pos < assign && target.is_some() {
-                    p.pos = assign + 1;
+                "RETURN" => {
+                    p.pos += 1;
                     if p.query_ahead() {
                         p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
                         acc.target = Some(m::DbTarget {
-                            targets: target.into_iter().collect(),
+                            targets: vec!["RETURN".into()],
                             kind: m::DbTargetKind::Table,
                             appending: false,
                             corresponding: false,
                         });
-                        self.push(out, acc, range);
-                        return;
+                    } else {
+                        p.scan(&mut acc, &mut scope, out);
+                        needs_tables = true;
                     }
                 }
-                p.pos = range.start;
-                p.scan(&mut acc, &mut scope, out);
-                if !acc.tables.is_empty() {
-                    if let Some(t) = target.filter(|_| assign < p.end) {
+                "FETCH" | "CLOSE" | "COMMIT" | "ROLLBACK" | "BREAK" | "CONTINUE" | "SIGNAL"
+                | "RESIGNAL" | "CONNECT" | "DISCONNECT" | "SET" => return,
+                "CREATE" | "DROP" | "ALTER" | "GRANT" | "REVOKE" | "LOCK" | "RENAME"
+                | "COMMENT" | "LOAD" | "UNLOAD" | "IMPORT" | "EXPORT" => {
+                    acc.operation = m::DbOperation::Native;
+                    p.scan(&mut acc, &mut scope, out);
+                }
+                _ => {
+                    // `lt_rows = SELECT ...`, `lt = :other`, `lv_x := ...`
+                    let assign = p.find(|t| t.sym("=") || t.sym(":="));
+                    let target = p.t[p.pos..assign]
+                        .iter()
+                        .find(|t| t.is_name())
+                        .map(|t| t.text.clone())
+                        .filter(|_| assign < p.end && p.pos < assign);
+                    let as_table = |acc: &mut m::DbAccess, t: &str| {
                         acc.target = Some(m::DbTarget {
-                            targets: vec![t],
+                            targets: vec![t.to_string()],
                             kind: m::DbTargetKind::Table,
                             appending: false,
                             corresponding: false,
                         });
+                    };
+                    let rest = &p.t[(assign + 1).min(p.end)..p.end];
+                    let copy = matches!(rest, [v] if v.kind == Kind::Var
+                        && self.flow.borrow().is_table(&v.text));
+                    // a table made of arrays or by a function of tables
+                    let built = matches!(rest, [f, open, ..] if open.sym("(")
+                        && ["UNNEST", "MAP_MERGE", "MAP_REDUCE"].iter().any(|w| f.is(w)));
+                    if target.is_some() {
+                        p.pos = assign + 1;
+                    }
+                    let query = target.is_some() && p.query_ahead();
+                    match &target {
+                        Some(t) if query => {
+                            p.query(&mut acc, &mut scope, out, m::DbTableRole::Main, true);
+                            as_table(&mut acc, t);
+                        }
+                        Some(t) if copy => {
+                            p.table_ref(&mut acc, &mut scope, out, m::DbTableRole::Main);
+                            as_table(&mut acc, t);
+                        }
+                        _ => {
+                            p.pos = range.start;
+                            p.scan(&mut acc, &mut scope, out);
+                            if let Some(t) =
+                                target.as_ref().filter(|_| built || !acc.tables.is_empty())
+                            {
+                                as_table(&mut acc, t);
+                            } else if let Some(t) = &target {
+                                replaced.push(t.clone());
+                            }
+                            needs_tables = !built;
+                        }
+                    }
+                    if let (Some(t), true) = (&target, acc.target.is_some()) {
+                        tables.push(t.clone());
                     }
                 }
-                self.push_if_tables(out, acc, range);
-                return;
             }
         }
-        self.push(out, acc, range);
+        let kept = !needs_tables || !acc.tables.is_empty();
+        if let Some(t) = &acc.target {
+            replaced.extend(
+                t.targets
+                    .iter()
+                    .filter(|n| *n != "RETURN")
+                    .map(|n| n.trim_start_matches(':').to_string()),
+            );
+        }
+        let changes = matches!(
+            acc.operation,
+            m::DbOperation::Insert
+                | m::DbOperation::Update
+                | m::DbOperation::Delete
+                | m::DbOperation::Modify
+                | m::DbOperation::Merge
+        );
+        if let Some(var) = acc
+            .tables
+            .first()
+            .filter(|t| changes && t.role == m::DbTableRole::InternalTable)
+            .and_then(|t| t.name.strip_prefix(':'))
+        {
+            added.push(var.to_string());
+            tables.push(var.to_string());
+        }
+        let start = self.t[range.start].start;
+        if kept {
+            self.push(out, acc, range);
+        }
+        let mut flow = self.flow.borrow_mut();
+        for var in &replaced {
+            flow.replace(var, kept.then_some(start));
+        }
+        for var in &added {
+            if kept {
+                flow.add(var, start);
+            }
+        }
+        if kept {
+            for var in &tables {
+                flow.table(var);
+            }
+        }
     }
 
     /// `SELECT` or `WITH` at the cursor, possibly in parentheses.
@@ -1487,6 +1845,11 @@ impl<'a> P<'a> {
             self.pos = close;
         } else if t.is("SELECT") {
             self.query(acc, scope, out, m::DbTableRole::Subquery, false);
+        } else if t.kind == Kind::Word
+            && self.peek(1).is_some_and(|n| n.sym("("))
+            && (t.is("APPLY_FILTER") || t.upper().starts_with("CE_"))
+        {
+            self.table_function_arguments(acc, scope, out);
         } else if t.is_name() && t.text.contains("=>") && self.peek(1).is_some_and(|n| n.sym("(")) {
             // an AMDP function in an expression
             let close = self.close_of(self.pos + 1);
@@ -1502,6 +1865,46 @@ impl<'a> P<'a> {
     }
 }
 
+impl P<'_> {
+    /// `APPLY_FILTER(table, :filter)` and the calculation engine plan
+    /// operators: the table of the first argument, table variables.
+    fn table_function_arguments(
+        &mut self,
+        acc: &mut m::DbAccess,
+        scope: &mut Scope,
+        out: &mut Native,
+    ) {
+        let name = self.t[self.pos].upper();
+        let close = self.close_of(self.pos + 1);
+        let args = self.split(self.pos + 2..close.saturating_sub(1).max(self.pos + 2));
+        let reads_table = matches!(
+            name.as_str(),
+            "APPLY_FILTER" | "CE_COLUMN_TABLE" | "CE_JOIN_VIEW" | "CE_OLAP_VIEW" | "CE_CALC_VIEW"
+        );
+        acc.dynamic |= name == "APPLY_FILTER";
+        for (k, arg) in args.into_iter().enumerate() {
+            let mut a = self.sub(arg.clone());
+            // the filter of APPLY_FILTER is a text
+            let variable =
+                arg.len() == 1 && self.t[arg.start].kind == Kind::Var && name.starts_with("CE_");
+            if (k == 0 && reads_table) || variable {
+                a.table_ref(acc, scope, out, m::DbTableRole::Main);
+            }
+            a.scan(acc, scope, out);
+        }
+        self.pos = close;
+    }
+}
+
+/// The text of a string literal as written, without its quotes.
+fn unquote(literal: &str) -> String {
+    literal
+        .strip_prefix('\'')
+        .and_then(|l| l.strip_suffix('\''))
+        .unwrap_or(literal)
+        .replace("''", "'")
+}
+
 fn table(name: &str, role: m::DbTableRole) -> m::DbTable {
     m::DbTable {
         name: name.to_string(),
@@ -1510,6 +1913,7 @@ fn table(name: &str, role: m::DbTableRole) -> m::DbTable {
         dynamic: false,
         resolved: None,
         role,
+        filled_by: Vec::new(),
     }
 }
 
@@ -1803,5 +2207,160 @@ mod tests {
         let a = &n.accesses[0].access;
         assert_eq!(a.target.as_ref().unwrap().targets, ["lv_count"]);
         assert_eq!(a.fields[0].aggregate.as_deref(), Some("count"));
+    }
+
+    /// The rows of the statements that may have filled each table variable
+    /// of each access, one line per access: `row: lt<-2/3 other<-`.
+    fn links(text: &str) -> Vec<String> {
+        links_with(text, &|_| None)
+    }
+
+    fn links_with(text: &str, signatures: Signatures) -> Vec<String> {
+        let row = |at: usize| text[..at].matches('\n').count() + 1;
+        let n = parse_with(text, Dialect::SqlScript, signatures);
+        n.accesses
+            .iter()
+            .map(|a| {
+                let vars: Vec<String> = a
+                    .filled_by
+                    .iter()
+                    .map(|(i, at)| {
+                        let rows: Vec<String> = at.iter().map(|&x| row(x).to_string()).collect();
+                        format!("{}<-{}", a.access.tables[*i].name, rows.join("/"))
+                    })
+                    .collect();
+                format!("{}: {}", row(a.range.start), vars.join(" "))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn table_variable_operators() {
+        let n = amdp(
+            "lt = SELECT a, b FROM ztab;\n:lt.INSERT((1, 'x'), 2);\n:lt.INSERT(:other);\nlt.b[3] = 'y';\n:lt.DELETE(1);",
+        );
+        let ops: Vec<m::DbOperation> = n.accesses.iter().map(|a| a.access.operation).collect();
+        use m::DbOperation::*;
+        assert_eq!(ops, [Select, Insert, Insert, Update, Delete]);
+        assert_eq!(
+            names(&n.accesses[2].access),
+            [
+                (":lt".into(), m::DbTableRole::InternalTable),
+                (":other".into(), m::DbTableRole::InternalTable)
+            ]
+        );
+        let cell = &n.accesses[3].access;
+        assert_eq!(cell.set[0].column.name, "b");
+        assert_eq!(cell.set[0].value, "'y'");
+        assert_eq!(
+            links("lt = SELECT a, b FROM ztab;\n:lt.INSERT((1, 'x'), 2);\nlt.b[3] = 'y';\nINSERT INTO :lt VALUES (3, 'z');\nUPDATE :lt SET b = 'w';\net = SELECT * FROM :lt;"),
+            [
+                "1: ",
+                "2: :lt<-1",
+                "3: :lt<-1/2",
+                "4: :lt<-1/2/3",
+                "5: :lt<-1/2/3/4",
+                "6: :lt<-1/2/3/4/5"
+            ]
+        );
+    }
+
+    #[test]
+    fn table_variables_through_branches_and_loops() {
+        // each branch fills anew; without ELSE the old content goes on
+        assert_eq!(
+            links("lt = SELECT * FROM a;\nIF :x = 1 THEN\n  lt = SELECT * FROM b;\nELSEIF :x = 2 THEN\n  lt = SELECT * FROM c;\nEND IF;\net = SELECT * FROM :lt;"),
+            ["1: ", "3: ", "5: ", "7: :lt<-1/3/5"]
+        );
+        assert_eq!(
+            links("IF :x = 1 THEN\n  lt = SELECT * FROM b;\nELSE\n  lt = SELECT * FROM c;\nEND IF;\net = SELECT * FROM :lt;"),
+            ["2: ", "4: ", "6: :lt<-2/4"]
+        );
+        // what a loop fills reaches its statements again
+        assert_eq!(
+            links("lt = SELECT * FROM a;\nWHILE :i < 3 DO\n  lt2 = SELECT * FROM :lt;\n  lt = SELECT * FROM :lt2;\nEND WHILE;\net = SELECT * FROM :lt;"),
+            ["1: ", "3: :lt<-1/4", "4: :lt2<-3", "6: :lt<-1/4"]
+        );
+        // a handler ends the block, what it fills is not read after it
+        assert_eq!(
+            links("BEGIN\n  DECLARE EXIT HANDLER FOR SQLEXCEPTION lt = SELECT * FROM b;\n  lt = SELECT * FROM a;\n  et = SELECT * FROM :lt;\nEND;"),
+            ["2: ", "3: ", "4: :lt<-3"]
+        );
+        // a parameter, a declared empty table
+        assert_eq!(
+            links("DECLARE lt TABLE (a INT);\net = SELECT * FROM :it UNION ALL SELECT * FROM :lt;"),
+            ["2: :it<- :lt<-"]
+        );
+    }
+
+    #[test]
+    fn table_variables_filled_by_calls_and_copies() {
+        // outputs as names, an input used as a table before; a `:name`
+        // that was none may be filled
+        assert_eq!(
+            links("lt = SELECT * FROM a;\nCALL \"ZCL_X=>RUN\"(it => :lt, et => lt_out, ct => :lt_maybe);\net = SELECT * FROM :lt_out, :lt_maybe;\nlt2 = :lt_out;\net2 = SELECT * FROM :lt2;"),
+            [
+                "1: ",
+                "2: :lt<-1",
+                "3: :lt_out<-2 :lt_maybe<-2",
+                "4: :lt_out<-2",
+                "5: :lt2<-4"
+            ]
+        );
+        // with the signature: outputs written with a colon, a table by name
+        let signatures = |name: &str| {
+            (name == "ZCL_X=>RUN").then(|| {
+                vec![
+                    ("IT".to_string(), Pass::In),
+                    ("ET".to_string(), Pass::Out),
+                    ("CT".to_string(), Pass::InOut),
+                ]
+            })
+        };
+        assert_eq!(
+            links_with(
+                "lt = SELECT * FROM a;\nCALL \"ZCL_X=>RUN\"(ztab, :lt_out, :lt);\net = SELECT * FROM :lt_out, :lt;",
+                &signatures
+            ),
+            ["1: ", "2: :lt<-1", "3: :lt_out<-2 :lt<-1/2"]
+        );
+        let n = parse_with(
+            "CALL \"ZCL_X=>RUN\"(ztab, :lt_out, :lt);",
+            Dialect::SqlScript,
+            &signatures,
+        );
+        assert_eq!(names(&n.accesses[0].access)[0].0, "ztab");
+        // a table of arrays
+        assert_eq!(
+            links("lt = UNNEST(:arr) AS (a);\net = SELECT * FROM :lt;"),
+            ["1: ", "2: :lt<-1"]
+        );
+    }
+
+    #[test]
+    fn dynamic_sql_and_table_functions() {
+        let n = amdp(
+            "EXEC 'SELECT carrid FROM scarr WHERE carrid = ''LH''' INTO lt;\nEXECUTE IMMEDIATE :lv_sql INTO lv;\nlt2 = APPLY_FILTER(spfli, :lv_filter);\nlt3 = CE_COLUMN_TABLE(\"SFLIGHT\", [\"CARRID\"]);\nlt4 = CE_PROJECTION(:lt3, [\"CARRID\"]);",
+        );
+        let a: Vec<&m::DbAccess> = n.accesses.iter().map(|a| &a.access).collect();
+        // a literal is taken apart
+        assert_eq!(names(a[0]), [("scarr".into(), m::DbTableRole::Main)]);
+        assert!(!a[0].dynamic);
+        assert_eq!(a[0].target.as_ref().unwrap().targets, ["lt"]);
+        assert_eq!(a[0].conditions[0].right.as_deref(), Some("'LH'"));
+        assert!(a[1].dynamic);
+        assert_eq!(a[1].target.as_ref().unwrap().targets, ["lv"]);
+        // the filter is a text
+        assert_eq!(names(a[2]), [("spfli".into(), m::DbTableRole::Main)]);
+        assert!(a[2].dynamic);
+        assert_eq!(names(a[3]), [("SFLIGHT".into(), m::DbTableRole::Main)]);
+        assert_eq!(
+            names(a[4]),
+            [(":lt3".into(), m::DbTableRole::InternalTable)]
+        );
+        assert_eq!(
+            n.accesses[4].filled_by,
+            [(0, vec![n.accesses[3].range.start])]
+        );
     }
 }

@@ -23,7 +23,23 @@ pub struct SyntaxError {
 
 /// The first syntax error found in the statement.
 pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
-    if matches!(s.kind, K::Comment | K::Unknown | K::NativeSQL) {
+    if s.kind == K::NativeSQL {
+        return crate::sqlscript::statement_error(file, s)
+            .map(|token| SyntaxError {
+                token,
+                message: "does not match the SQLScript grammar",
+            })
+            .or_else(|| {
+                crate::sqlscript::statement_using_error(file, s)
+                    .map(|(token, message)| SyntaxError { token, message })
+            });
+    }
+    if s.kind == K::MethodImplementation {
+        if let Some(token) = crate::sqlscript::unused_using(file, s) {
+            return error(token, "an object after USING is not used in the body");
+        }
+    }
+    if matches!(s.kind, K::Comment | K::Unknown) {
         return None;
     }
     let c = Check::new(file, s);

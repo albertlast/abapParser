@@ -58,7 +58,7 @@ const PREDICATE_FUNCTION: &str = "predicate function";
 
 /// Constructs dated by SAP's ABAP release news where abaplint gives another
 /// release: `INTO @DATA(x)` came with 7.40 SP08, not SP05, for example.
-const RELEASE_NEWS: [&str; 30] = [
+const RELEASE_NEWS: [&str; 37] = [
     "inline declaration in SQL",
     "inline declaration for OPEN CURSOR",
     "path expression",
@@ -83,6 +83,15 @@ const RELEASE_NEWS: [&str; 30] = [
     "RIGHT OUTER JOIN",
     // constructs abaplint does not know, dated by the release news of
     // their release
+    // `abennews-740_sp05`, `abennews-750-amdp`, `abennews-751-amdp`,
+    // `abennews-752-amdp`, `abennews-753-amdp`, `abennews-816-amdp`
+    "AMDP procedure",
+    "AMDP function",
+    "AMDP function of a CDS table function",
+    "AMDP macro $ABAP.schema",
+    "AMDP macro $ABAP.type",
+    "AMDP scalar function",
+    "AMDP for an SQL service",
     "AMDP OPTIONS",
     "AMDP CLIENT INDEPENDENT",
     "AMDP CDS SESSION CLIENT DEPENDENT",
