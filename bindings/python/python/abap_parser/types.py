@@ -134,12 +134,16 @@ class _CdsDefinitionRequired(TypedDict):
 class CdsDefinition(_CdsDefinitionRequired, total=False):
     """A CDS definition, from its DDL source: what it reads and what its elements are made of."""
     associations: List[CdsAssociation]
+    error: CdsError
+    """a syntax error, like `does not match the CDS grammar` or `alias without AS in a view entity`; definitions without one are not necessarily correct: names and annotations are not checked"""
     implemented_by: str
     """a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth`"""
     label: str
     """`@EndUserText.label`"""
     parameters: List[CdsParameter]
     """`WITH PARAMETERS`"""
+    release: ReleaseNeed
+    """the oldest on-premise release that has all the data definition uses, by SAP's CDS release news: 7.40 SP05 brought CDS, 7.55 view entities"""
     sql_view: str
     """`@AbapCatalog.sqlViewName` of a classic view, upper case"""
     where_text: str
@@ -160,6 +164,15 @@ class CdsElement(_CdsElementRequired, total=False):
     """An element of the select list, or a field of an entity without select."""
     fields: List[str]
     """the fields it is made of, as `SOURCE.FIELD` upper case with the alias resolved; through an association `_ASSOC.FIELD`; parameters as `$PARAMETERS.P`"""
+
+
+class CdsError(TypedDict):
+    """A syntax error of a CDS data definition."""
+    message: str
+    start: Position
+    """where it is: the token, or the end of the source"""
+    text: str
+    """the token there, empty at the end"""
 
 
 class CdsParameter(TypedDict):

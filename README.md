@@ -56,6 +56,7 @@ The corpus is 3,313 files from eighteen open source projects (MIT/Apache-2.0), t
 - **Native SQL:** abaplint does not parse HANA SQL, so AMDP methods are checked against their own declarations instead. ABAP requires every table, view and AMDP method that an AMDP body uses to be listed after `USING`. In all 33 AMDP methods of the corpus, the tables and AMDP calls the parser finds are exactly the 35 entries of their `USING` lists.
 
 - **CDS:** all 47 data definitions of the corpus are read with their kind and name; 312 of 342 view elements get the fields they are made of, the other 30 are constants. 60 standard views of the ABAP trial were checked as well.
+- **CDS syntax:** no syntax error is reported in the corpus's 47 data definitions, in 3,656 standard data definitions of the SAP ABAP Cloud Developer Trial 2025 (kept locally, not in the repository), or in abaplint's 339 CDS test cases apart from 8 that the trial rejects (`crates/abap-syntax/tests/cds_grammar.rs`). 986 standard views of the trial changed by one token went through its syntax check: of the 821 that SAP reports as syntax errors, 809 are reported here, and none of the 70 that SAP accepts; the other 12 are annotation values that SAP checks against the annotation definitions.
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
@@ -186,12 +187,21 @@ Not covered: the data flow inside SQLScript in the logic API; dynamic SQL (`EXEC
 
 ```
 VIEW I_Country (SQL view IFICOUNTRY) 'Country/Region'  " 25-41
+  needs 7.40 SP08 (annotation array or object)
   from T005
   association _Text[0..*] to I_COUNTRYTEXT on $projection.Country = _Text.Country
     key Country = T005.LAND1
     CountryThreeLetterISOCode = T005.INTCA3
     _Text = association
 ```
+
+Each definition has the release it needs (`release`) and a syntax error if there is one (`error`, with its position):
+
+- **Syntax:** the grammar of CDS was generated from abaplint's CDS parser by `tools/gen-grammar.mjs --cds` and is maintained in `crates/abap-syntax/src/grammar/cds.rs`, following SAP's ABAP keyword documentation and the syntax check of the SAP ABAP Cloud Developer Trial 2025 where abaplint accepts more: SAP's reserved words are no names (`key`, `count`, `group` ...), names and annotation names have SAP's characters, a namespace name has no blanks (`/DMO/I_Travel`), only the `$` names and session variables SAP documents, and keywords in upper case, lower case or capitalized (`Select`, not `seLect`).
+- **View entities and DDIC-based views** have different rules, as SAP documents and its syntax check reports: in a view entity an alias needs `AS`, parameters are `$parameters.p`, not `:p`, and annotations come before an element, not after it (`@<`); a DDIC-based view takes typed literals like `abap.char'X'` only as the operand of CAST.
+- **Releases:** each construct gets the on-premise release whose CDS release news introduce it: parameters and `EXTEND VIEW` 7.40 SP08, table functions and `$session` 7.50, CROSS JOIN 7.51, hierarchies and abstract entities 7.53, projection views, custom entities and ROOT 7.54, view entities 7.55, UNION, DISTINCT and typed literals in view entities and `PROVIDER CONTRACT` 7.56, `ELSE NULL` and transient view entities 7.57, cardinality in words like `MANY TO ONE` 7.58, table entities, aspects and writable entities 8.16, and the built-in functions by the release that brought each.
+
+Annotations are checked for their syntax only; their names and values are checked by SAP against the annotation definitions, like `@AbapCatalog.sqlViewName`, which DDIC-based views need and view entities must not have. Names of data sources and fields are not checked either.
 
 Data definitions are objects `DDLS:NAME`: from abapGit `.ddls.asddls` files or from an SAP system. A SELECT from a CDS view names the view as its table; `cds` of the view tells where its data comes from. A SELECT from the SQL view name of a classic view (`IFICOUNTRY` for `I_Country`) is not mapped back to its data definition.
 

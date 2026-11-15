@@ -103,6 +103,8 @@ export interface CdsAssociation {
 export interface CdsDefinition {
   associations?: CdsAssociation[];
   elements: CdsElement[];
+  /** a syntax error, like `does not match the CDS grammar` or `alias without AS in a view entity`; definitions without one are not necessarily correct: names and annotations are not checked */
+  error?: CdsError;
   /** a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth` */
   implemented_by?: string;
   /** as written after DEFINE or EXTEND, lower case: `view entity`, `root view entity`, `view`, `table function`, `abstract entity`, `custom entity`, `hierarchy`, `extend view entity` ... */
@@ -113,6 +115,8 @@ export interface CdsDefinition {
   name: string;
   /** `WITH PARAMETERS` */
   parameters?: CdsParameter[];
+  /** the oldest on-premise release that has all the data definition uses, by SAP's CDS release news: 7.40 SP05 brought CDS, 7.55 view entities */
+  release?: ReleaseNeed;
   schema_version: number;
   /** data sources: SELECT FROM, joins, PROJECTION ON, and the selects joined by UNION; upper case */
   sources: CdsSource[];
@@ -133,6 +137,15 @@ export interface CdsElement {
   /** the name it has in the entity: the alias, else the last part */
   name: string;
   /** the expression as written, or the type of a field */
+  text: string;
+}
+
+/** A syntax error of a CDS data definition. */
+export interface CdsError {
+  message: string;
+  /** where it is: the token, or the end of the source */
+  start: Position;
+  /** the token there, empty at the end */
   text: string;
 }
 

@@ -1280,7 +1280,26 @@ pub struct CdsDefinition {
     /// a table function's AMDP method, `IMPLEMENTED BY METHOD cl=>meth`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implemented_by: Option<String>,
+    /// the oldest on-premise release that has all the data definition uses,
+    /// by SAP's CDS release news: 7.40 SP05 brought CDS, 7.55 view entities
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub release: Option<ReleaseNeed>,
+    /// a syntax error, like `does not match the CDS grammar` or `alias
+    /// without AS in a view entity`; definitions without one are not
+    /// necessarily correct: names and annotations are not checked
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error: Option<CdsError>,
     pub span: Span,
+}
+
+/// A syntax error of a CDS data definition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct CdsError {
+    pub message: String,
+    /// where it is: the token, or the end of the source
+    pub start: Position,
+    /// the token there, empty at the end
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

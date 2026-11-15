@@ -256,6 +256,25 @@ impl Parser<'_> {
 
 /// Parses a DDL source.
 pub fn parse(src: &str) -> m::CdsDefinition {
+    let mut d = definition(src);
+    let need = abap_syntax::cds::release(src);
+    d.release = Some(m::ReleaseNeed {
+        release: need.release.name().to_string(),
+        id: need.release.id().to_string(),
+        construct: need.construct.to_string(),
+    });
+    d.error = abap_syntax::cds::syntax_error(src).map(|e| m::CdsError {
+        message: e.message.to_string(),
+        start: m::Position {
+            row: e.start.row,
+            col: e.start.col,
+        },
+        text: e.text,
+    });
+    d
+}
+
+fn definition(src: &str) -> m::CdsDefinition {
     let p = Parser { src, t: lex(src) };
     let mut d = m::CdsDefinition {
         schema_version: m::SCHEMA_VERSION,
@@ -269,6 +288,8 @@ pub fn parse(src: &str) -> m::CdsDefinition {
         elements: Vec::new(),
         where_text: None,
         implemented_by: None,
+        release: None,
+        error: None,
         span: span_of(src, 0, src.len()),
     };
     let mut i = 0;
