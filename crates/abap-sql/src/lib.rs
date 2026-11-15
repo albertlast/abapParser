@@ -46,7 +46,9 @@ pub fn parse_statement(file: &File, s: &Statement) -> Option<m::DbAccess> {
         tokens.pop();
     }
     tokens.retain(|t| t.kind != TokenKind::Pragma);
-    let mut access = parse(s.kind, &tokens);
+    let strict = abap_syntax::release::sql_strict_mode(file, s);
+    let mut access = parse(s.kind, &tokens, strict.is_some());
+    access.strict_mode = strict.map(|n| n.release.name().to_string());
     access.host_variables = host_variables(file, s);
     Some(access)
 }
@@ -69,8 +71,11 @@ pub(crate) fn host_variables(file: &File, s: &Statement) -> Vec<String> {
 }
 
 /// Parses the tokens of a database statement, without terminator and pragmas.
-pub fn parse(kind: K, tokens: &[&Token]) -> m::DbAccess {
-    let p = Parser::new(tokens);
+/// `strict`: the statement is in a strict mode of ABAP SQL, see
+/// [`abap_syntax::release::sql_strict_mode`], where names without `@` are
+/// columns, not host variables.
+pub fn parse(kind: K, tokens: &[&Token], strict: bool) -> m::DbAccess {
+    let p = Parser::new(tokens, strict);
     let mut access = empty_access(kind);
     let end = tokens.len();
     match kind {
@@ -141,6 +146,7 @@ pub(crate) fn empty_access(kind: K) -> m::DbAccess {
         client_specified: false,
         bypassing_buffer: false,
         connection: None,
+        strict_mode: None,
         native_sql: None,
         cluster: None,
         host_variables: Vec::new(),
@@ -301,10 +307,12 @@ struct Parser<'a> {
     t: &'a [&'a Token],
     /// nesting depth in front of each token, parentheses have the outer depth
     depth: Vec<u32>,
+    /// strict mode of ABAP SQL: host variables have `@`
+    strict: bool,
 }
 
 impl<'a> Parser<'a> {
-    fn new(t: &'a [&'a Token]) -> Self {
+    fn new(t: &'a [&'a Token], strict: bool) -> Self {
         let mut depth = Vec::with_capacity(t.len());
         let mut d: u32 = 0;
         for tok in t {
@@ -316,7 +324,7 @@ impl<'a> Parser<'a> {
                 d += 1;
             }
         }
-        Parser { t, depth }
+        Parser { t, depth, strict }
     }
 
     fn kw(&self, i: usize, word: &str) -> bool {
@@ -1109,10 +1117,9 @@ impl<'a> Parser<'a> {
                 columns.retain(|c| c.qualifier.is_some());
             }
             if right_start < k && !self.is_subquery(right_start, k) {
-                let strict = self.t.iter().any(|t| t.kind == TokenKind::At);
                 for c in self.columns_in(right_start, k) {
                     // classic syntax has unmarked host variables on the right
-                    if (c.qualifier.is_some() || strict) && !columns.contains(&c) {
+                    if (c.qualifier.is_some() || self.strict) && !columns.contains(&c) {
                         columns.push(c);
                     }
                 }

@@ -51,6 +51,7 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         _ => None,
     };
     found
+        .or_else(|| c.strict_sql(s.kind))
         .or_else(|| c.dynamic_component())
         .or_else(|| c.builtin_without_argument(file))
         .or_else(|| {
@@ -63,12 +64,69 @@ struct Check<'a> {
     t: Vec<&'a Token>,
     w: Vec<String>,
     depth: Vec<u32>,
+    /// a database statement in a strict mode of ABAP SQL
+    strict: bool,
 }
 
 fn error(token: usize, message: &'static str) -> Option<SyntaxError> {
     Some(SyntaxError { token, message })
 }
 
+/// What ends a list of the SELECT statement.
+const LIST_END: [&str; 23] = [
+    "FROM",
+    "INTO",
+    "APPENDING",
+    "WHERE",
+    "GROUP",
+    "HAVING",
+    "ORDER",
+    "UNION",
+    "INTERSECT",
+    "EXCEPT",
+    "UP",
+    "OFFSET",
+    "BYPASSING",
+    "CONNECTION",
+    "FOR",
+    "PACKAGE",
+    "CLIENT",
+    "USING",
+    "WITH",
+    "PRIVILEGED",
+    "INDICATORS",
+    "EXTENDED",
+    "%_HINTS",
+];
+/// Words inside an element of a list, not columns.
+const LIST_KEYWORDS: [&str; 26] = [
+    "AS",
+    "CASE",
+    "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
+    "IS",
+    "NOT",
+    "NULL",
+    "AND",
+    "OR",
+    "IN",
+    "LIKE",
+    "BETWEEN",
+    "ESCAPE",
+    "DISTINCT",
+    "OVER",
+    "ORDER",
+    "BY",
+    "PARTITION",
+    "ROWS",
+    "ASCENDING",
+    "DESCENDING",
+    "DIV",
+    "MOD",
+    "SINGLE",
+];
 /// Words of ABAP SQL that cannot name a column.
 const SQL_RESERVED: [&str; 17] = [
     "APPENDING",
@@ -105,7 +163,13 @@ impl<'a> Check<'a> {
                 d += 1;
             }
         }
-        Check { t, w, depth }
+        let strict = crate::release::sql_strict_mode(file, s).is_some();
+        Check {
+            t,
+            w,
+            depth,
+            strict,
+        }
     }
 
     fn word(&self, i: usize) -> &str {
@@ -117,6 +181,267 @@ impl<'a> Check<'a> {
         (0..self.w.len())
             .filter(|&i| self.depth[i] == 0 && self.word(i) == word)
             .collect()
+    }
+
+    /// A name, not an operator like `/`, `&&` or `=`, which are identifiers
+    /// to the lexer too, and not a number.
+    fn is_name(&self, k: usize) -> bool {
+        let Some(t) = self.t.get(k) else {
+            return false;
+        };
+        let text = t.text.as_str();
+        t.kind == TokenKind::Identifier
+            && (text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                || (text.starts_with('/') && text.len() > 1))
+    }
+
+    /// The rules of the strict modes of ABAP SQL that need no dictionary,
+    /// as SAP documents them (`abenabap_sql_strictmode_740_sp05`) and the
+    /// syntax check of the SAP ABAP Cloud Developer Trial 2025 reports
+    /// them: lists separated by commas after GROUP BY, ORDER BY and SET,
+    /// `@` in front of host variables, and no SELECT without INTO.
+    fn strict_sql(&self, kind: K) -> Option<SyntaxError> {
+        if !self.strict {
+            return None;
+        }
+        self.by_list("GROUP")
+            .or_else(|| self.by_list("ORDER"))
+            .or_else(|| self.set_list(kind))
+            .or_else(|| self.host_variable_without_at(kind))
+            .or_else(|| self.select_without_into(kind))
+    }
+
+    /// The columns after GROUP BY or ORDER BY, separated by blanks.
+    fn by_list(&self, word: &str) -> Option<SyntaxError> {
+        /// words of the list that are no columns
+        const KEYWORDS: [&str; 11] = [
+            "ASCENDING",
+            "DESCENDING",
+            "PRIMARY",
+            "KEY",
+            "NULLS",
+            "FIRST",
+            "LAST",
+            "GROUPING",
+            "SETS",
+            "ROLLUP",
+            "CUBE",
+        ];
+        for k in 0..self.w.len() {
+            if self.word(k) != word || self.word(k + 1) != "BY" {
+                continue;
+            }
+            // the list of a query or subquery, not of `OVER( ORDER BY ... )`
+            // or `HIERARCHY( ... SIBLINGS ORDER BY ... )`
+            let d = self.depth[k];
+            if d > 0 {
+                let open = (0..k).rev().find(|&j| self.depth[j] < d);
+                if !open.is_some_and(|o| self.word(o + 1) == "SELECT") {
+                    continue;
+                }
+            }
+            let stop = (k + 2..self.w.len())
+                .find(|&j| {
+                    self.depth[j] < d
+                        || (self.depth[j] == d
+                            && (LIST_END.contains(&self.word(j)) || self.word(j) == "."))
+                })
+                .unwrap_or(self.w.len());
+            let column = |j: usize| {
+                self.is_name(j)
+                    && !KEYWORDS.contains(&self.word(j))
+                    && !LIST_KEYWORDS.contains(&self.word(j))
+            };
+            // the end of an element: a column, or `a DESCENDING`, `a NULLS LAST`
+            let element_end = |j: usize| {
+                column(j)
+                    || matches!(self.word(j), "ASCENDING" | "DESCENDING")
+                    || (matches!(self.word(j), "FIRST" | "LAST") && self.word(j - 1) == "NULLS")
+            };
+            for j in k + 3..stop {
+                if self.depth[j] == d
+                    && self.depth[j - 1] == d
+                    && self.t[j].ws_before
+                    && element_end(j - 1)
+                    && column(j)
+                {
+                    let message = if word == "GROUP" {
+                        "GROUP BY list without commas in strict mode"
+                    } else {
+                        "ORDER BY list without commas in strict mode"
+                    };
+                    return error(j, message);
+                }
+            }
+        }
+        None
+    }
+
+    /// The assignments after SET of UPDATE, separated by blanks.
+    fn set_list(&self, kind: K) -> Option<SyntaxError> {
+        if kind != K::UpdateDatabase {
+            return None;
+        }
+        let set = self.top("SET").first().copied()?;
+        let end = self.top("WHERE").first().copied().unwrap_or(self.w.len());
+        let assignments: Vec<usize> = (set + 1..end)
+            .filter(|&k| self.depth[k] == 0 && self.word(k) == "=")
+            .collect();
+        for pair in assignments.windows(2) {
+            let comma = (pair[0]..pair[1]).any(|k| self.depth[k] == 0 && self.word(k) == ",");
+            if !comma {
+                return error(pair[1] - 1, "SET list without commas in strict mode");
+            }
+        }
+        None
+    }
+
+    /// A host variable without `@`: the targets after INTO and APPENDING,
+    /// the work area or table of a write statement, the operand of UP TO,
+    /// OFFSET and PACKAGE SIZE, the table of FOR ALL ENTRIES, and a
+    /// component of a structure (`wa-field`), which cannot be a column.
+    /// Dynamic tokens like `(wa-where)` and the operands inside a host
+    /// expression `@( ... )` are ABAP, without `@`.
+    fn host_variable_without_at(&self, kind: K) -> Option<SyntaxError> {
+        const MESSAGE: &str = "host variable without @ in strict mode";
+        let n = self.w.len();
+        // an operand at `k` that must be a host variable
+        let unescaped = |k: usize| self.is_name(k) && !self.word(k).starts_with('\\');
+        let query = matches!(
+            kind,
+            K::Select | K::SelectLoop | K::With | K::WithLoop | K::FetchNextCursor
+        );
+        for k in 0..n {
+            if self.depth[k] != 0 {
+                continue;
+            }
+            let operand = match self.word(k) {
+                "INTO" | "APPENDING" if query => {
+                    let mut j = k + 1;
+                    while matches!(
+                        self.word(j),
+                        "CORRESPONDING" | "FIELDS" | "OF" | "TABLE" | "NEW"
+                    ) {
+                        j += 1;
+                    }
+                    if self
+                        .t
+                        .get(j)
+                        .is_some_and(|t| t.kind == TokenKind::ParenLeft)
+                    {
+                        // INTO (a, b): each element
+                        let inner = self.depth[j] + 1;
+                        let close = (j + 1..n).find(|&i| self.depth[i] < inner).unwrap_or(n);
+                        let mut first = std::iter::once(j + 1).chain(
+                            (j + 1..close)
+                                .filter(|&i| self.depth[i] == inner && self.word(i) == ",")
+                                .map(|i| i + 1),
+                        );
+                        if let Some(e) = first.find(|&e| unescaped(e)) {
+                            return error(e, MESSAGE);
+                        }
+                        continue;
+                    }
+                    Some(j)
+                }
+                // the work area or table of INSERT, UPDATE, MODIFY, DELETE;
+                // not `DELETE FROM dbtab` or `MAPPING FROM ENTITY`
+                "FROM" | "VALUES"
+                    if matches!(
+                        kind,
+                        K::InsertDatabase
+                            | K::UpdateDatabase
+                            | K::ModifyDatabase
+                            | K::DeleteDatabase
+                    ) && k > 1
+                        && self.word(k - 1) != "MAPPING" =>
+                {
+                    Some(if self.word(k + 1) == "TABLE" {
+                        k + 2
+                    } else {
+                        k + 1
+                    })
+                }
+                "TO" if k > 0 && self.word(k - 1) == "UP" => Some(k + 1),
+                "SIZE" if k > 0 && self.word(k - 1) == "PACKAGE" => Some(k + 1),
+                // UP TO n ROWS OFFSET o; a column may be named OFFSET
+                "OFFSET" if k > 0 && self.word(k - 1) == "ROWS" => Some(k + 1),
+                "IN" if k > 1 && self.word(k - 1) == "ENTRIES" && self.word(k - 2) == "ALL" => {
+                    Some(k + 1)
+                }
+                _ => None,
+            };
+            if let Some(e) = operand.filter(|&e| unescaped(e)) {
+                return error(e, MESSAGE);
+            }
+        }
+        // `@( ... )`: ABAP inside
+        let mut host_expression = vec![false; n];
+        for k in 0..n {
+            let open = k + 1;
+            if self.t[k].kind == TokenKind::At
+                && self
+                    .t
+                    .get(open)
+                    .is_some_and(|t| t.kind == TokenKind::ParenLeft && !t.ws_before)
+            {
+                let close = (open + 1..n)
+                    .find(|&i| self.depth[i] <= self.depth[open])
+                    .unwrap_or(n);
+                host_expression[open..close]
+                    .iter_mut()
+                    .for_each(|x| *x = true);
+            }
+        }
+        for k in 0..n.saturating_sub(2) {
+            let dash = self.t[k + 1];
+            let component = unescaped(k)
+                && dash.kind == TokenKind::Dash
+                && !dash.ws_before
+                && !dash.ws_after
+                && self.is_name(k + 2);
+            if !component || host_expression[k] {
+                continue;
+            }
+            // back to the start of `a-b-c`, `me->tab-comp`, `cl=>const-comp`
+            let mut start = k;
+            while start >= 2
+                && matches!(
+                    self.t[start - 1].kind,
+                    TokenKind::Dash | TokenKind::InstanceArrow | TokenKind::StaticArrow
+                )
+                && !self.t[start - 1].ws_before
+                && !self.t[start - 1].ws_after
+            {
+                start -= 2;
+            }
+            // `@wa-field`, `(dynamic-token)`, an alias `AS a-b`
+            let before = start.checked_sub(1).map(|i| self.t[i]);
+            let escaped = before.is_some_and(|t| {
+                t.kind == TokenKind::At
+                    || (t.kind == TokenKind::ParenLeft && !t.ws_after)
+                    || t.text.eq_ignore_ascii_case("AS")
+            });
+            if !escaped {
+                return error(k, MESSAGE);
+            }
+        }
+        None
+    }
+
+    /// The obsolete short form without INTO, into the work area of TABLES.
+    fn select_without_into(&self, kind: K) -> Option<SyntaxError> {
+        if !matches!(kind, K::Select | K::SelectLoop) {
+            return None;
+        }
+        let into = (0..self.w.len())
+            .any(|k| self.depth[k] == 0 && matches!(self.word(k), "INTO" | "APPENDING"));
+        // `SELECT COUNT( * ) FROM ...` sets only sy-dbcnt
+        let words: String = self.w.iter().map(String::as_str).collect();
+        if into || words.contains("COUNT(*)") {
+            return None;
+        }
+        error(0, "SELECT without INTO in strict mode")
     }
 
     fn select(&self) -> Option<SyntaxError> {
@@ -188,61 +513,6 @@ impl<'a> Check<'a> {
     /// expression holds neither an alias nor a list (`( a AS b )`,
     /// `( a, b )`); `( a ) AS b` is fine.
     fn select_list(&self, select: usize) -> Option<SyntaxError> {
-        /// what ends the list
-        const END: [&str; 23] = [
-            "FROM",
-            "INTO",
-            "APPENDING",
-            "WHERE",
-            "GROUP",
-            "HAVING",
-            "ORDER",
-            "UNION",
-            "INTERSECT",
-            "EXCEPT",
-            "UP",
-            "OFFSET",
-            "BYPASSING",
-            "CONNECTION",
-            "FOR",
-            "PACKAGE",
-            "CLIENT",
-            "USING",
-            "WITH",
-            "PRIVILEGED",
-            "INDICATORS",
-            "EXTENDED",
-            "%_HINTS",
-        ];
-        /// words inside an element of the list, not columns
-        const KEYWORDS: [&str; 26] = [
-            "AS",
-            "CASE",
-            "WHEN",
-            "THEN",
-            "ELSE",
-            "END",
-            "IS",
-            "NOT",
-            "NULL",
-            "AND",
-            "OR",
-            "IN",
-            "LIKE",
-            "BETWEEN",
-            "ESCAPE",
-            "DISTINCT",
-            "OVER",
-            "ORDER",
-            "BY",
-            "PARTITION",
-            "ROWS",
-            "ASCENDING",
-            "DESCENDING",
-            "DIV",
-            "MOD",
-            "SINGLE",
-        ];
         let d = self.depth[select];
         let end = self.query_end(select);
         let mut start = select + 1;
@@ -262,23 +532,16 @@ impl<'a> Check<'a> {
             }
         }
         let stop = (start..end)
-            .find(|&k| self.depth[k] == d && (END.contains(&self.word(k)) || self.word(k) == "."))
+            .find(|&k| {
+                self.depth[k] == d && (LIST_END.contains(&self.word(k)) || self.word(k) == ".")
+            })
             .unwrap_or(end);
         let top: Vec<usize> = (start..stop).filter(|&k| self.depth[k] == d).collect();
-        // a name, not an operator like `/`, `&&` or `=`, which are
-        // identifiers to the lexer too
-        let column = |k: usize| {
-            let text = self.t[k].text.as_str();
-            let name = text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-                || (text.starts_with('/') && text.len() > 1);
-            self.t[k].kind == TokenKind::Identifier && name && !KEYWORDS.contains(&self.word(k))
-        };
-        // SAP `abenabap_sql_strictmode_740_sp05`: a host variable with `@`
-        // puts the statement in strict mode, where "all lists of operands
-        // must be comma-separated lists"
+        let column = |k: usize| self.is_name(k) && !LIST_KEYWORDS.contains(&self.word(k));
+        // SAP `abenabap_sql_strictmode_740_sp05`: in strict mode "all lists
+        // of operands must be comma-separated lists"
         let commas = top.iter().any(|&k| self.word(k) == ",");
-        let strict = self.t.iter().any(|t| t.kind == TokenKind::At);
-        if commas || strict {
+        if commas || self.strict {
             for pair in top.windows(2) {
                 let (a, b) = (pair[0], pair[1]);
                 if b == a + 1 && self.t[b].ws_before && column(a) && column(b) {
@@ -1031,6 +1294,110 @@ mod tests {
             "SELECT a, ROW_NUMBER( ) OVER( PARTITION BY b ORDER BY c DESCENDING ) AS n FROM t INTO TABLE @lt.",
             "SELECT t1~a, t2~b FROM t1 INNER JOIN t2 ON t2~k = t1~k INTO TABLE @lt.",
             "SELECT SINGLE a FROM t WHERE b IN ( SELECT b FROM u ) INTO @lv.",
+        ] {
+            assert_eq!(check(ok), None, "{ok}");
+        }
+    }
+
+    /// Checked on the SAP ABAP Cloud Developer Trial 2025 (8.16) on
+    /// 2026-11-14, with the same statements on T100.
+    #[test]
+    fn strict_mode_rules_of_the_sap_system() {
+        const NO_AT: &str = "host variable without @ in strict mode";
+        for (abap, expected) in [
+            // strict from @, commas, FIELDS, SQL expressions, USING CLIENT,
+            // RIGHT OUTER JOIN, INTO as the last clause
+            ("SELECT a, b FROM t INTO TABLE lt.", NO_AT),
+            ("SELECT FROM t FIELDS a WHERE b = 'X' INTO TABLE lt.", NO_AT),
+            (
+                "SELECT CASE a WHEN 'A' THEN 'B' ELSE a END AS a FROM t INTO TABLE lt.",
+                NO_AT,
+            ),
+            ("SELECT * FROM t USING CLIENT '001' INTO TABLE lt.", NO_AT),
+            (
+                "SELECT t~a FROM t RIGHT OUTER JOIN u ON t~a = u~a INTO TABLE lt.",
+                NO_AT,
+            ),
+            ("SELECT * FROM t WHERE a = lv INTO TABLE lt.", NO_AT),
+            // every host variable once one has @
+            ("SELECT * FROM t WHERE a = wa-a INTO TABLE @lt.", NO_AT),
+            (
+                "SELECT * FROM t WHERE a = @lv INTO TABLE @lt UP TO n ROWS.",
+                NO_AT,
+            ),
+            ("SELECT * FROM t WHERE a = @lv INTO TABLE lt.", NO_AT),
+            ("SELECT * FROM t WHERE a = @lv APPENDING TABLE lt.", NO_AT),
+            (
+                "SELECT SINGLE a, b FROM t WHERE a = @lv INTO (@x, y).",
+                NO_AT,
+            ),
+            (
+                "SELECT a, b FROM t FOR ALL ENTRIES IN lt WHERE a = @lt-a INTO TABLE @lt2.",
+                NO_AT,
+            ),
+            (
+                "SELECT a, b FROM t FOR ALL ENTRIES IN @lt WHERE a = lt-a INTO TABLE @lt2.",
+                NO_AT,
+            ),
+            ("UPDATE t SET a = wa-a WHERE b = @lv.", NO_AT),
+            ("UPDATE t USING CLIENT '001' FROM wa.", NO_AT),
+            ("MODIFY t USING CLIENT '001' FROM TABLE lt.", NO_AT),
+            ("DELETE FROM t WHERE a = wa-a AND b = @lv.", NO_AT),
+            // lists separated by commas
+            (
+                "SELECT a, b FROM t WHERE a = @lv GROUP BY a b INTO TABLE @lt.",
+                "GROUP BY list without commas in strict mode",
+            ),
+            (
+                "SELECT a, b FROM t WHERE a = @lv ORDER BY a b INTO TABLE @lt.",
+                "ORDER BY list without commas in strict mode",
+            ),
+            (
+                "SELECT * FROM t WHERE a = @lv ORDER BY a DESCENDING b INTO TABLE @lt.",
+                "ORDER BY list without commas in strict mode",
+            ),
+            (
+                "UPDATE t SET a = @lv b = @lv WHERE c = @lv.",
+                "SET list without commas in strict mode",
+            ),
+            (
+                "SELECT a b FROM t INTO TABLE lt GROUP BY a, b.",
+                "SELECT list without commas in strict mode",
+            ),
+            // the obsolete short form
+            (
+                "SELECT * FROM t WHERE a = @lv.",
+                "SELECT without INTO in strict mode",
+            ),
+        ] {
+            assert_eq!(check(abap), Some(expected), "{abap}");
+        }
+        for ok in [
+            // classic
+            "SELECT a b FROM t INTO TABLE lt WHERE a = lv ORDER BY a b.",
+            "SELECT * FROM t WHERE a = lv.",
+            "UPDATE t SET a = lv b = lv WHERE c = lv.",
+            "INSERT t FROM wa.",
+            "DELETE t FROM TABLE lt.",
+            // strict
+            "SELECT a, b FROM t INTO TABLE @lt WHERE a = @lv ORDER BY a, b.",
+            "SELECT * FROM t WHERE a = @lv ORDER BY PRIMARY KEY INTO TABLE @lt.",
+            "SELECT * FROM t WHERE a = @lv ORDER BY a DESCENDING, b ASCENDING INTO TABLE @lt.",
+            "SELECT * FROM t WHERE a = @lv ORDER BY a NULLS FIRST, b INTO TABLE @lt.",
+            "SELECT * FROM t WHERE a = @lv INTO TABLE @lt UP TO 5 ROWS.",
+            "SELECT * FROM t WHERE a = @( wa-a ) INTO TABLE @lt.",
+            "SELECT * FROM (dyn-tab) WHERE (dyn-where) INTO TABLE @lt.",
+            "SELECT a, b FROM t FOR ALL ENTRIES IN @me->tab WHERE a = @me->tab-a INTO TABLE @lt.",
+            "SELECT @cl=>const-comp AS a, b FROM t INTO TABLE @lt.",
+            "SELECT SINGLE a AS t-a FROM t INTO @wa.",
+            "SELECT SINGLE a AS offset FROM t INTO @lv.",
+            "SELECT COUNT(*) FROM t WHERE a = @lv.",
+            "SELECT a, COUNT( * ) OVER( ORDER BY a, b ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) AS c FROM t INTO TABLE @lt.",
+            "SELECT CASE WHEN a = 'A' THEN 'X' ELSE 'Y' END AS g, COUNT(*) AS c FROM t GROUP BY CASE WHEN a = 'A' THEN 'X' ELSE 'Y' END INTO TABLE @lt.",
+            "UPDATE t SET a = @lv, b = @lv WHERE c = @lv.",
+            "INSERT t FROM @wa.",
+            "MODIFY t FROM TABLE @lt MAPPING FROM ENTITY.",
+            "SELECT FROM i_country FIELDS \\_text-countryname WHERE country = @lv INTO TABLE @lt.",
         ] {
             assert_eq!(check(ok), None, "{ok}");
         }

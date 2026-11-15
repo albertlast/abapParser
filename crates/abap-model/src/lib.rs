@@ -595,6 +595,13 @@ pub struct DbAccess {
     pub bypassing_buffer: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection: Option<String>,
+    /// the strict mode of ABAP SQL the statement is checked in, named by
+    /// its release like `7.40 SP05` or `7.50`: the release of the newest
+    /// ABAP SQL feature the statement uses, from 7.40 SP05 on (`@`,
+    /// comma-separated lists, `FIELDS`, SQL expressions, ...); absent for
+    /// the classic syntax, native SQL and data clusters
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub strict_mode: Option<String>,
     /// native SQL (HANA SQL or SQLScript): the statement as written
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_sql: Option<String>,

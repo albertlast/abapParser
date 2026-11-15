@@ -32,6 +32,33 @@ const SAP_REJECTS: &[&str] = &[
     "SELECT f1 SUM( f2 ) AS s1 SUM( f3 ) AS s2 FROM ztab INTO CORRESPONDING FIELDS OF TABLE @lt GROUP BY f1 HAVING SUM( f2 ) <> 0 OR SUM( f3 ) <> 0.",
     "SELECT f1 SUM( ABS( f2 ) ) AS s1 MAX( f3 ) AS s2 INTO CORRESPONDING FIELDS OF TABLE @lt FROM ztab GROUP BY f1 HAVING SUM( ABS( f2 ) ) <> MAX( f3 ).",
     "SELECT f1 SUM( f2 ) AS s FROM ztab AS t1 GROUP BY f1 HAVING COUNT( * ) > ( SELECT COUNT( * ) FROM ztab2 WHERE f3 = SUM( t1~f2 ) ) INTO TABLE @lt.",
+    // Strict mode from a feature of 7.40 SP05 or later, where host variables
+    // need `@` and SELECT needs INTO (`abenabap_sql_strictmode_740_sp05`).
+    // Checked on the SAP trial with the same constructs on T100: SELECT
+    // without an INTO clause is not supported here.
+    "SELECT * FROM cds_view( param2 = @lv_val2, param = @lv_val1 ).",
+    // INTO as the last clause (7.40 SP08): "WA" is invalid here
+    "SELECT f1 FROM ztab GROUP BY f1 HAVING f1 = ( SELECT MAX( f1 ) FROM ztab WHERE f2 = iv ) INTO CORRESPONDING FIELDS OF ls.",
+    // SQL expression: Either "LV_I" has to be escaped using "@"
+    "SELECT ( col1 - col2 ) * ( col3 - col4 ) AS result FROM ztab INTO wa.",
+    // PRIVILEGED ACCESS (7.52) and OPTIONS (8.16) without `@`: "PRIVILEGED"
+    // or "OPTIONS" is not allowed here
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id PRIVILEGED ACCESS.",
+    "SELECT field APPENDING TABLE lt FROM ztab PACKAGE SIZE 10 WHERE id = lv_id PRIVILEGED ACCESS.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS PRIVILEGED ACCESS.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS BYPASSING BUFFER.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 WHERE id = lv_id OPTIONS CONNECTION foo.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS BYPASSING BUFFER.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS CONNECTION foo.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS USING ALL CLIENTS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS CONNECTION foo.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS BYPASSING BUFFER CONNECTION foo.",
+    "SELECT * FROM ztab INTO TABLE lt_tab PACKAGE SIZE 100 OPTIONS PRIVILEGED ACCESS BYPASSING BUFFER CONNECTION foo.",
+    // WITH (7.51), INTO list without `@`: "LV" is invalid here
+    "WITH +cte AS ( SELECT col FROM ztab ) SELECT FROM +cte FIELDS col INTO (lv1, lv2).",
 ];
 
 #[test]
