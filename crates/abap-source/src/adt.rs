@@ -1052,6 +1052,16 @@ impl SourceProvider for AdtProvider {
         }
     }
 
+    /// From the dependencies of the data definitions through the data
+    /// preview; nothing where that is not allowed.
+    fn data_definition(&self, entity: &str) -> Result<Option<String>> {
+        match tables::data_definition(&|l, q| self.query(l, q), entity) {
+            Ok(d) => Ok(d),
+            Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// From the class relations through the data preview; nothing where
     /// that is not allowed.
     fn subclasses(&self, class: &str) -> Result<Vec<String>> {

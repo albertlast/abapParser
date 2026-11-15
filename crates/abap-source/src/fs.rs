@@ -49,10 +49,44 @@ pub struct FsProvider {
 /// abapGit object types holding BAdIs.
 const BADI_TYPES: [&str; 4] = ["enhs", "enho", "sxsd", "sxci"];
 
+/// The entity a data definition defines: the name after `DEFINE` and its
+/// kind words, upper case; line comments and annotations skipped.
+fn cds_entity(text: &str) -> Option<String> {
+    const KIND: [&str; 13] = [
+        "ROOT",
+        "VIEW",
+        "ENTITY",
+        "TABLE",
+        "FUNCTION",
+        "CUSTOM",
+        "ABSTRACT",
+        "HIERARCHY",
+        "TRANSIENT",
+        "WRITABLE",
+        "EXTERNAL",
+        "ASPECT",
+        "TYPE",
+    ];
+    let code: Vec<&str> = text
+        .lines()
+        .map(|l| l.split("//").next().unwrap_or(""))
+        .collect();
+    let code = code.join("\n");
+    let mut words = code
+        .split(|c: char| c.is_whitespace() || matches!(c, '{' | '(' | ';' | ':'))
+        .filter(|w| !w.is_empty() && !w.starts_with('@'));
+    words.find(|w| w.eq_ignore_ascii_case("define"))?;
+    let name = words.find(|w| !KIND.iter().any(|k| w.eq_ignore_ascii_case(k)))?;
+    Some(name.to_ascii_uppercase())
+}
+
 #[derive(Default)]
 pub(crate) struct Relations {
     pub implementers: HashMap<String, Vec<String>>,
     pub subclasses: HashMap<String, Vec<String>>,
+    /// CDS entities named otherwise than their data definition: entity to
+    /// data definition, upper case
+    pub data_definitions: HashMap<String, String>,
 }
 
 impl FsProvider {
@@ -287,6 +321,15 @@ impl FsProvider {
         self.relations.get_or_init(|| {
             let mut index = Relations::default();
             for (r, path) in &self.index {
+                if r.kind == ObjectKind::Ddls {
+                    let entity = std::fs::read_to_string(path)
+                        .ok()
+                        .and_then(|text| cds_entity(&text));
+                    if let Some(e) = entity.filter(|e| *e != r.name) {
+                        index.data_definitions.insert(e, r.name.clone());
+                    }
+                    continue;
+                }
                 if r.kind != ObjectKind::Clas || r.part.is_some() {
                     continue;
                 }
@@ -551,6 +594,14 @@ impl SourceProvider for FsProvider {
             .unwrap_or_default())
     }
 
+    fn data_definition(&self, entity: &str) -> Result<Option<String>> {
+        Ok(self
+            .relations()
+            .data_definitions
+            .get(&entity.to_ascii_uppercase())
+            .cloned())
+    }
+
     fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
         Ok(self
             .hooks()
@@ -580,6 +631,22 @@ impl SourceProvider for FsProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entities_of_data_definitions() {
+        assert_eq!(
+            cds_entity("@AbapCatalog.sqlViewName: 'CDSFRWKFLD'\n// define view x\ndefine view CdsFrwk_flight_details\n  as select from t"),
+            Some("CDSFRWK_FLIGHT_DETAILS".into())
+        );
+        assert_eq!(
+            cds_entity("define table function ZTF_X with parameters p : abap.char(1) returns { a : abap.char(1); }"),
+            Some("ZTF_X".into())
+        );
+        assert_eq!(
+            cds_entity("define root view entity /DMO/I_Travel as select from t { key a }"),
+            Some("/DMO/I_TRAVEL".into())
+        );
+    }
 
     #[test]
     fn abapgit_file_names() {

@@ -683,8 +683,15 @@ pub struct Call {
     pub is_static: bool,
     /// target known only at runtime
     pub dynamic: bool,
-    /// additions like `DESTINATION 'NONE'`, `IN UPDATE TASK`, `AND RETURN`, `IF FOUND`
+    /// additions like `DESTINATION 'NONE'`, `IN UPDATE TASK`, `AND RETURN`, `IF FOUND`;
+    /// `TABLE FUNCTION` for the AMDP method that a database statement runs
+    /// by reading a CDS table function
     pub options: Vec<String>,
+    /// for `TABLE FUNCTION`: the CDS entities from the data source the
+    /// statement names to the table function, like `["ZI_SALES", "ZTF_SALES"]`
+    /// for a view that reads the table function; upper case
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub through: Vec<String>,
     /// the target was found in the analyzed sources; always false for
     /// single file analysis of targets outside the file
     pub resolved: bool,

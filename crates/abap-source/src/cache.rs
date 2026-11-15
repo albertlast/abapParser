@@ -187,6 +187,13 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
         self.lookup("subclasses", &key, || self.inner.subclasses(&key))
     }
 
+    fn data_definition(&self, entity: &str) -> Result<Option<String>> {
+        let key = entity.to_ascii_uppercase();
+        self.lookup("data_definitions", &key, || {
+            self.inner.data_definition(&key)
+        })
+    }
+
     fn notes(&self) -> Vec<String> {
         self.inner.notes()
     }

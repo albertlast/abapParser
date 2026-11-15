@@ -1678,6 +1678,18 @@ mod tests {
     }
 
     #[test]
+    fn named_arguments_are_no_calls() {
+        // CL_DEMO_AMDP_FUNCTIONS of the SAP trial
+        let n = amdp(
+            r#"RETURN SELECT * FROM "CL_DEMO_AMDP_FUNCTIONS=>GET_SCARR_SPFLI"(
+                 clnt => :clnt,
+                 carrid => :carrid );"#,
+        );
+        let calls: Vec<&str> = n.calls.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(calls, ["CL_DEMO_AMDP_FUNCTIONS=>GET_SCARR_SPFLI"]);
+    }
+
+    #[test]
     fn table_functions_cte_and_set_operations() {
         let n = amdp(
             r#"RETURN WITH recent AS ( SELECT * FROM zorders WHERE created > ADD_DAYS( CURRENT_DATE, -7 ) )

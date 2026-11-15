@@ -56,7 +56,8 @@ following calls into other objects (graph, logic, mcp):
   --skip <pattern>     do not load objects whose name matches, repeatable
   --limit <n>          load at most n objects
   --dictionary <n>     at most n dictionary lookups while typing (data
-                       elements, structures, table types); 0 for none
+                       elements, structures, table types) and of the CDS
+                       data definitions of data sources; 0 for none
   --progress           write each object loaded to stderr: count, outcome
                        (loaded, cached, missing, error), object, queued
   ABAP_ADT_LOG=1 writes every ADT request to stderr: method, path, status,

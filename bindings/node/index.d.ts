@@ -92,7 +92,8 @@ export interface SourceOptions {
    * into them are unresolved with the reason `not_followed` or `limit`. The
    * patterns match object names, not kinds, and apply to the objects of
    * calls and types (programs, classes, interfaces, function modules, type
-   * groups), not to dictionary lookups (`TABL:`, `DTEL:`, `DOMA:`, `TTYP:`).
+   * groups), not to dictionary lookups (`TABL:`, `DTEL:`, `DOMA:`, `TTYP:`);
+   * they apply to the CDS data definitions (`DDLS:`) of data sources too.
    */
   follow?: {
     /** name patterns of objects to load, like "Z*", or "/ABC/*" for a custom namespace; all when empty */
@@ -109,7 +110,8 @@ export interface SourceOptions {
     limit?: number;
     /**
      * At most this many dictionary lookups while typing (`TABL:`, `DTEL:`,
-     * `DOMA:`, `TTYP:`), each name asked once; 0 for none. Types not looked
+     * `DOMA:`, `TTYP:`) and of the CDS data definitions of data sources
+     * (`DDLS:`), each name asked once; 0 for none. Types not looked
      * up stay names; the note `dictionary: ...` says how many were not made.
      */
     dictionary?: number;
