@@ -1667,6 +1667,70 @@ mod tests {
         );
     }
 
+    /// The ABAP side of AMDP, by SAP's release news of 7.40 SP05, 7.50,
+    /// 7.51, 7.52, 7.53 and 8.16; SQLScript in the body gets SAP HANA
+    /// versions instead (`crate::sqlscript`), not releases of ABAP.
+    #[test]
+    fn amdp_constructs() {
+        let cases = [
+            (
+                "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT USING t.",
+                Release::V740Sp05,
+                "AMDP procedure",
+            ),
+            (
+                "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING t.",
+                Release::V750,
+                "AMDP function",
+            ),
+            (
+                "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY DETERMINISTIC.",
+                Release::V753,
+                "AMDP scalar function",
+            ),
+            (
+                "CLASS-METHODS m FOR TABLE FUNCTION demo_cds_tf.",
+                Release::V750,
+                "AMDP function of a CDS table function",
+            ),
+            (
+                "CLASS-METHODS m FOR SQL SERVICE IMPORTING VALUE(p) TYPE i.",
+                Release::V816,
+                "AMDP for an SQL service",
+            ),
+        ];
+        for (abap, release, construct) in cases {
+            assert_eq!(need(abap), Some((release, construct)), "{abap}");
+        }
+
+        // the macros of the body, and nothing of ABAP there: `||` is not a
+        // string template
+        let body = |sql: &str| {
+            let abap = format!(
+                "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT.\n{sql}\nENDMETHOD."
+            );
+            let file = crate::parse(&abap);
+            let s = file
+                .statements
+                .iter()
+                .find(|s| s.kind == K::NativeSQL)
+                .unwrap();
+            statement_needs(&file, s)
+                .into_iter()
+                .map(|n| (n.release, n.construct))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            body(r#"lt = SELECT * FROM "$ABAP.schema( demo )".t;"#),
+            [(Release::V751, "AMDP macro $ABAP.schema")]
+        );
+        assert_eq!(
+            body(r#"DECLARE x "$ABAP.type( s_carr_id )";"#),
+            [(Release::V752, "AMDP macro $ABAP.type")]
+        );
+        assert_eq!(body("lt = SELECT a || '|' || b AS c FROM t;"), []);
+    }
+
     #[test]
     fn constructs_and_their_releases() {
         assert_eq!(need("x = y."), None);
