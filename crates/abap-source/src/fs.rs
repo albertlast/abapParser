@@ -602,6 +602,25 @@ impl SourceProvider for FsProvider {
             .cloned())
     }
 
+    /// From the files: an entity named in a data definition, or a data
+    /// definition of the entity's name.
+    fn data_definitions(&self, entities: &[String]) -> Result<Option<HashMap<String, String>>> {
+        let relations = self.relations();
+        let mut out = HashMap::new();
+        for e in entities {
+            let key = e.to_ascii_uppercase();
+            let ddls = relations.data_definitions.get(&key).cloned().or_else(|| {
+                self.index
+                    .get(&SourceRef::data_definition(&key))
+                    .map(|_| key.clone())
+            });
+            if let Some(ddls) = ddls {
+                out.insert(key, ddls);
+            }
+        }
+        Ok(Some(out))
+    }
+
     fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
         Ok(self
             .hooks()

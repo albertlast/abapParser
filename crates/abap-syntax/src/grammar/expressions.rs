@@ -1328,7 +1328,13 @@ fn component_name() -> Rule {
 fn concatenated_constant() -> Rule {
     alt_prio!(
         seq!(re(r"^`.*`$"), plus_prio(seq!("&", re(r"^`.*`$")))),
-        seq!(re(r"^'.*'$"), plus_prio(seq!("&", re(r"^'.*'$"))))
+        // the last part may have a text symbol, `'a' & 'b'(001)`, which the
+        // SAP_BASIS 7.50 system accepts; `'a'(001) & 'b'` it rejects
+        seq!(
+            re(r"^'.*'$"),
+            plus_prio(seq!("&", re(r"^'.*'$"))),
+            opt_prio(seq!(Tok::ParenLeft, E::TextElementKey, Tok::ParenRightW))
+        )
     )
 }
 
@@ -1930,7 +1936,9 @@ fn kernel_id() -> Rule {
 }
 
 fn language() -> Rule {
-    seq!("LANGUAGE", alt_prio!("SQLSCRIPT", "SQL", "GRAPH"))
+    // LLANG, the L language of SAP HANA, only in SAP's own AMDP methods
+    // (29 methods of 14 classes on the SAP_BASIS 7.50 system)
+    seq!("LANGUAGE", alt_prio!("SQLSCRIPT", "SQL", "GRAPH", "LLANG"))
 }
 
 fn length() -> Rule {
@@ -3378,6 +3386,28 @@ fn sql_bypassing_buffer() -> Rule {
 
 /// A CASE expression of ABAP SQL; a result may be a typed literal.
 fn sql_case() -> Rule {
+    // a result in parentheses may be an expression of its own, like
+    // `THEN ( 'a' && col )`, which the SAP_BASIS 7.50 system accepts
+    let operand = || {
+        alt_prio!(
+            E::SQLCase,
+            E::SQLAggregation,
+            E::SQLFunction,
+            E::SQLTypedLiteral,
+            E::SQLFieldName,
+            E::SQLSource,
+            E::Constant
+        )
+    };
+    let paren_result = || {
+        seq!(
+            Tok::WParenLeftW,
+            opt_prio("-"),
+            operand(),
+            star_prio(seq!(alt_prio!("+", "-", "*", "/", "&&"), operand())),
+            Tok::WParenRightW
+        )
+    };
     ver(
         "7.40 SP05",
         seq!(
@@ -3395,19 +3425,7 @@ fn sql_case() -> Rule {
                 ),
                 "THEN",
                 alt_prio!(
-                    seq!(
-                        Tok::WParenLeftW,
-                        alt_prio!(
-                            E::SQLCase,
-                            E::SQLAggregation,
-                            E::SQLFunction,
-                            E::SQLTypedLiteral,
-                            E::SQLFieldName,
-                            E::SQLSource,
-                            E::Constant
-                        ),
-                        Tok::WParenRightW
-                    ),
+                    paren_result(),
                     seq!(
                         opt_prio("-"),
                         alt_prio!(
@@ -3438,19 +3456,7 @@ fn sql_case() -> Rule {
             opt_prio(seq!(
                 "ELSE",
                 alt_prio!(
-                    seq!(
-                        Tok::WParenLeftW,
-                        alt_prio!(
-                            E::SQLCase,
-                            E::SQLAggregation,
-                            E::SQLFunction,
-                            E::SQLTypedLiteral,
-                            E::SQLFieldName,
-                            E::SQLSource,
-                            E::Constant
-                        ),
-                        Tok::WParenRightW
-                    ),
+                    paren_result(),
                     seq!(
                         opt_prio("-"),
                         alt_prio!(
@@ -3609,6 +3615,26 @@ fn sql_compare() -> Rule {
         E::Dynamic,
         seq!(
             alt_prio!(
+                // an expression in parentheses, `( a && b ) = 'x'`, which the
+                // SAP_BASIS 7.50 system accepts; SQL expressions on the left
+                // came with 7.50
+                ver("7.50", {
+                    let operand = || {
+                        alt_prio!(
+                            E::SQLFunction,
+                            E::SQLPathForColumn,
+                            E::SQLAliasField,
+                            E::SQLFieldName,
+                            E::Constant
+                        )
+                    };
+                    seq!(
+                        Tok::WParenLeftW,
+                        operand(),
+                        plus_prio(seq!(alt_prio!("+", "-", "*", "/", "&&"), operand())),
+                        Tok::WParenRightW
+                    )
+                }),
                 E::SQLCase,
                 E::SQLAggregation,
                 E::SQLFunction,
@@ -9723,6 +9749,16 @@ fn write_offset_length() -> Rule {
             opt(seq!(
                 alt!(Tok::WParenLeft, Tok::ParenLeft),
                 literal(),
+                alt!(Tok::ParenRightW, Tok::ParenRight)
+            ))
+        ),
+        // `/lv(10)` and `/lv`: after a slash, the SAP_BASIS 7.50 system takes
+        // a field as the position without AT, with a warning only
+        seq!(
+            re(r"^\/[a-zA-Z_][\w]*$"),
+            opt(seq!(
+                alt!(Tok::WParenLeft, Tok::ParenLeft),
+                alt!(literal(), E::SimpleFieldChain2),
                 alt!(Tok::ParenRightW, Tok::ParenRight)
             ))
         ),

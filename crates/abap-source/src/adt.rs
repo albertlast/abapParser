@@ -1062,6 +1062,16 @@ impl SourceProvider for AdtProvider {
         }
     }
 
+    /// One query for many entities through the data preview; `None`
+    /// where that is not allowed.
+    fn data_definitions(&self, entities: &[String]) -> Result<Option<HashMap<String, String>>> {
+        match tables::data_definitions(&|l, q| self.query(l, q), entities) {
+            Ok(d) => Ok(d),
+            Err(SourceError::Auth { .. }) | Err(SourceError::Http { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// From the class relations through the data preview; nothing where
     /// that is not allowed.
     fn subclasses(&self, class: &str) -> Result<Vec<String>> {

@@ -1243,7 +1243,11 @@ fn data() -> Rule {
                 alt_prio!(Tok::WParenLeft, Tok::ParenLeft),
                 E::Integer,
                 alt_prio!(Tok::ParenRightW, Tok::ParenRight)
-            )
+            ),
+            // a literal as a filler between the components of a structure,
+            // `DATA: BEGIN OF x, name(30), '(', id(5), ')', END OF x.`, which
+            // the SAP_BASIS 7.50 system accepts
+            E::ConstantString
         ),
         opt_prio("%_PREDEFINED")
     )
@@ -2057,8 +2061,42 @@ fn free_object() -> Rule {
     not_in(Lang::Cloud, seq!("FREE OBJECT", E::Target, opt("NO FLUSH")))
 }
 
+/// `FUNCTION name.`, as abapGit stores it with the interface in comments, or
+/// with the interface in the statement, as ADT serves every function module:
+/// `FUNCTION name IMPORTING VALUE(p) TYPE t DEFAULT 1 OPTIONAL EXPORTING ...
+/// TABLES t STRUCTURE s EXCEPTIONS e RAISING cx.` (abaplint knows only the
+/// first form; on the SAP_BASIS 7.50 system 225 of 226 function modules
+/// came the second way).
 fn function_module() -> Rule {
-    not_in(Lang::KeyUser, seq!("FUNCTION", E::Field))
+    let param = || {
+        seq!(
+            alt_prio!(
+                seq!(
+                    alt_prio!("VALUE", "REFERENCE"),
+                    Tok::ParenLeft,
+                    E::MethodParamName,
+                    Tok::ParenRightW
+                ),
+                E::MethodParamName
+            ),
+            opt(alt!(E::TypeParam, seq!("STRUCTURE", E::SimpleFieldChain2))),
+            opt_prio(E::Default),
+            opt_prio("OPTIONAL")
+        )
+    };
+    let section = |word: &'static str| opt_prio(seq!(word, plus(param())));
+    not_in(
+        Lang::KeyUser,
+        seq!(
+            "FUNCTION",
+            E::Field,
+            section("IMPORTING"),
+            section("EXPORTING"),
+            section("CHANGING"),
+            section("TABLES"),
+            opt_prio(alt_prio!(E::MethodDefExceptions, E::MethodDefRaising))
+        ),
+    )
 }
 
 fn function_pool() -> Rule {
@@ -2089,7 +2127,15 @@ fn generate_dynpro() -> Rule {
             E::Source,
             "MESSAGE",
             E::Target,
-            per!(seq!("LINE", E::Target), seq!("WORD", E::Target))
+            // SAP `abapgenerate_dynpro`: also OFFSET, MESSAGE-ID and
+            // TRACE-FILE, as the SAP_BASIS 7.50 system accepts
+            per!(
+                seq!("LINE", E::Target),
+                seq!("WORD", E::Target),
+                seq!("OFFSET", E::Target),
+                seq!("MESSAGE-ID", E::Target),
+                seq!("TRACE-FILE", E::Target)
+            )
         ),
     )
 }
@@ -5348,9 +5394,11 @@ fn type_mesh() -> Rule {
                         "=",
                         E::NamespaceSimpleName
                     ))
-                ))
-            )),
-            opt(seq!("USING KEY", E::NamespaceSimpleName))
+                )),
+                // SAP `abaptypes_mesh`: each association has its own USING
+                // KEY, also one before the next ASSOCIATION
+                opt_prio(seq!("USING KEY", E::NamespaceSimpleName))
+            ))
         ),
     )
 }

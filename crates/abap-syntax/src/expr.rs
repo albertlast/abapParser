@@ -20,6 +20,21 @@ pub struct Expr {
     pub last: Pos,
 }
 
+impl Expr {
+    /// `'a' & 'b'`, `'a' & 'b' & 'c'(001)`: literals joined by `&`, an old
+    /// way to write one literal, valid wherever a literal is.
+    pub fn is_literal_concatenation(&self) -> bool {
+        fn part(e: &Expr) -> bool {
+            match &e.kind {
+                ExprKind::Literal => true,
+                ExprKind::Binary { op, left, right } => op == "&" && part(left) && part(right),
+                _ => false,
+            }
+        }
+        matches!(&self.kind, ExprKind::Binary { op, .. } if op == "&") && part(self)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprKind {
     /// `'text'`, `` `text` ``, `42`, `|text|`, `TEXT-001`, `'text'(001)`

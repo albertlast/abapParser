@@ -158,6 +158,9 @@ pub struct Workspace {
     structures: Mutex<HashMap<String, Option<Arc<ddic::Structure>>>>,
     /// CDS data definitions by entity name, upper case
     cds: Mutex<HashMap<String, Option<Arc<m::CdsDefinition>>>>,
+    /// the data definition of each name asked at once with others, `None`
+    /// for a name that has none
+    data_definitions: Mutex<HashMap<String, Option<String>>>,
     data_elements: Mutex<HashMap<String, Option<String>>>,
     table_types: Mutex<HashMap<String, Option<m::DataType>>>,
     dictionary_types: Mutex<HashMap<String, Option<m::DataType>>>,
@@ -555,6 +558,7 @@ impl Workspace {
             subclasses: Mutex::new(HashMap::new()),
             structures: Mutex::new(HashMap::new()),
             cds: Mutex::new(HashMap::new()),
+            data_definitions: Mutex::new(HashMap::new()),
             data_elements: Mutex::new(HashMap::new()),
             table_types: Mutex::new(HashMap::new()),
             dictionary_types: Mutex::new(HashMap::new()),
@@ -840,7 +844,15 @@ impl Workspace {
         if let Some(d) = self.cds.lock().unwrap().get(&key) {
             return d.clone();
         }
-        let d = if self.follow.allows(&key) {
+        let known = self.data_definitions.lock().unwrap().get(&key).cloned();
+        let d = if !self.follow.allows(&key) {
+            None
+        } else if let Some(known) = known {
+            // asked with others: no request for a name without one
+            known
+                .and_then(|ddls| self.fetch_dictionary(&SourceRef::data_definition(&ddls)))
+                .map(|s| Arc::new(abap_sql::cds::parse(&s.text)))
+        } else {
             // DDIC-based views and table functions may be named otherwise
             // than their data definition
             let r = SourceRef::data_definition(&key);
@@ -856,11 +868,43 @@ impl Workspace {
                     }
                 })
                 .map(|s| Arc::new(abap_sql::cds::parse(&s.text)))
-        } else {
-            None
         };
         self.cds.lock().unwrap().insert(key, d.clone());
         d
+    }
+
+    /// Asks the provider at once which of the names are CDS entities, so
+    /// that [`Workspace::cds`] needs no request for the others: on SAP
+    /// systems one query of DDLDEPENDENCY instead of a GET of a data
+    /// definition and a query for each table. Providers that cannot tell
+    /// leave each name to be asked by itself.
+    fn ask_data_definitions<'n>(&self, names: impl IntoIterator<Item = &'n str>) {
+        if self.follow.dictionary == Some(0) {
+            return;
+        }
+        let names: Vec<String> = {
+            let cds = self.cds.lock().unwrap();
+            let known = self.data_definitions.lock().unwrap();
+            let mut names: Vec<String> = names
+                .into_iter()
+                .map(|n| n.to_ascii_uppercase())
+                .filter(|n| !cds.contains_key(n) && !known.contains_key(n))
+                .filter(|n| self.follow.allows(n))
+                .collect();
+            names.sort();
+            names.dedup();
+            names
+        };
+        if names.is_empty() {
+            return;
+        }
+        if let Ok(Some(found)) = self.provider.data_definitions(&names) {
+            let mut known = self.data_definitions.lock().unwrap();
+            for n in names {
+                let ddls = found.get(&n).cloned();
+                known.insert(n, ddls);
+            }
+        }
     }
 
     /// The CDS table functions a database statement reads, directly or
@@ -886,6 +930,9 @@ impl Workspace {
         }
         let Some(d) = self.cds(&key) else { return };
         path.push(key);
+        if !d.kind.contains("table function") {
+            self.ask_data_definitions(d.sources.iter().map(|s| s.name.as_str()));
+        }
         if d.kind.contains("table function") {
             if let Some(method) = d.implemented_by.as_ref().filter(|m| m.contains("=>")) {
                 out.push((method.clone(), path.clone()));
@@ -902,9 +949,25 @@ impl Workspace {
     /// SQL statements of a source read, directly or through CDS views.
     fn table_function_calls(&self, file: &abap_syntax::File, unit: &str) -> Vec<m::Call> {
         let blocks = crate::context::statement_blocks(file);
+        let accesses: Vec<Option<m::DbAccess>> = file
+            .statements
+            .iter()
+            .map(|s| abap_sql::parse_statement(file, s))
+            .collect();
+        self.ask_data_definitions(
+            accesses
+                .iter()
+                .flatten()
+                .flat_map(|a| &a.tables)
+                .filter(|t| {
+                    !t.dynamic
+                        && !matches!(t.role, m::DbTableRole::Cte | m::DbTableRole::InternalTable)
+                })
+                .map(|t| t.name.as_str()),
+        );
         let mut out = Vec::new();
         for (i, s) in file.statements.iter().enumerate() {
-            let Some(access) = abap_sql::parse_statement(file, s) else {
+            let Some(access) = accesses[i].as_ref() else {
                 continue;
             };
             let mut seen = BTreeSet::new();
@@ -3095,6 +3158,90 @@ ENDCLASS.",
             ..Follow::default()
         });
         assert!(ws.cds("ZTF_SALES").is_none());
+    }
+
+    #[test]
+    fn data_definitions_are_asked_at_once() {
+        // a provider that tells for many names at once which are CDS
+        // entities: tables get no request of their own (on the SAP_BASIS
+        // 7.50 system each table cost a GET of a data definition and a query)
+        struct Batch {
+            inner: MemoryProvider,
+            asked: Arc<Mutex<Vec<String>>>,
+        }
+        impl SourceProvider for Batch {
+            fn fetch(&self, r: &SourceRef) -> abap_source::Result<Option<abap_source::Source>> {
+                self.asked.lock().unwrap().push(r.to_string());
+                self.inner.fetch(r)
+            }
+            fn data_definition(&self, entity: &str) -> abap_source::Result<Option<String>> {
+                self.asked.lock().unwrap().push(format!("one {entity}"));
+                Ok(None)
+            }
+            fn data_definitions(
+                &self,
+                entities: &[String],
+            ) -> abap_source::Result<Option<HashMap<String, String>>> {
+                self.asked
+                    .lock()
+                    .unwrap()
+                    .push(format!("batch {}", entities.join(" ")));
+                Ok(Some(
+                    entities
+                        .iter()
+                        .filter(|e| e.starts_with("ZI_") || e.starts_with("ZTF_"))
+                        .map(|e| (e.clone(), e.clone()))
+                        .collect(),
+                ))
+            }
+            fn describe(&self) -> String {
+                "batch".into()
+            }
+        }
+        let mut p = MemoryProvider::new();
+        p.insert(
+            SourceRef::program("ZSALES_REPORT"),
+            "REPORT zsales_report.\n\
+             SELECT * FROM zi_sales INTO TABLE @DATA(lt_view).\n\
+             SELECT * FROM t100 INTO TABLE @DATA(lt_t100).\n\
+             SELECT * FROM mara INNER JOIN marc ON marc~matnr = mara~matnr INTO TABLE @DATA(lt_mat).",
+        );
+        p.insert(
+            SourceRef::data_definition("ZI_SALES"),
+            "define view entity ZI_SALES as select from ZTF_SALES( p_year: '2026' ) { key id }",
+        );
+        p.insert(
+            SourceRef::data_definition("ZTF_SALES"),
+            "define table function ZTF_SALES with parameters p_year : abap.numc(4)\n\
+             returns { key client : abap.clnt; key id : abap.char(10); }\n\
+             implemented by method zcl_sales_amdp=>get_sales;",
+        );
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let provider = Batch {
+            inner: p,
+            asked: asked.clone(),
+        };
+        let ws = Workspace::new(Box::new(provider));
+        let calls = ws
+            .call_graph(&[SourceRef::program("ZSALES_REPORT")], 1)
+            .calls;
+        assert!(calls // {calls:?}
+            .iter()
+            .any(|c| c.name == "get_sales" && c.through == ["ZI_SALES", "ZTF_SALES"]));
+        let asked = asked.lock().unwrap().clone();
+        let dictionary: Vec<&String> = asked
+            .iter()
+            .filter(|a| a.starts_with("batch") || a.starts_with("one") || a.starts_with("DDLS:"))
+            .collect();
+        assert_eq!(
+            dictionary,
+            [
+                "batch MARA MARC T100 ZI_SALES",
+                "DDLS:ZI_SALES",
+                "batch ZTF_SALES",
+                "DDLS:ZTF_SALES"
+            ]
+        );
     }
 
     #[test]

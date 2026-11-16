@@ -469,8 +469,16 @@ fn call() -> Rule {
     )
 }
 
+/// An argument, maybe named; the parameters of a calculation view are
+/// named like `PLACEHOLDER."$$P$$" => :v` (SAP's AMDP classes on HANA).
 fn call_argument() -> Rule {
-    seq!(opt(seq!(name(), "=>")), alt!(E::SqsExpression, "?"))
+    seq!(opt(seq!(dotted(), "=>")), alt!(E::SqsExpression, "?"))
+}
+
+/// `WITH PARAMETERS ('PLACEHOLDER' = ('$$P$$', 'x'))`: options of a
+/// SELECT, like the input parameters of a calculation view.
+fn with_parameters() -> Rule {
+    seq!("WITH", "PARAMETERS", "(", E::SqsSoup, ")")
 }
 
 fn exec() -> Rule {
@@ -681,7 +689,8 @@ fn select() -> Rule {
         opt(seq!("GROUP", "BY", list2(group_item(), group_item()))),
         opt(seq!("HAVING", E::SqsCondition)),
         opt(order_by()),
-        opt(limit())
+        opt(limit()),
+        opt(with_parameters())
     )
 }
 
@@ -774,7 +783,8 @@ fn table_primary() -> Rule {
             number(),
             ")"
         )),
-        opt(seq!(alias(), opt(paren_names())))
+        opt(seq!(alias(), opt(paren_names()))),
+        opt(with_parameters())
     )
 }
 

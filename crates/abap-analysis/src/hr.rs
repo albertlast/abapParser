@@ -237,7 +237,7 @@ pub(crate) fn macro_access(name: &str) -> Option<MacroAccess> {
             system: &[("sy-subrc", false)],
         },
         "RP-SET-DATA-INTERVAL" => MacroAccess {
-            reads: vec![1, 2],
+            reads: vec![0, 1, 2],
             writes: Vec::new(),
             sets: &[],
             system: &[],

@@ -71,9 +71,30 @@ pub fn syntax_error(file: &File, s: &Statement) -> Option<SyntaxError> {
         .or_else(|| c.dynamic_component())
         .or_else(|| c.builtin_without_argument(file))
         .or_else(|| {
-            crate::grammar::mismatch(&c.t, s.kind)
+            // the first token of a part of a chain follows the colon or a
+            // comma, which separate like a blank: `WRITE: (7) a ,(13) b.` is
+            // `WRITE (13) b.`, as the SAP_BASIS 7.50 system has it
+            let first = chain_part_start(file, s).filter(|&i| !c.t[i].ws_before);
+            let separated = first.map(|i| Token {
+                ws_before: true,
+                ..c.t[i].clone()
+            });
+            let mut tokens = c.t.clone();
+            if let (Some(i), Some(t)) = (first, separated.as_ref()) {
+                tokens[i] = t;
+            }
+            crate::grammar::mismatch(&tokens, s.kind)
                 .and_then(|token| error(token, "does not match the statement grammar"))
         })
+}
+
+/// The position in the statement of the first token after the colon of a
+/// chained statement or a comma of the chain.
+fn chain_part_start(file: &File, s: &Statement) -> Option<usize> {
+    let colon = s.colon?;
+    let pos = s.tokens.iter().position(|&t| t > colon)?;
+    let before = file.tokens().get(s.tokens[pos].checked_sub(1)?)?;
+    matches!(before.text.as_str(), "," | ":").then_some(pos)
 }
 
 struct Check<'a> {
@@ -900,7 +921,8 @@ impl<'a> Check<'a> {
     fn perform(&self, file: &File, s: &Statement) -> Option<SyntaxError> {
         for item in operands(file, s).items {
             if let Operand::Expr { expr, .. } = item {
-                if matches!(expr.kind, ExprKind::Binary { .. }) {
+                if matches!(expr.kind, ExprKind::Binary { .. }) && !expr.is_literal_concatenation()
+                {
                     return error(expr.first, "only data objects as PERFORM parameters");
                 }
             }
@@ -1242,6 +1264,43 @@ mod tests {
             .find(|s| s.kind != K::Comment)
             .unwrap();
         syntax_error(&file, s).map(|e| e.message)
+    }
+
+    /// Code the syntax check of the SAP_BASIS 7.50 system accepts, from
+    /// active objects there and its check of unsaved text (2026-11-16): no
+    /// statement may be reported.
+    #[test]
+    fn accepted_by_the_750_system() {
+        for abap in [
+            // the interface of a function module in the statement, as ADT
+            // serves every function module
+            "FUNCTION z_a\n  IMPORTING\n    VALUE(iv_x) TYPE i DEFAULT 5\n    REFERENCE(ir) TYPE REF TO data OPTIONAL\n    iv_l LIKE sy-uname DEFAULT sy-uname\n    VALUE(iv_u)\n  EXPORTING\n    VALUE(ev_y) TYPE string\n  CHANGING\n    cv TYPE c\n  TABLES\n    t STRUCTURE bapiret2 OPTIONAL\n    t3\n  EXCEPTIONS\n    not_found.\nENDFUNCTION.",
+            "FUNCTION z_b\n  EXPORTING\n    VALUE(r) TYPE i\n  RAISING\n    cx_static_check.\nENDFUNCTION.",
+            // literals joined by &, the last with a text symbol
+            "DATA s TYPE string.\ns = 'a' & 'b'(001).\nWRITE 'a' & 'b' & 'c'(001).",
+            "PERFORM f USING 'a' & 'b'.\nFORM f USING p. ENDFORM.",
+            "CALL FUNCTION 'X' EXPORTING p = 'a' & 'b'(001).",
+            // a parenthesised expression as a CASE result or WHERE operand
+            "SELECT CASE carrid WHEN 'AA' THEN ( 'a' && carrname ) ELSE ( 'b' && carrname ) END AS x FROM scarr INTO TABLE @DATA(t).",
+            "SELECT CASE WHEN carrid = 'AA' THEN ( 1 + 2 ) ELSE 0 END AS x FROM scarr INTO TABLE @DATA(t).",
+            "SELECT carrid FROM scarr WHERE ( carrid && carrname ) = 'x' INTO TABLE @DATA(t).",
+            // literals as fillers of a structure
+            "DATA: BEGIN OF x,\n        name(30),\n        '(',\n        id(5),\n        ') ',\n      END OF x.",
+            // a part of a chain right after the comma
+            "DATA s TYPE string.\nWRITE: (7) 'a'\n ,(13) s.",
+            // a field as position after a slash: a warning only
+            "WRITE: /lv(10) 'x'.",
+            "GENERATE DYNPRO h f e m ID n MESSAGE ms LINE l OFFSET o WORD w TRACE-FILE tf.",
+            "TYPES: BEGIN OF MESH m,\n  a TYPE ta ASSOCIATION _b TO b ON x = y USING KEY k1\n            ASSOCIATION _c TO c ON x = z,\n  b TYPE tb ASSOCIATION _a TO a ON y = x USING KEY primary_key,\nEND OF MESH m.",
+            "CLASS zcl DEFINITION.\n PUBLIC SECTION.\n  INTERFACES if_amdp_marker_hdb.\n  METHODS m.\nENDCLASS.\nCLASS zcl IMPLEMENTATION.\n METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE LLANG OPTIONS READ-ONLY.\n  any text\n ENDMETHOD.\nENDCLASS.",
+        ] {
+            let file = crate::parse(abap);
+            for s in &file.statements {
+                if let Some(e) = syntax_error(&file, s) {
+                    panic!("{}: {}", file.statement_text(s), e.message);
+                }
+            }
+        }
     }
 
     /// What the syntax check of an SAP system (ABAP Platform 2025) rejects
