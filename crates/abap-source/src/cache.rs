@@ -49,26 +49,34 @@ impl<P: SourceProvider> CachedProvider<P> {
         key: &str,
         ask: impl FnOnce() -> Result<T>,
     ) -> Result<T> {
-        let path = self
-            .dir
-            .join("lookups")
-            .join(kind)
-            .join(format!("{}.json", file_key(key)));
-        if let Some(answer) = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str(&text).ok())
-        {
+        if let Some(answer) = self.cached(kind, key) {
             return Ok(answer);
         }
         let notes = self.inner.notes().len();
         let answer = ask()?;
         // an answer the system could not give is no answer to keep
         if self.inner.notes().len() == notes {
-            let text =
-                serde_json::to_string(&answer).map_err(|e| SourceError::Other(e.to_string()))?;
-            write_atomic(&path, &text)?;
+            self.keep(kind, key, &answer)?;
         }
         Ok(answer)
+    }
+
+    fn lookup_path(&self, kind: &str, key: &str) -> PathBuf {
+        self.dir
+            .join("lookups")
+            .join(kind)
+            .join(format!("{}.json", file_key(key)))
+    }
+
+    fn cached<T: DeserializeOwned>(&self, kind: &str, key: &str) -> Option<T> {
+        std::fs::read_to_string(self.lookup_path(kind, key))
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+    }
+
+    fn keep<T: Serialize>(&self, kind: &str, key: &str, answer: &T) -> Result<()> {
+        let text = serde_json::to_string(answer).map_err(|e| SourceError::Other(e.to_string()))?;
+        Ok(write_atomic(&self.lookup_path(kind, key), &text)?)
     }
 
     /// Removes a cached object, or that it is missing, so the next fetch
@@ -192,6 +200,40 @@ impl<P: SourceProvider> SourceProvider for CachedProvider<P> {
         self.lookup("data_definitions", &key, || {
             self.inner.data_definition(&key)
         })
+    }
+
+    /// The names cached, the others asked at once; each answer is kept as
+    /// that of `data_definition`.
+    fn data_definitions(
+        &self,
+        entities: &[String],
+    ) -> Result<Option<std::collections::HashMap<String, String>>> {
+        let mut out = std::collections::HashMap::new();
+        let mut ask = Vec::new();
+        for e in entities {
+            let key = e.to_ascii_uppercase();
+            match self.cached::<Option<String>>("data_definitions", &key) {
+                Some(Some(ddls)) => {
+                    out.insert(key, ddls);
+                }
+                Some(None) => {}
+                None => ask.push(key),
+            }
+        }
+        if ask.is_empty() {
+            return Ok(Some(out));
+        }
+        let notes = self.inner.notes().len();
+        let Some(found) = self.inner.data_definitions(&ask)? else {
+            return Ok(None);
+        };
+        if self.inner.notes().len() == notes {
+            for key in &ask {
+                self.keep("data_definitions", key, &found.get(key))?;
+            }
+        }
+        out.extend(found);
+        Ok(Some(out))
     }
 
     fn notes(&self) -> Vec<String> {

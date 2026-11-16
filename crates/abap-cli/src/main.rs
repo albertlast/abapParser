@@ -9,7 +9,7 @@ const USAGE: &str = "usage: abap <command> [arguments]
 
 single file:
   tokens <file> [--json]      tokens
-    statements <file> [--json]  statements with their kind, the release each
+  statements <file> [--json]  statements with their kind, the release each
                               needs and syntax errors found
   release <file> [--release R] [--json]
                               the ABAP release the file needs, the statements

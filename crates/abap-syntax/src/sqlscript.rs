@@ -125,6 +125,12 @@ pub fn tokens(source: &str) -> Vec<Token> {
                     while at(k).is_some_and(|d| d.is_ascii_digit()) {
                         k += 1;
                     }
+                } else if at(k) == Some('.')
+                    && !at(k + 1).is_some_and(|d| is_name(d) || matches!(d, '.' | '"' | '('))
+                {
+                    // `0.`, a decimal without digits after the point, as in
+                    // `ELSE 0. END` of SAP's classes, which HANA accepts
+                    k += 1;
                 }
                 let exponent = matches!(at(k), Some('e' | 'E'))
                     && (at(k + 1).is_some_and(|d| d.is_ascii_digit())
@@ -681,6 +687,13 @@ mod tests {
             "BEGIN SEQUENTIAL EXECUTION\n  CALL \"ZCL_X=>RUN\"(iv => :a, et => lt);\nEND;",
             "FOR i IN 1 .. 3 DO\n  :lt.INSERT((:i, 'x'), 1);\nEND FOR;",
             "et = SELECT CAST(a AS NVARCHAR(10)) AS b, COUNT(*) AS n FROM t GROUP BY a ORDER BY a DESC LIMIT 10;",
+            // from SAP's AMDP classes on the SAP_BASIS 7.50 system with HANA
+            // 2.0 SPS 07: a decimal `0.`, the placeholders of a calculation
+            // view, WITH PARAMETERS
+            "lt = SELECT CASE WHEN a = 1 THEN 1 else 0. END AS x FROM dummy;",
+            "lt = SELECT * FROM \"_SYS_BIC\".\"pkg/view\" ( PLACEHOLDER.\"$$P$$\" => :v, PLACEHOLDER.\"$$Q$$\" => 'x' );",
+            "lt = SELECT * FROM \"_SYS_BIC\".\"pkg/view\" WITH PARAMETERS ( 'placeholder' = ( '$$P$$', 'x' ) ) WHERE a = 1;",
+            "lt = SELECT * FROM v AS a INNER JOIN w AS b ON a.k = b.k WHERE a.x = 1 WITH PARAMETERS ( 'placeholder' = ( '$$P$$', :v ) );",
         ] {
             assert_eq!(syntax_error(ok), None, "{ok}");
         }

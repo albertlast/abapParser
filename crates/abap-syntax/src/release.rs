@@ -653,22 +653,16 @@ impl<'a> Scan<'a> {
                 }
                 // ref->( name ), struct-( name )
                 TokenKind::InstanceArrow | TokenKind::Dash if self.tight_paren(i + 1) => {
-                    // ASSIGN struc-(name) and CALL METHOD oref->(name) are old,
-                    // so is ASSIGN oref->(`name`): SAP's release news of 7.57
-                    // only bring struc-(comp) with a literal; the name of an
-                    // attribute may be any character-like literal
+                    // CALL METHOD oref->(name), CALL BADI badi->(name) and
+                    // ASSIGN oref->(name) are old, whatever the name; struc-(comp)
+                    // is 7.57 in any form: the SAP_BASIS 7.50 system rejects
+                    // ASSIGN ls-('A') and ASSIGN ls-(lv) alike
+                    let arrow = self.t[i].kind == TokenKind::InstanceArrow;
                     let old = match self.kind {
-                        // CALL METHOD oref->(name), not a component in a
-                        // functional call like m( itab[ 1 ]-('comp') )
-                        K::Call => {
-                            self.word(0) == "CALL" && self.t[i].kind == TokenKind::InstanceArrow
-                        }
-                        K::Assign => {
-                            (self.t[i].kind == TokenKind::InstanceArrow
-                                || self.kind_at(i + 2) != Some(TokenKind::String))
-                                && i > 0
-                                && !matches!(self.word(i - 1), "]" | "*")
-                        }
+                        // not a component in a functional call like
+                        // m( itab[ 1 ]-('comp') )
+                        K::Call => self.word(0) == "CALL" && arrow,
+                        K::CallBadi | K::Assign => arrow,
                         _ => false,
                     };
                     if !old {
@@ -1202,6 +1196,10 @@ impl<'a> Scan<'a> {
                 "+" | "-" | "*" | "/" if select && clause == "WHERE" && self.is_operator(i) => {
                     self.need(Release::V750, "SQL arithmetic in a condition")
                 }
+                // `( a && b ) = 'x'`: SQL expressions in conditions are 7.50
+                "&&" if select && clause == "WHERE" => {
+                    self.need(Release::V750, "SQL expression in a condition")
+                }
                 // col = ( ( SELECT ... ) ): an SQL expression on the right
                 "(" if select
                     && clause == "WHERE"
@@ -1435,7 +1433,7 @@ impl<'a> Scan<'a> {
         let calculated = matches!(
             e.kind,
             ExprKind::Binary { .. } | ExprKind::Unary { .. } | ExprKind::Paren(_)
-        );
+        ) && !e.is_literal_concatenation();
         let call = !calls && is_call(e);
         let template = !templates
             && (matches!(e.kind, ExprKind::Template(_))
@@ -1776,6 +1774,21 @@ mod tests {
             need("ASSIGN ls-(`COMP`) TO <fs>."),
             Some((Release::V757, "dynamic component"))
         );
+        // the SAP_BASIS 7.50 system rejects a component named by a variable,
+        // and takes the method of a BAdI by name
+        for abap in [
+            "ASSIGN ls-(lv) TO <fs>.",
+            "ASSIGN ls-s-(lv) TO <fs>.",
+            "ASSIGN <s>-(lv) TO <fs>.",
+        ] {
+            assert_eq!(
+                need(abap),
+                Some((Release::V757, "dynamic component")),
+                "{abap}"
+            );
+        }
+        assert_eq!(need("CALL BADI lo->('NAME') RECEIVING r = x."), None);
+        assert_eq!(need("CALL FUNCTION 'X' EXPORTING p = 'a' & 'b'."), None);
         assert_eq!(
             need("IF foo( ). ENDIF."),
             Some((Release::V740Sp08, "predicate method call"))

@@ -164,7 +164,112 @@ pub fn parse_with_macros(source: &str, macros: &[MacroDef]) -> File {
     let mut file = File { lexed, statements };
     expand_macros(&mut file, &table, 0);
     native_sql(&file.lexed.tokens, &mut file.statements);
+    declared_tables(&mut file);
     file
+}
+
+/// `DELETE x FROM y` and `MODIFY x FROM y` change an internal table when `x`
+/// is a data object declared in the file: `DELETE mapping FROM idx` of an
+/// exporting table parameter is no database access. The kind of the
+/// statement guessed it from names like `lt_x` only. Data declared with a
+/// type of its own name, like `DATA mara TYPE mara`, and work areas of
+/// `TABLES` stay database tables.
+fn declared_tables(file: &mut File) {
+    use StatementKind as K;
+    let ambiguous = |file: &File, s: &Statement| {
+        matches!(s.kind, K::DeleteDatabase | K::ModifyDatabase)
+            && file
+                .statement_tokens(s)
+                .nth(2)
+                .is_some_and(|t| t.is("FROM"))
+    };
+    if !file.statements.iter().any(|s| ambiguous(file, s)) {
+        return;
+    }
+    let mut declared: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut own_type: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for s in &file.statements {
+        let t: Vec<&Token> = file.statement_tokens(s).collect();
+        let word = |i: usize| t.get(i).map(|t| t.upper()).unwrap_or_default();
+        match s.kind {
+            K::Data | K::ClassData | K::Static => {
+                let name = word(1);
+                if matches!(word(2).as_str(), "TYPE" | "LIKE") && word(3) == name {
+                    own_type.insert(name.clone());
+                }
+                declared.insert(name);
+            }
+            K::DataBegin | K::ClassDataBegin | K::StaticBegin => {
+                declared.insert(word(3));
+            }
+            K::MethodDef | K::Form | K::FunctionModule => {
+                // parameters: VALUE(p), REFERENCE(p), p TYPE|LIKE|STRUCTURE,
+                // TABLES p
+                let mut tables = false;
+                for i in 1..t.len() {
+                    let w = word(i);
+                    match w.as_str() {
+                        "TABLES" => tables = true,
+                        "USING" | "CHANGING" | "IMPORTING" | "EXPORTING" | "RAISING"
+                        | "EXCEPTIONS" | "RETURNING" => tables = false,
+                        "VALUE" | "REFERENCE" if word(i + 1) == "(" => {
+                            declared.insert(word(i + 2));
+                        }
+                        "TYPE" | "LIKE" | "STRUCTURE" if i > 1 => {
+                            declared.insert(word(i - 1));
+                        }
+                        _ if tables && s.kind == K::Form => {
+                            declared.insert(w);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            K::Comment => {
+                // the interface of a function module in comments, as
+                // abapGit stores it: `*"     VALUE(ET_X) TYPE ...`
+                for c in t.iter().filter(|c| c.text.starts_with("*\"")) {
+                    let mut words = c.text[2..]
+                        .split(|ch: char| ch.is_whitespace() || ch == '(' || ch == ')')
+                        .filter(|w| !w.is_empty());
+                    match (words.next(), words.next()) {
+                        (Some(v), Some(name))
+                            if v.eq_ignore_ascii_case("VALUE")
+                                || v.eq_ignore_ascii_case("REFERENCE") =>
+                        {
+                            declared.insert(name.to_ascii_uppercase());
+                        }
+                        (Some(name), Some(k))
+                            if ["TYPE", "LIKE", "STRUCTURE"]
+                                .iter()
+                                .any(|x| k.eq_ignore_ascii_case(x)) =>
+                        {
+                            declared.insert(name.to_ascii_uppercase());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for i in 0..file.statements.len() {
+        if !ambiguous(file, &file.statements[i]) {
+            continue;
+        }
+        let s = &file.statements[i];
+        let name = file
+            .statement_tokens(s)
+            .nth(1)
+            .map(|t| t.upper())
+            .unwrap_or_default();
+        if declared.contains(&name) && !own_type.contains(&name) {
+            file.statements[i].kind = match s.kind {
+                K::DeleteDatabase => K::DeleteInternal,
+                _ => K::ModifyInternal,
+            };
+        }
+    }
 }
 
 /// Macro name -> definitions as (source offset where it becomes valid, body).
@@ -643,6 +748,52 @@ mod tests {
         assert_eq!(f.statement_text(&f.statements[1]), "DATA b TYPE c.");
         assert!(f.statements.iter().all(|s| s.kind == StatementKind::Data));
         assert!(f.statements.iter().all(|s| s.colon == Some(1)));
+    }
+
+    #[test]
+    fn declared_data_is_no_database_table() {
+        // SAP_BASIS 7.50: `DELETE mapping FROM idx` of an
+        // exporting table parameter was a database delete
+        let deletes = |src: &str| -> Vec<&'static str> {
+            kinds(src)
+                .into_iter()
+                .filter(|k| k.starts_with("Delete") || k.starts_with("Modify"))
+                .collect()
+        };
+        assert_eq!(
+            deletes(
+                "METHODS m EXPORTING mapping TYPE ztt_map.\n\
+                 DELETE mapping FROM idx.\n\
+                 MODIFY mapping FROM ls_x.\n\
+                 DELETE zlog FROM ls_log."
+            ),
+            ["DeleteInternal", "ModifyInternal", "DeleteDatabase"]
+        );
+        assert_eq!(
+            deletes(
+                "FORM f TABLES mapping USING VALUE(p) TYPE i.\n\
+                 DELETE mapping FROM idx.\n\
+                 DELETE p FROM idx.\n\
+                 ENDFORM."
+            ),
+            ["DeleteInternal", "DeleteInternal"]
+        );
+        // the interface of a function module in comments
+        assert_eq!(
+            deletes(
+                "FUNCTION z_f.\n\
+                 *\"  TABLES\n\
+                 *\"      MAPPING STRUCTURE  ZMAP\n\
+                 DELETE mapping FROM idx.\n\
+                 ENDFUNCTION."
+            ),
+            ["DeleteInternal"]
+        );
+        // a work area named like its table, TABLES: the database table
+        assert_eq!(
+            deletes("DATA mara TYPE mara.\nTABLES t100.\nDELETE mara FROM mara.\nDELETE t100 FROM t100."),
+            ["DeleteDatabase", "DeleteDatabase"]
+        );
     }
 
     #[test]

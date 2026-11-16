@@ -476,6 +476,17 @@ pub trait SourceProvider: Send + Sync {
         Ok(None)
     }
 
+    /// The data definitions of several CDS entities at once, entity to data
+    /// definition, upper case; an entity without one is left out. `None`
+    /// when the provider cannot tell which have none: then each is asked
+    /// by itself.
+    fn data_definitions(
+        &self,
+        _entities: &[String],
+    ) -> Result<Option<std::collections::HashMap<String, String>>> {
+        Ok(None)
+    }
+
     /// Lookups this provider could not do on its system, like
     /// `enhancements: not available (...)`. Not errors: the analysis goes on
     /// without them.
@@ -591,6 +602,23 @@ impl SourceProvider for ChainProvider {
             }
         }
         Ok(None)
+    }
+
+    /// Only when every provider can tell, the first one's answer first.
+    fn data_definitions(
+        &self,
+        entities: &[String],
+    ) -> Result<Option<std::collections::HashMap<String, String>>> {
+        let mut out = std::collections::HashMap::new();
+        for p in &self.providers {
+            let Some(found) = p.data_definitions(entities)? else {
+                return Ok(None);
+            };
+            for (entity, ddls) in found {
+                out.entry(entity).or_insert(ddls);
+            }
+        }
+        Ok(Some(out))
     }
 
     fn notes(&self) -> Vec<String> {

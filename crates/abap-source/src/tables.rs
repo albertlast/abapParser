@@ -219,6 +219,38 @@ pub(crate) fn data_definition(select: Select, entity: &str) -> Result<Option<Str
     Ok(select("data definitions", &query)?.and_then(|rows| first_column(rows).into_iter().next()))
 }
 
+/// The data definitions of several CDS entities with one query per 50
+/// names: entity to data definition, upper case, for those that have an
+/// active one; `None` when the query cannot be answered.
+pub(crate) fn data_definitions(
+    select: Select,
+    entities: &[String],
+) -> Result<Option<std::collections::HashMap<String, String>>> {
+    let mut keys: Vec<String> = entities
+        .iter()
+        .map(|e| e.to_ascii_uppercase())
+        .filter(|e| is_name(e))
+        .collect();
+    keys.sort();
+    keys.dedup();
+    let mut out = std::collections::HashMap::new();
+    for chunk in keys.chunks(50) {
+        let query = Query::new("DDLDEPENDENCY", &["OBJECTNAME", "DDLNAME"])
+            .filter("OBJECTNAME", chunk.iter().cloned())
+            .filter("OBJECTTYPE", ["STOB"])
+            .filter("STATE", ["A"]);
+        let Some(rows) = select("data definitions", &query)? else {
+            return Ok(None);
+        };
+        for row in rows {
+            if let (Some(entity), Some(ddls)) = (non_empty(row.first()), non_empty(row.get(1))) {
+                out.insert(entity, ddls);
+            }
+        }
+    }
+    Ok(Some(out))
+}
+
 /// A BAdI of an enhancement spot: interface and fallback class from its
 /// definition, the classes of its active implementations.
 pub(crate) fn spot_badi(select: Select, name: &str) -> Result<Option<Badi>> {

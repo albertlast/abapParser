@@ -209,6 +209,13 @@ impl SourceProvider for FnProvider {
         tables::data_definition(&|l, q| self.select(l, q), entity)
     }
 
+    fn data_definitions(
+        &self,
+        entities: &[String],
+    ) -> Result<Option<std::collections::HashMap<String, String>>> {
+        tables::data_definitions(&|l, q| self.select(l, q), entities)
+    }
+
     fn enhancements(&self, programs: &[String], function_modules: &[String]) -> Result<Vec<Hook>> {
         if self.query.is_none() {
             return Ok(Vec::new());

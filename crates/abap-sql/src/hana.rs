@@ -72,6 +72,23 @@ pub fn parse(text: &str, dialect: Dialect) -> Native {
 
 /// Parses native SQL, with the signatures of procedures it may call: which
 /// arguments of a CALL are filled by it.
+/// The direction of a named argument whose method is not in the file, by
+/// the prefix SAP's naming guidelines give parameters: `IT_`, `IV_`, `IS_`,
+/// `I_` import, `ET_`, `EV_`, `ES_`, `E_`, `RT_`, `RV_`, `R_` export or
+/// return, `CT_`, `CS_`, `CV_`, `C_` change. A guess: on the SAP_BASIS 7.50
+/// system a table passed to an importing parameter was taken as filled by
+/// the call in 26 of 77 links checked.
+fn pass_by_prefix(name: &str) -> Option<Pass> {
+    let name = name.trim_matches('"').to_ascii_uppercase();
+    let prefix = name.split('_').next().filter(|p| name.len() > p.len())?;
+    match prefix {
+        "IT" | "IV" | "IS" | "IR" | "I" => Some(Pass::In),
+        "ET" | "EV" | "ES" | "ER" | "E" | "RT" | "RV" | "RS" | "R" => Some(Pass::Out),
+        "CT" | "CV" | "CS" | "CR" | "C" => Some(Pass::InOut),
+        _ => None,
+    }
+}
+
 pub fn parse_with(text: &str, dialect: Dialect, signatures: Signatures) -> Native {
     let toks = lex(text, dialect);
     let flow = RefCell::new(Defs::default());
@@ -968,7 +985,8 @@ impl<'a> P<'a> {
                                 pass = signature
                                     .iter()
                                     .find(|(n, _)| n.eq_ignore_ascii_case(name))
-                                    .map(|s| s.1);
+                                    .map(|s| s.1)
+                                    .or_else(|| pass_by_prefix(name));
                             }
                             let value = &p.t[a.pos..arg.end];
                             let [v] = value else {
@@ -2306,6 +2324,12 @@ mod tests {
                 "4: :lt_out<-2",
                 "5: :lt2<-4"
             ]
+        );
+        // a method not in the file: SAP's prefixes tell an importing
+        // parameter, which reads the table and does not fill it
+        assert_eq!(
+            links("lt = SELECT * FROM a;\nCALL \"CL_X=>RUN\"(it_ctrl => :lt, et_ctrl => :lt_out, ct_ctrl => :lt2);\net = SELECT * FROM :lt, :lt_out, :lt2;"),
+            ["1: ", "2: :lt<-1", "3: :lt<-1 :lt_out<-2 :lt2<-2"]
         );
         // with the signature: outputs written with a colon, a table by name
         let signatures = |name: &str| {

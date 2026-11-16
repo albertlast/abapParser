@@ -1929,7 +1929,13 @@ fn is_jump(kind: K) -> bool {
 }
 
 fn kind_of(step: &m::Step) -> K {
-    step.kind.parse().unwrap_or(K::Unknown)
+    let kind = step.kind.parse().unwrap_or(K::Unknown);
+    // RP-SET-DATA-INTERVAL ends the event like CHECK when the period is
+    // empty; its condition is the step's
+    if kind == K::MacroCall && step.condition.is_some() {
+        return K::Check;
+    }
+    kind
 }
 
 // ----- procedures ------------------------------------------------------------
@@ -2244,6 +2250,7 @@ fn step(ctx: &Ctx, i: usize) -> m::Step {
                 constant: None,
             })
         }
+        K::MacroCall => interval_check(file, s),
         _ => ops.conds().next().map(|c| condition(&toks, c)),
     };
 
@@ -3345,6 +3352,43 @@ fn call_sets_subrc(kind: m::CallKind) -> Option<bool> {
     }
 }
 
+/// `RP-SET-DATA-INTERVAL infty begda endda` runs `CHECK begda <= endda`
+/// (DBPNPMAC on the SAP_BASIS 7.50 system): the condition of its step.
+fn interval_check(file: &File, s: &abap_syntax::Statement) -> Option<m::Condition> {
+    let (name, used) = abap_syntax::sap_macro(file, s)?;
+    if name != "RP-SET-DATA-INTERVAL" {
+        return None;
+    }
+    let args = crate::hr::arguments(file, s, used);
+    let operand = |arg: &[&abap_syntax::Token]| {
+        let text = crate::hr::join(arg);
+        let data = crate::hr::is_data(arg);
+        m::Operand {
+            kind: if data {
+                m::OperandKind::Data
+            } else {
+                m::OperandKind::Literal
+            },
+            value: (!data).then(|| text.trim_matches(|c| c == '\'' || c == '`').to_string()),
+            text,
+        }
+    };
+    let (begda, endda) = (args.get(1)?, args.get(2)?);
+    let (left, right) = (operand(begda), operand(endda));
+    Some(m::Condition {
+        kind: m::ConditionKind::Compare,
+        text: format!("{} <= {}", left.text, right.text),
+        children: Vec::new(),
+        left: Some(left),
+        operator: Some("<=".to_string()),
+        right: Some(right),
+        high: None,
+        values: Vec::new(),
+        negated: false,
+        constant: None,
+    })
+}
+
 /// What a macro of SAP reads and writes, see [`crate::hr::macro_access`].
 fn macro_accesses(
     file: &File,
@@ -3358,7 +3402,7 @@ fn macro_accesses(
     let Some(effect) = hr::macro_access(name) else {
         return;
     };
-    let args = hr::arguments(file, s, used);
+    let args = crate::hr::arguments(file, s, used);
     let access = |i: usize, kind: m::AccessKind, whole: bool| {
         let arg = args.get(i).filter(|a| hr::is_data(a))?;
         let path = hr::join(arg);
@@ -5912,6 +5956,30 @@ GET pernr.
         assert_eq!(check.reads[0].sources, [provide.id]);
         let x = find(body, "x = ");
         assert!(x.reads.iter().all(|r| r.sources == [provide.id]));
+    }
+
+    #[test]
+    fn data_interval_checks_its_period() {
+        // DBPNPMAC: RP-SET-DATA-INTERVAL runs CHECK begda <= endda
+        let l = logic(
+            "REPORT zhr.
+INFOTYPES 0001.
+GET pernr.
+  rp-set-data-interval 'P0001' lv_beg lv_end.
+  WRITE lv_beg.",
+        );
+        let body = &l.procedures[0].body;
+        let interval = find(body, "rp-set-data-interval");
+        assert_eq!(
+            interval.condition.as_ref().map(|c| c.text.as_str()),
+            Some("lv_beg <= lv_end")
+        );
+        let names: Vec<&str> = interval.reads.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["lv_beg", "lv_end"]);
+        let write = find(body, "WRITE");
+        assert_eq!(write.guards.len(), 1);
+        assert_eq!(write.guards[0].statement, interval.id);
+        assert!(!write.guards[0].negated);
     }
 
     #[test]
