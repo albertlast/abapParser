@@ -80,6 +80,8 @@ pub(super) struct Grammar {
     statements: HashMap<K, Id>,
     /// a whole CDS data definition
     cds: Id,
+    /// the body of a SQLScript procedure
+    sqlscript: Id,
     /// statements by the first keyword they can start with, like abaplint
     /// picks candidates; `""` for those that can start with any token
     by_first: HashMap<String, Vec<K>>,
@@ -117,6 +119,7 @@ impl Grammar {
                 expressions: Vec::new(),
                 statements: HashMap::new(),
                 cds: 0,
+                sqlscript: 0,
                 by_first,
             },
             pattern_ids: HashMap::new(),
@@ -124,6 +127,7 @@ impl Grammar {
         b.g.expressions = exprs.into_iter().map(|r| b.compile(r)).collect();
         b.g.statements = stats.into_iter().map(|(k, r)| (k, b.compile(r))).collect();
         b.g.cds = b.compile(super::cds::definition());
+        b.g.sqlscript = b.compile(super::sqlscript::body());
         let mut g = b.g;
         assert!(g.patterns.len() <= 128, "more patterns than bits");
         g.set = regex::bytes::RegexSetBuilder::new(g.patterns.iter().map(|p| p.re))
@@ -241,6 +245,16 @@ impl Grammar {
     pub(super) fn cds_stuck(&self, tokens: &[&Token]) -> Option<usize> {
         let mut run = Run::new(self, tokens);
         if run.statement(self.cds) {
+            return None;
+        }
+        Some(run.far as usize)
+    }
+
+    /// Where the grammar of SQLScript bodies got stuck, `None` when it
+    /// matches all tokens.
+    pub(super) fn sqlscript_stuck(&self, tokens: &[&Token]) -> Option<usize> {
+        let mut run = Run::new(self, tokens);
+        if run.statement(self.sqlscript) {
             return None;
         }
         Some(run.far as usize)

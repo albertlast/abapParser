@@ -57,6 +57,8 @@ The corpus is 3,313 files from eighteen open source projects (MIT/Apache-2.0), t
 
 - **CDS:** all 47 data definitions of the corpus are read with their kind and name; 312 of 342 view elements get the fields they are made of, the other 30 are constants. 60 standard views of the ABAP trial were checked as well.
 - **CDS syntax:** no syntax error is reported in the corpus's 47 data definitions, in 3,656 standard data definitions of the SAP ABAP Cloud Developer Trial 2025 (kept locally, not in the repository), or in abaplint's 339 CDS test cases apart from 8 that the trial rejects (`crates/abap-syntax/tests/cds_grammar.rs`). 986 standard views of the trial changed by one token went through its syntax check: of the 821 that SAP reports as syntax errors, 809 are reported here, and none of the 70 that SAP accepts; the other 12 are annotation values that SAP checks against the annotation definitions.
+- **SQLScript syntax:** no syntax error is reported in the 33 AMDP methods of the corpus nor in the 601 AMDP methods of 266 standard classes of the SAP ABAP Cloud Developer Trial 2025 (kept locally, not in the repository; `crates/abap-syntax/tests/sqlscript_grammar.rs`), neither by the grammar nor by the rules of USING. 41 bodies on the trial's flight tables and 55 probes the trial accepts, changed by one token (dropped, doubled, swapped, replaced), went through its syntax check: of the 1,055 that SAP's HANA reports as syntax errors, all are reported here, and none of the 138 it accepts; of the 38 it rejects for semantic reasons only `CARDINALITY()` without its argument, for the number of arguments. Of 66 probes of the grammar, 65 are decided as SAP does; a built-in function with a named argument, `LENGTH(a => 'x')`, is not reported, as functions of the system may take them. Of 24 probes of USING, the 4 rules that need no dictionary are met, the 5 errors for objects missing after USING need it. These 1,328 cases, written for this project, are in `tests/corpus/sap-verdicts/sqlscript.json` with the verdict of SAP's syntax check on each, and `sap_verdicts` holds every one against it in CI.
+- **Table variables of SQLScript:** in the 266 standard AMDP classes, 2,336 of 2,864 reads of table variables are linked to the statements that filled them; of the others 522 are parameters and 6 tables that are only declared.
 
 Against the SAP ABAP Cloud Developer Trial 2025, through ADT: the call graph of `BAPI_USER_GET_DETAIL` two hops deep loads 158 objects, among them dictionary types and generated lock modules, and resolves all of its 593 calls.
 
@@ -83,7 +85,7 @@ The releases follow abaplint's grammar. Constructs abaplint dates by a cloud rel
 - Built-in predicate functions like `contains( )` and `matches( )` came with the string functions of 7.02. abaplint dates them, as conditions of their own, with predicate method calls (7.40 SP08).
 - `MERGE` exists only in the cloud (9.17), so no on-premise release has it.
 - ABAP SQL by SAP's release news, where abaplint gives an older release: `RIGHT OUTER JOIN` 7.40 SP05, the INTO clause as the last clause of SELECT 7.40 SP08, host expressions `@( ... )` 7.50.
-- Constructs abaplint does not know are dated by SAP's release news of their release: `THROW cx( MESSAGE ... )` 7.50, `AMDP OPTIONS` 7.52 (`CLIENT INDEPENDENT` 7.58, `CDS SESSION CLIENT DEPENDENT` 8.16), `FILTER` with the key of the source table and a filter table 7.52, typed literals in ABAP SQL 7.55, `CORRESPONDING ... APPENDING` 7.56, `FOR ... STEP` and `ELSE UNASSIGN` after `ASSIGNING` 7.57, `READ TABLE ... WHERE` and `itab[ TABLE KEY ... ]` 8.16. Some newer syntax of SAP's cheat sheets is not in the release news, like `CALL TRANSFORMATION ... RESULT JSON` or `SORT itab BY expr`; it gets the release of the construct around it.
+- Constructs abaplint does not know are dated by SAP's release news of their release: AMDP (see [SQLScript syntax and versions](#sqlscript-syntax-and-versions)), `THROW cx( MESSAGE ... )` 7.50, `AMDP OPTIONS` 7.52 (`CLIENT INDEPENDENT` 7.58, `CDS SESSION CLIENT DEPENDENT` 8.16), `FILTER` with the key of the source table and a filter table 7.52, typed literals in ABAP SQL 7.55, `CORRESPONDING ... APPENDING` 7.56, `FOR ... STEP` and `ELSE UNASSIGN` after `ASSIGNING` 7.57, `READ TABLE ... WHERE` and `itab[ TABLE KEY ... ]` 8.16. Some newer syntax of SAP's cheat sheets is not in the release news, like `CALL TRANSFORMATION ... RESULT JSON` or `SORT itab BY expr`; it gets the release of the construct around it.
 
 The ABAP Cloud language versions, which restrict what a release allows, are not covered.
 
@@ -92,7 +94,7 @@ abap release zcl_orders.clas.abap --release 750    # the release the file needs,
 abap statements zcl_orders.clas.abap               # each statement with its release and syntax errors
 ```
 
-`statements` gives `release` (with `id` like `v740sp05` for comparing) and `error` for each statement where they apply, in the CLI, the Node and Python bindings and the MCP server.
+`statements` gives `release` (with `id` like `v740sp05` for comparing), `hana` for SQLScript and `error` for each statement where they apply, in the CLI, the Node and Python bindings and the MCP server.
 
 ## Symbols
 
@@ -163,14 +165,18 @@ Native SQL is HANA SQL: the statements between `EXEC SQL` and `ENDEXEC`, and the
 - tables, joins, conditions, the SELECT list, GROUP BY, ORDER BY, SET of UPDATE and MERGE
 - the target: a table variable (`lt_rows = SELECT ...`), `SELECT ... INTO var`, `RETURN SELECT ...` of a table function, or `INTO :wa` of EXEC SQL
 - `host_variables`: the `:name` variables read, which are the ABAP host variables of EXEC SQL, or the parameters and table variables of an AMDP
+- `filled_by` of a table variable read (`:lt` in `tables`): where the statements start that may have filled it before in the same method, so a read leads to the tables it came from: `lt = SELECT ...`, `INSERT INTO :lt`, `:lt.INSERT( ... )`, `lt.col[1] = ...`, `lt = :other`, `lt = UNNEST( ... )` and outputs of CALL. Branches of IF each start from what came before, what a loop fills reaches its statements again, an exit handler's fill reaches nothing after it. Which arguments of a CALL are outputs comes from the signature when the AMDP method is in the same file; otherwise outputs are names (`et => lt`), and a `:name` not used as a table before may be filled. Empty for parameters and tables only declared; the whole lineage is left to downstream tools.
 
 Supported are:
 
 - SELECT with WITH, joins, subqueries, set operations, TOP and LIMIT
 - table variables in FROM (role `internal_table`), table functions and the hierarchy functions
 - INSERT, UPDATE, DELETE, UPSERT, REPLACE, MERGE, TRUNCATE and CALL
+- the operators of table variables: `:lt.INSERT`, `:lt.DELETE`, `:lt.UPDATE` and cells `lt.col[i] = ...`
+- `APPLY_FILTER(table, :filter)` (`dynamic`) and the calculation engine operators like `CE_COLUMN_TABLE("T")`
+- dynamic SQL: `EXEC` and `EXECUTE IMMEDIATE` are `dynamic`, a statement written as a literal is taken apart, `INTO` gives the target
 - cursors
-- the SQLScript blocks IF, WHILE, FOR, BEGIN ... END and exit handlers, followed to find the statements inside them
+- the SQLScript blocks IF, WHILE, FOR, LOOP, BEGIN ... END and exit handlers, followed to find the statements inside them
 
 Names in quotes keep their case. In AMDP bodies `"` quotes names; in EXEC SQL it starts an ABAP comment.
 
@@ -179,7 +185,17 @@ AMDP methods have more information in other APIs:
 - In symbols, the method implementation lists the AMDP kind, language, OPTIONS and USING.
 - In calls, calls of other AMDP methods (`CALL "ZCL_X=>M"( ... )`) and their table functions in FROM are method calls.
 
-Not covered: the data flow inside SQLScript in the logic API; dynamic SQL (`EXEC :lv_sql`) is a `native` access with its text.
+Not covered: dynamic SQL in a variable (`EXEC :lv_sql`) is a `dynamic` access with its text.
+
+The body of an AMDP method is lexed in its own language up to its `ENDMETHOD`: `||` of SQLScript is no string template of ABAP, `"` no ABAP comment.
+
+### SQLScript syntax and versions
+
+The SQLScript of AMDP methods has a grammar of its own (`crates/abap-syntax/src/grammar/sqlscript.rs`), written from SAP's SQLScript Reference and SQL Reference Guide for SAP HANA 2.0 SPS 08 and held against the syntax check of the SAP ABAP Cloud Developer Trial 2025, which hands the body to its SAP HANA 2.0 SPS 08 (revision 87). A syntax error is reported on the statement of the body, with where in the file: ``does not match the SQLScript grammar at 25:20 `FRM` ``. The arguments of functions with keywords among them, like `TRIM(BOTH ' ' FROM a)` or `SUBSTR_REGEXPR(p IN s GROUP 1)`, are taken as balanced parentheses; `CAST`, `EXTRACT`, the ordered aggregates and windows of OVER are checked. As HANA does, declarations come first in a block, IF and WHILE take predicates, functions and cursor attributes but no bare values, and built-in functions take arguments unless they have none.
+
+The rules of USING that SAP's AMDP check applies and that need no dictionary are checked too: each object after USING must be used in the body (`The user declaration for the object ... is not needed`), in quotes only in upper case, and an AMDP method called (`"ZCL_X=>M"`) must be after USING. Whether a name without one is a dictionary object or one of HANA, like `m_tables`, only the dictionary knows; that is not reported.
+
+`statements` and `release` give each statement of a SQLScript body the SAP HANA version it needs in `hana` (`HANA 2.0 SPS 03`, id `hana2sps03`), by SAP's "What's New in the SAP HANA Platform 2.0" for SPS 00 to 08: the built-in functions each SPS brought, like `JSON_VALUE` and the hierarchy functions (SPS 00), `XMLTABLE` (SPS 02) or `HEXTONUM` (SPS 04); `MAP_MERGE` (SPS 00), the INSERT and DELETE operators of table variables (SPS 01), inserting a table variable and `::CURRENT_LINE_NUMBER` (SPS 02); `BOOLEAN`, declarations with LIKE and ROW, INTO and USING of dynamic SQL, `SELECT INTO ... DEFAULT`, BETWEEN in IF and WHILE, `:lt.SEARCH`, `MAP_REDUCE` and updatable cursors (SPS 03). Without one, SAP HANA 1.0 has it all. The ABAP side of AMDP has releases as other statements: AMDP procedures 7.40 SP05, AMDP functions and `FOR TABLE FUNCTION` 7.50, the macros `$ABAP.schema` 7.51 and `$ABAP.type` 7.52, `OPTIONS DETERMINISTIC` of scalar functions 7.53, `FOR SQL SERVICE` 8.16.
 
 ## CDS views
 

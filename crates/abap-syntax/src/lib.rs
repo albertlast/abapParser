@@ -12,6 +12,7 @@ mod grammar;
 mod kind;
 pub mod operands;
 pub mod release;
+pub mod sqlscript;
 pub mod structure;
 pub mod system;
 

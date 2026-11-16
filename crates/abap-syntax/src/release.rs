@@ -166,7 +166,10 @@ pub fn statement_release(file: &File, s: &Statement) -> Option<Need> {
 /// Every construct of the statement newer than 7.00 with its release, each
 /// once, in the order found.
 pub fn statement_needs(file: &File, s: &Statement) -> Vec<Need> {
-    if matches!(s.kind, K::Comment | K::Unknown | K::NativeSQL) {
+    if s.kind == K::NativeSQL {
+        return amdp_macros(file, s);
+    }
+    if matches!(s.kind, K::Comment | K::Unknown) {
         return Vec::new();
     }
     let mut scan = Scan::new(file, s);
@@ -177,6 +180,30 @@ pub fn statement_needs(file: &File, s: &Statement) -> Vec<Need> {
     }
     scan.operands(file, s);
     scan.needs
+}
+
+/// The AMDP macros in the body of an AMDP method, by SAP's release news of
+/// 7.51 and 7.52: `"$ABAP.schema( name )"` and `"$ABAP.type( type )"`.
+fn amdp_macros(file: &File, s: &Statement) -> Vec<Need> {
+    let tokens = file.tokens();
+    let text: String = s
+        .tokens
+        .iter()
+        .map(|t| &tokens[*t])
+        .filter(|t| t.kind != crate::TokenKind::Comment)
+        .map(|t| t.text.to_ascii_uppercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut needs = Vec::new();
+    for (macro_, release, construct) in [
+        ("$ABAP.SCHEMA(", Release::V751, "AMDP macro $ABAP.schema"),
+        ("$ABAP.TYPE(", Release::V752, "AMDP macro $ABAP.type"),
+    ] {
+        if text.replace(' ', "").contains(macro_) {
+            needs.push(Need { release, construct });
+        }
+    }
+    needs
 }
 
 /// The strict mode of ABAP SQL that the syntax check applies to a database
@@ -395,6 +422,37 @@ const KEYWORDS: &[(&[K], &str, Release, &str)] = &[
         "ELSE UNASSIGN",
         Release::V757,
         "ELSE UNASSIGN",
+    ),
+    // AMDP, by SAP's release news of 7.40 SP05, 7.50, 7.53 and 8.16
+    (
+        &[K::MethodImplementation],
+        "BY DATABASE PROCEDURE",
+        Release::V740Sp05,
+        "AMDP procedure",
+    ),
+    (
+        &[K::MethodImplementation],
+        "BY DATABASE FUNCTION",
+        Release::V750,
+        "AMDP function",
+    ),
+    (
+        &[K::MethodDef],
+        "FOR TABLE FUNCTION",
+        Release::V750,
+        "AMDP function of a CDS table function",
+    ),
+    (
+        &[K::MethodImplementation],
+        "DETERMINISTIC",
+        Release::V753,
+        "AMDP scalar function",
+    ),
+    (
+        &[K::MethodDef],
+        "FOR SQL SERVICE",
+        Release::V816,
+        "AMDP for an SQL service",
     ),
     // AMDP options, by SAP's release news of 7.52, 7.58 and 8.16
     (
@@ -1607,6 +1665,70 @@ mod tests {
             need("READ TABLE FILTER #( itab WHERE a = 1 ) INTO wa INDEX 1.").map(|n| n.1),
             Some("READ TABLE WHERE")
         );
+    }
+
+    /// The ABAP side of AMDP, by SAP's release news of 7.40 SP05, 7.50,
+    /// 7.51, 7.52, 7.53 and 8.16; SQLScript in the body gets SAP HANA
+    /// versions instead (`crate::sqlscript`), not releases of ABAP.
+    #[test]
+    fn amdp_constructs() {
+        let cases = [
+            (
+                "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT USING t.",
+                Release::V740Sp05,
+                "AMDP procedure",
+            ),
+            (
+                "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING t.",
+                Release::V750,
+                "AMDP function",
+            ),
+            (
+                "METHOD m BY DATABASE FUNCTION FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY DETERMINISTIC.",
+                Release::V753,
+                "AMDP scalar function",
+            ),
+            (
+                "CLASS-METHODS m FOR TABLE FUNCTION demo_cds_tf.",
+                Release::V750,
+                "AMDP function of a CDS table function",
+            ),
+            (
+                "CLASS-METHODS m FOR SQL SERVICE IMPORTING VALUE(p) TYPE i.",
+                Release::V816,
+                "AMDP for an SQL service",
+            ),
+        ];
+        for (abap, release, construct) in cases {
+            assert_eq!(need(abap), Some((release, construct)), "{abap}");
+        }
+
+        // the macros of the body, and nothing of ABAP there: `||` is not a
+        // string template
+        let body = |sql: &str| {
+            let abap = format!(
+                "METHOD m BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT.\n{sql}\nENDMETHOD."
+            );
+            let file = crate::parse(&abap);
+            let s = file
+                .statements
+                .iter()
+                .find(|s| s.kind == K::NativeSQL)
+                .unwrap();
+            statement_needs(&file, s)
+                .into_iter()
+                .map(|n| (n.release, n.construct))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            body(r#"lt = SELECT * FROM "$ABAP.schema( demo )".t;"#),
+            [(Release::V751, "AMDP macro $ABAP.schema")]
+        );
+        assert_eq!(
+            body(r#"DECLARE x "$ABAP.type( s_carr_id )";"#),
+            [(Release::V752, "AMDP macro $ABAP.type")]
+        );
+        assert_eq!(body("lt = SELECT a || '|' || b AS c FROM t;"), []);
     }
 
     #[test]

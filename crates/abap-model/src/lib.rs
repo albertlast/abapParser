@@ -434,6 +434,12 @@ pub struct DbTable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved: Option<String>,
     pub role: DbTableRole,
+    /// a table variable of SQLScript (`:lt`): where the statements start
+    /// that may have filled it before this one in the same method, like
+    /// `lt = SELECT ...`, `INSERT INTO :lt`, `:lt.INSERT( ... )` or an
+    /// output of CALL; empty for a parameter of the method
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filled_by: Vec<Position>,
 }
 
 /// A column reference, `qualifier~name` or `name`.
@@ -831,6 +837,11 @@ pub struct StatementInfo {
     /// statements without one are not necessarily correct
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub error: Option<String>,
+    /// for SQLScript of an AMDP method: the oldest SAP HANA version that
+    /// has all the statement uses, when that is newer than HANA 1.0, like
+    /// `HANA 2.0 SPS 03` for `BOOLEAN`
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub hana: Option<ReleaseNeed>,
 }
 
 /// The release a statement or source needs and the construct that needs it.
@@ -851,6 +862,10 @@ pub struct ReleaseReport {
     /// the highest release a statement needs; absent when 7.00 has it all
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub release: Option<ReleaseNeed>,
+    /// the newest SAP HANA version the SQLScript of AMDP methods needs;
+    /// absent when HANA 1.0 has it all
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub hana: Option<ReleaseNeed>,
     /// the release asked about, like `7.50`; absent for 7.00
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub target: Option<String>,

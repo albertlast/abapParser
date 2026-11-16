@@ -954,6 +954,7 @@ impl<'a> Parser<'a> {
                 dynamic,
                 resolved: None,
                 role,
+                filled_by: Vec::new(),
             }),
             next,
         )
