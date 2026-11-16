@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.1
 
 Fixes from the third trip to the SAP_BASIS 7.50 system (2026-11-16), where every active object compiles: the statements of 230 custom objects and 1,154 of SAP, 275 CDS views and 274 AMDP classes were checked, and 42 cases by its syntax check on unsaved text.
 

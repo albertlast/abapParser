@@ -654,7 +654,7 @@ npm run --prefix tools format                     # Markdown, JavaScript, JSON w
 
 ```sh
 cargo run --release -p abap-analysis --example bench     # this checkout
-node tools/bench.mjs v0.6.0 .                            # a release against this checkout
+node tools/bench.mjs v0.7.0 .                            # a release against this checkout
 ```
 
 On the corpus of 3,314 files and 703k lines (Windows 11, one thread for the files):
@@ -691,10 +691,10 @@ ADT is then at `http://localhost:50000`, client 001, user `DEVELOPER` with the p
 The version is kept in the Cargo workspace; `bindings/node/package.json` follows it and the Python package reads it through maturin.
 
 ```sh
-node tools/bench.mjs v0.6.0 .         # speed against the last release, for the changelog
-node tools/version.mjs 0.7.0          # set it in Cargo.toml, Cargo.lock, package.json
-# add a "## 0.7.0" section to CHANGELOG.md, commit, then
-git tag v0.7.0 && git push origin v0.7.0
+node tools/bench.mjs v0.7.0 .         # speed against the last release, for the changelog
+node tools/version.mjs 0.7.1          # set it in Cargo.toml, Cargo.lock, package.json
+# add a "## 0.7.1" section to CHANGELOG.md, commit, then
+git tag v0.7.1 && git push origin v0.7.1
 ```
 
 The tag starts `.github/workflows/release.yml`. It checks that the tag, the packages and the changelog agree, runs CI, and builds the packages:
